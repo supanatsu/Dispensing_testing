@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BELTON IPQC — Dispensing (Buy off & Roving)</title>
+
+  <style>
+    /* Override: ใช้ Calibri เป็นฟ้อนต์หลัก */
+    body,
+    .form-input,
+    .form-select,
+    .btn,
+    .nav-btn,
+    .filter-row input,
+    .filter-row select {
+      font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif !important;
+    }
+
+
+    .pf-toggle {
+      display: flex;
+      gap: 4px;
+      background: var(--bg2);
+      padding: 3px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      height: 32px;
+      box-sizing: border-box;
+    }
+
+    .pf-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+    }
+
+    .pf-btn:hover {
+      background: var(--bg3);
+      color: var(--text2);
+    }
+
+    .pf-toggle[data-value="PASS"] .pf-pass {
+      background: var(--pass);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0, 184, 148, 0.3);
+    }
+
+    .pf-toggle[data-value="FAIL"] .pf-fail {
+      background: var(--fail);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(214, 48, 49, 0.3);
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="tablet_patch.css">
+
+  <style>
+    /* Mono utility override for dispensing page */
+    .mono {
+      font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif !important;
+    }
+
+    thead th[onclick] {
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    thead th[onclick]:hover {
+      background: var(--bg4);
+      color: var(--text);
+    }
+
+    /* (btn-save-draft-primary is now defined in main.css) */
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.5;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0.5;
+      }
+    }
+
+    /* ── Galaxy Tab A11 / tablet ≤900px ── */
+    @media (max-width: 900px) {
+      .form-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+
+      table {
+        min-width: 560px;
+      }
+    }
+  </style>
+  <script src="api.js"></script>
+  <script src="loader.js"></script>
+  <script src="shared_products.js?v=3"></script>
+  <script src="global_nav.js"></script>
+</head>
+
+<body>
+
+  <!-- ══════════════ SIDEBAR (rendered by global_nav.js) ══════════════ -->
+  <aside id="sidebar-root"></aside>
+
+  <!-- ══════════════ MAIN ══════════════ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">Dispensing</div>
+      <div class="topbar-right">
+        <div class="topbar-date" id="clock"></div>
+        <div id="sync-container" class="sync-container" style="border:none;background:transparent;padding:0;gap:8px;">
+          <span id="sync-status-indicator" class="sync-dot offline"
+            style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>
+          <span id="sync-status-text" style="color:var(--text-muted);font-size:12px;">Offline Mode</span>
+          <button id="sync-btn" onclick="triggerManualSync()"
+            style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);font-size:11px;font-weight:600;cursor:pointer;color:var(--text-muted);"
+            title="Refresh Now">🔄 Sync</button>
+        </div>
+        <span style="color:var(--text-muted); font-size:13px;">Administrator</span>
+        <div class="avatar">QC</div>
+      </div>
+    </header>
+
+    <!-- KPI Strip (สถิติหน้าจอ) -->
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(9,132,227,0.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="2" y="4" width="16" height="12" rx="2" stroke="#0984E3" stroke-width="1.5" />
+            <path d="M6 9h8M6 12h5" stroke="#0984E3" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-total" style="color:var(--blue)">0</div>
+          <div class="kpi-lbl">Total Records</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(108,92,231,0.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="#6C5CE7" stroke-width="1.5" />
+            <path d="M10 6v4.5l2.5 2" stroke="#6C5CE7" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-today" style="color:var(--primary)">0</div>
+          <div class="kpi-lbl">Today's Records</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(225,112,85,0.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="7" width="6" height="9" rx="1" stroke="#E17055" stroke-width="1.5" />
+            <rect x="11" y="4" width="6" height="12" rx="1" stroke="#E17055" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-fixture" style="color:var(--gold-dark)">0</div>
+          <div class="kpi-lbl">Active Fixtures</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(253,203,110,0.15)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 3v3M10 14v3M3 10h3M14 10h3" stroke="#E17055" stroke-width="1.5" stroke-linecap="round" />
+            <circle cx="10" cy="10" r="3.5" stroke="#E17055" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-alert" style="color:var(--warn-dark)">0</div>
+          <div class="kpi-lbl">SPC Alerts</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(214,48,49,0.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 4l1.5 4.5H16l-3.5 2.5 1.5 4.5L10 13l-4 2.5 1.5-4.5L4 8.5h4.5L10 4z" stroke="#D63031"
+              stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-ng" style="color:var(--fail)">0</div>
+          <div class="kpi-lbl">NG Count</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(0,184,148,0.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M4 11l4 4 8-9" stroke="#00B894" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-yield" style="color:var(--pass)">—%</div>
+          <div class="kpi-lbl">Overall Yield</div>
+        </div>
+      </div>
+      <div class="kpi-card" title="Records awaiting Bulk Text Merge">
+        <div class="kpi-icon" style="background:rgba(9,132,227,0.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="#0984E3" stroke-width="1.5" stroke-dasharray="3 2" />
+            <path d="M10 7v3.5l2 2" stroke="#0984E3" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-waiting" style="color:var(--primary)">0</div>
+          <div class="kpi-lbl">⏳ Waiting</div>
+        </div>
+      </div>
+      <div class="kpi-card" title="Records with missing data — check import or edit manually">
+        <div class="kpi-icon" style="background:rgba(155,89,182,0.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="#9B59B6" stroke-width="1.5" />
+            <path d="M10 9.5v.5M10 13v.5" stroke="#9B59B6" stroke-width="2" stroke-linecap="round" />
+            <path d="M8 7.5c.5-1.5 4-1.5 4 .5 0 1.5-2 2-2 3" stroke="#9B59B6" stroke-width="1.5"
+              stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-incomplete" style="color:var(--purple)">0</div>
+          <div class="kpi-lbl">❓ Incomplete</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 📍 NAVIGATION TABS                         -->
+    <!-- ========================================== -->
+    <div class="nav-bar">
+      <button class="nav-btn active" data-tab="manual" onclick="switchTab('manual',this)">Stage 1: Manual Input</button>
+      <button class="nav-btn" data-tab="stage2" onclick="switchTab('stage2',this)">Stage 2: Bulk Merge</button>
+      <button class="nav-btn" data-tab="about" onclick="switchTab('about',this)">About Data <span class="badge"
+          id="badge-records">0</span></button>
+
+      <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization & Compare</button>
+      <button class="nav-btn" data-tab="alerts" onclick="switchTab('alerts',this)">Alert Log <span class="badge"
+          id="badge-alerts" style="background:var(--fail)">0</span></button>
+    </div>
+
+    <div class="content">
+
+      <!-- ========================================== -->
+      <!-- TAB 1: MANUAL INPUT                        -->
+      <!-- ========================================== -->
+      <div class="tab-panel active" id="panel-manual">
+        <div class="card">
+          <div class="card-hdr">
+            <h3>MANUAL DATA ENTRY — QC INSPECTION</h3>
+            <div id="form-memory-badge"
+              style="display:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(108,92,231,0.12);color:var(--primary);border:1px solid rgba(108,92,231,0.3);align-items:center;gap:4px;margin-top:4px;">
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+              <div class="form-group"><label style="color:var(--accent)">Data Type (ประเภทข้อมูล)</label>
+                <select id="m-datatype" class="form-select" style="border-color:var(--accent); font-weight:600;">
+                  <option value="Buy off">Buy off</option>
+                  <option value="Roving Audit">Roving Audit</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Product</label>
+                <select id="m-model" class="form-select" onchange="onManualModelChange()">
+                  <option value="">— เลือก Product —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Fixture No. <span style="color:var(--fail);font-size:10px;font-weight:700">*</span></label>
+                <input type="text" id="m-fix1" class="form-input" placeholder="e.g. FIX-001" required>
+              </div>
+              <div class="form-group">
+                <label>PT Number <span style="color:var(--fail);font-size:10px;font-weight:700">*</span></label>
+                <input type="text" id="m-pt" class="form-input" placeholder="e.g. PT-001" required>
+              </div>
+              <div class="form-group"><label>Time Buy Off/Audit</label><input type="time" id="m-buytime"
+                  class="form-input"></div>
+              <div class="form-group"><label>Time M/C</label><input type="time" id="m-mctime" class="form-input"></div>
+              <div class="form-group"><label>Date</label><input type="date" id="m-date" class="form-input"></div>
+              <div class="form-group"><label>Team / Shift</label>
+                <select id="m-team" class="form-select">
+                  <option value="A/Day">A / Day</option>
+                  <option value="A/Night">A / Night</option>
+                  <option value="B/Day">B / Day</option>
+                  <option value="B/Night">B / Night</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>EN Number <span style="color:var(--text3);font-weight:400;text-transform:none">(ตัวอักษร/ตัวเลข
+                    ภาษาอังกฤษ ไม่บังคับ)</span></label>
+                <input type="text" id="m-op" class="form-input" placeholder="e.g. EN001"
+                  oninput="validateOperatorId(this)" style="text-transform:uppercase; letter-spacing:1px;">
+                <div id="m-op-hint" style="font-size:11px;color:var(--text3);margin-top:2px">ตัวอักษรภาษาอังกฤษ
+                  และตัวเลขเท่านั้น (A-Z, 0-9) — ไม่บังคับกรอก</div>
+              </div>
+              <div class="form-group">
+                <label>Oven Number <span style="color:var(--fail);font-size:10px;font-weight:700">*</span> <span
+                    style="color:var(--text3);font-weight:400;text-transform:none"></span></label>
+                <input type="text" id="m-oven" class="form-input" placeholder="e.g. 5/1, 10/2"
+                  oninput="validateOvenNumber(this)" style="letter-spacing:1px;">
+                <div id="m-oven-hint" style="font-size:11px;color:var(--text3);margin-top:2px">รูปแบบ: ตัวเลข/ตัวเลข
+                  เช่น 5/1 หรือ 10/2</div>
+              </div>
+            </div>
+            <div id="val-banner"
+              style="display:none;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:13px;font-weight:600;line-height:1.5;">
+            </div>
+            <div id="manual-form-body">
+              <div class="empty">
+                <p>กรุณาเลือก Product ด้านบนเพื่อเริ่มกรอกข้อมูล</p>
+              </div>
+            </div>
+          </div>
+          <div class="status-bar">
+            <div id="m-status-msg" style="font-size:12px;color:var(--text3);"></div>
+            <div style="margin-left:auto" class="btn-row">
+              <button class="btn btn-outline" onclick="clearFormMemory()" title="ล้างค่าทั้งหมดและลืมค่าที่จำไว้">↺
+                ล้างจอ</button>
+              <button class="btn btn-save-draft-primary" id="btn-save-draft" onclick="saveManualDraft()"
+                title="บันทึกข้อมูล (Save to MySQL)">บันทึก (Save)</button>
+            </div>
+          </div>
+          <div style="padding:6px 14px 10px 14px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)">
+            <b>Tip:</b> กด <kbd
+              style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;font-size:11px">Enter</kbd>
+            ในช่องค่าวัด เพื่อเลื่อนไปช่องถัดไปอัตโนมัติ
+          </div>
+        </div><!-- end card -->
+
+        <!-- PENDING DRAFTS SECTION (below manual form)  -->
+        <div id="panel-manual-pending" style="margin-top:16px;padding-top:0;">
+          <div class="card" style="border-top:3px solid var(--primary);">
+            <div class="card-hdr" style="background:rgba(108,92,231,0.04);">
+              <h3 style="color:var(--primary);">PENDING RECORDS <span
+                  style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Stage 2)</span>
+                <span class="badge" id="badge-pending" style="background:var(--primary);margin-left:8px;">0</span>
+              </h3>
+              <div class="btn-row">
+                <button class="btn btn-outline btn-sm" onclick="renderPendingTable()">Refresh</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllDrafts()">Clear All Waiting</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding-bottom:0">
+              <div id="pending-table-wrap">
+                <div class="empty" style="padding:20px">
+                  <p>ยังไม่มี Pending Records - กด "Save" เพื่อเริ่มต้น</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- end panel-manual -->
+
+      <!-- ========================================== -->
+      <!-- TAB: STAGE 2 BULK MERGE                    -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-stage2">
+
+        <!-- ========================================== -->
+        <!-- STAGE 2: BULK TEXT MERGE                   -->
+        <!-- ========================================== -->
+        <div class="card" style="border-top:3px solid var(--blue);margin-top:0;">
+          <div class="card-hdr" style="background:rgba(9,132,227,0.04);">
+            <h3 style="color:var(--blue);">STAGE 2 — BULK TEXT DATA MERGE <span
+                style="font-weight:400;font-size:12px;color:var(--text3)">(SM Flash / Tab-Separated Values)</span>
+            </h3>
+          </div>
+          <div class="card-body">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:14px">
+              <div class="form-group">
+                <label style="color:var(--blue);font-weight:700">Target Product <span
+                    style="color:var(--fail);font-size:10px">*</span></label>
+                <select id="merge-model" class="form-select" style="border-color:var(--blue);"
+                  onchange="onMergeModelChange()">
+                  <option value="">— เลือก Product —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Target PT Number <span style="color:var(--text3);font-size:10px">(optional — กรองเฉพาะ
+                    PT)</span></label>
+                <input type="text" id="merge-pt" class="form-input" placeholder="เว้นว่างเพื่อใช้ทุก PT"
+                  oninput="refreshMergePreview()">
+              </div>
+              <div class="form-group">
+                <label>Target Oven Number <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+                <input type="text" id="merge-oven" class="form-input" placeholder="เว้นว่างเพื่อใช้ทุก Oven"
+                  oninput="refreshMergePreview()">
+              </div>
+              <div class="form-group">
+                <label>Batch Size <span style="color:var(--text3);font-size:10px">(ชิ้น/ชุด)</span></label>
+                <select id="merge-batch" class="form-select" onchange="refreshMergePreview()">
+                  <option value="4" selected>4 ชิ้น (มาตรฐาน)</option>
+                  <option value="1">1 ชิ้น</option>
+                  <option value="2">2 ชิ้น</option>
+                  <option value="3">3 ชิ้น</option>
+                  <option value="6">6 ชิ้น</option>
+                </select>
+              </div>
+            </div>
+
+
+            <div class="btn-row" style="margin-bottom:8px">
+              <label class="btn btn-outline btn-sm" style="cursor:pointer">
+                Upload .txt / .csv
+                <input type="file" accept=".txt,.csv" style="display:none" onchange="handleMergeFileUpload(this)">
+              </label>
+              <span style="font-size:11px;color:var(--text3);margin-left:4px">หรือ Paste ข้อความด้านล่าง</span>
+            </div>
+
+            <textarea id="bulk-merge-textarea"
+              placeholder="วางข้อมูลจาก SM Flash ที่นี่ — แต่ละบรรทัด = 1 ชิ้นงาน&#10;ตัวอย่าง (tab-separated):&#10;0.9564	0.9552	0.9561	0.0163	-0.0012	0.0001&#10;0.9570	0.9558	0.9565	0.0145	-0.0008	0.0002&#10;0.9562	0.9549	0.9558	0.0171	-0.0019	0.0000&#10;0.9567	0.9555	0.9563	0.0158	-0.0015	0.0001&#10;&#10;หรือ Space-separated ก็ได้:&#10;0.9564 0.9552 0.9561 0.0163 -0.0012 0.0001"
+              style="width:100%;height:130px;resize:vertical;padding:10px;border:1.5px solid var(--border2);border-radius:6px;font-family:'Calibri','Candara','Segoe UI',monospace;font-size:13px;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box"
+              oninput="refreshMergePreview()"></textarea>
+
+            <div style="margin-top:10px" class="btn-row">
+              <button class="btn"
+                style="background:rgba(9,132,227,0.10);border:1.5px solid rgba(9,132,227,0.4);color:var(--blue);font-weight:700;"
+                onclick="refreshMergePreview()">Preview Merge</button>
+              <button class="btn btn-primary" id="btn-bulk-merge" onclick="bulkTextMerge()"
+                style="background:var(--blue);border-color:var(--blue);" disabled>Merge Text Data (0
+                records)</button>
+            </div>
+
+            <div id="merge-preview-area" style="margin-top:14px"></div>
+          </div>
+        </div>
+
+      </div><!-- end panel-stage2 -->
+
+      <!-- ========================================== -->
+      <!-- TAB 2: AUTO IMPORT                         -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-auto">
+        <div class="card">
+          <div class="card-hdr">
+            <h3>AUTO INPUT — UNIVERSAL SPC PARSER</h3>
+            <div class="card-sub">รองรับ .xlsx / .xlsm / .csv · อ่านหน้า "Input data" จาก Excel โดยตรง · AI Mapping
+              Dictionary · ตรวจจับ INCOMPLETE อัตโนมัติ</div>
+          </div>
+          <div class="card-body">
+            <div id="auto-drop-area">
+              <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')" ondrop="handleDropMulti(event)">
+                <div class="dz-icon">📂</div>
+                <h3>คลิกหรือลากไฟล์มาวางที่นี่ (เลือกหลายไฟล์พร้อมกันได้)</h3>
+                <p>รองรับ .xlsx / .xlsm / .csv · เลือกได้หลายไฟล์พร้อมกัน · ตรวจหาหน้า "Input data" อัตโนมัติ</p>
+              </div>
+              <input type="file" id="file-input" style="display:none" accept=".xlsx,.xlsm,.csv" multiple
+                onchange="processFile(this)">
+            </div>
+            <div id="auto-preview-area" style="display:none">
+              <div class="import-hdr-row" style="flex-wrap: wrap; gap:10px; align-items:flex-start;">
+                <div id="import-count-msg" style="color:var(--text2);font-weight:700;flex:1;min-width:300px;"></div>
+                <select id="auto-datatype" style="display:none">
+                  <option value="Buy off">Buy off</option>
+                  <option value="Roving Audit">Roving Audit</option>
+                </select>
+                <div class="btn-row" style="margin-left:auto;">
+                  <button class="btn btn-danger btn-sm" onclick="cancelImport()">✕ ยกเลิก</button>
+                  <button class="btn btn-success btn-sm" onclick="commitImport()">✓ ยืนยันบันทึก</button>
+                </div>
+              </div>
+              <div id="import-outlier-summary"
+                style="display:none;padding:10px 14px;background:var(--warn-bg);border-bottom:1px solid rgba(243,156,18,0.3);font-size:12px;">
+              </div>
+              <div class="tbl-wrap" style="max-height:450px;overflow:auto">
+                <table>
+                  <thead id="import-thead"></thead>
+                  <tbody id="import-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr">
+            <h3>IMPORTED RECORDS — PREVIEW</h3>
+            <div class="card-sub">ประวัติข้อมูลล่าสุด (แสดงสูงสุด 100 รายการ)</div>
+          </div>
+          <div class="card-body">
+            <div class="filter-row">
+              <input type="text" id="auto-search" placeholder="🔍 ค้นหา Fixture / PT / Product..."
+                oninput="handleAutoSearch()">
+              <select id="auto-type-filter" class="form-select" onchange="renderAutoTable()">
+                <option value="">ทุกประเภท (Buy off/Roving)</option>
+                <option value="Buy off">Buy off</option>
+                <option value="Roving Audit">Roving Audit</option>
+              </select>
+              <select id="auto-model-filter" onchange="renderAutoTable()">
+                <option value="">ทุก Product</option>
+              </select>
+              <select id="auto-team-filter" onchange="renderAutoTable()">
+                <option value="">ทุก Team</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+              </select>
+            </div>
+            <div class="tbl-wrap" style="max-height:400px;overflow:auto">
+              <table>
+                <thead id="auto-thead-dynamic"></thead>
+                <tbody id="auto-tbody"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px;" class="btn-row">
+              <span id="auto-count" style="font-size:12px;color:var(--text3);margin-left:auto;font-weight:600;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB 3: ABOUT DATA                          -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-about">
+        <div class="card">
+          <div class="card-hdr">
+            <h3>ABOUT DATA — FULL DETAIL VIEW</h3>
+            <div class="btn-row">
+              <button class="btn btn-outline btn-sm" onclick="openInsertModal()">＋ เพิ่มข้อมูล</button>
+              <button class="btn btn-primary btn-sm" onclick="exportRecords()">↓ Export Excel</button>
+              <button class="btn btn-success btn-sm" onclick="document.getElementById('import-excel-file').click()">↑
+                Import Excel</button>
+              <input type="file" id="import-excel-file" accept=".xlsx, .xls, .csv" style="display:none;"
+                onchange="importExportedExcel(event)" multiple>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="filter-row">
+              <input type="text" id="about-search" placeholder="🔍 ค้นหา..." oninput="handleAboutSearch()">
+              <select id="about-type-filter" class="form-select" onchange="renderAboutTable()">
+                <option value="">ทุกประเภท</option>
+                <option value="Buy off">Buy off</option>
+                <option value="Roving Audit">Roving Audit</option>
+              </select>
+              <select id="about-model-filter" onchange="renderAboutTable()">
+                <option value="">ทุก Product</option>
+              </select>
+              <select id="about-status-filter" onchange="renderAboutTable()">
+                <option value="">ทุก Status</option>
+                <option value="ACCEPT">✅ ACCEPT</option>
+                <option value="ALERT">⚠️ ALERT</option>
+                <option value="REJECT">❌ REJECT</option>
+                <option value="WAITING">⏳ WAITING</option>
+                <option value="INCOMPLETE">❓ INCOMPLETE</option>
+              </select>
+            </div>
+            <div class="tbl-wrap" style="max-height:550px;overflow:auto">
+              <table>
+                <thead id="about-thead">
+                  <tr>
+                    <th style="width:40px"><input type="checkbox" id="selectAllAbout" onclick="toggleAllAboutChk(this)">
+                    </th>
+                    <th>TYPE</th>
+                    <th>STATUS</th>
+                    <th>TIME BUY OFF</th>
+                    <th>PT NAME</th>
+                    <th>PRODUCT</th>
+                    <th>FIXTURE</th>
+                    <th>OVEN</th>
+                    <th>TIME M/C</th>
+                    <th>DATE</th>
+                    <th>TEAM</th>
+                    <th style="width:130px; text-align:right;">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="about-tbody"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+              <button class="btn btn-danger btn-sm" onclick="deleteSelectedAbout()">🗑️ ลบข้อมูลที่เลือก</button>
+              <span style="font-size:12px;color:var(--text3);font-weight:600;" id="about-count"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ========================================== -->
+      <!-- TAB 5: VISUALIZATION                       -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-viz">
+        <div class="card">
+          <div class="card-hdr"
+            style="display:flex; justify-content:space-between; align-items:center; background:var(--bg2);">
+            <h3 style="font-size:14px; font-weight:700; color:var(--text); letter-spacing:0.5px;">📅 DAILY COMPARISON —
+              Dynamic Filter</h3>
+            <div style="font-size:11px; color:var(--text3); text-align:right;">Filter by Date · Data Type · Status · PT
+              Machine<br>ค่า Null ถูกแปลงเป็นเครื่องหมาย "-"</div>
+          </div>
+          <div class="card-body">
+
+            <div class="daily-filter-bar-v2">
+
+              <div class="df-group">
+                <div class="df-label">
+                  DATE RANGE
+                  <span id="daily-date-count" class="df-count-badge" style="display:none;"></span>
+                </div>
+                <div class="df-date-row">
+                  <input type="date" id="daily-start" onchange="handleDailyDateChange()">
+                  <span class="df-date-sep">→</span>
+                  <input type="date" id="daily-end" onchange="handleDailyDateChange()">
+                </div>
+              </div>
+
+              <div class="df-group">
+                <div class="df-label">PRODUCT</div>
+                <select id="daily-model" class="form-select" style="min-width:170px;" onchange="onDailyModelChange()">
+                  <option value="">ทุก Product</option>
+                </select>
+              </div>
+
+              <div class="df-group">
+                <div class="df-label">DATA TYPE</div>
+                <div class="df-chip-row">
+                  <span class="df-chip active-all" data-dtype="all" onclick="setDailyTypeFilter(this,'all')">🔀
+                    All</span>
+                  <span class="df-chip" data-dtype="Buy off" onclick="setDailyTypeFilter(this,'Buy off')">🟢 Buy
+                    off</span>
+                  <span class="df-chip" data-dtype="Roving Audit" onclick="setDailyTypeFilter(this,'Roving Audit')">🔵
+                    Roving</span>
+                </div>
+              </div>
+
+              <div class="df-group">
+                <div class="df-label">STATUS</div>
+                <div class="df-chip-row">
+                  <span class="df-chip active-all" data-status="all"
+                    onclick="setDailyStatusFilter(this,'all')">All</span>
+                  <span class="df-chip" data-status="ACCEPT" onclick="setDailyStatusFilter(this,'ACCEPT')">✅
+                    ACCEPT</span>
+                  <span class="df-chip" data-status="REJECT" onclick="setDailyStatusFilter(this,'REJECT')">❌
+                    REJECT</span>
+                  <span class="df-chip" data-status="ALERT" onclick="setDailyStatusFilter(this,'ALERT')">⚠️ ALERT</span>
+                </div>
+              </div>
+
+              <div class="df-group">
+                <div class="df-label">PT MACHINE</div>
+                <div style="position:relative;" id="pt-dropdown-wrap">
+                  <div id="pt-dropdown-btn" onclick="togglePTDropdown()"
+                    style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:190px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg);cursor:pointer;font-size:13px;font-weight:600;user-select:none;">
+                    <span id="pt-dropdown-label" style="color:var(--text);">🔘 ALL PT</span>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" id="pt-caret"
+                      style="transition:transform 0.2s;flex-shrink:0">
+                      <path d="M3 5l4 4 4-4" stroke="var(--text3)" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    </svg>
+                  </div>
+                  <div id="pt-dropdown-panel"
+                    style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:220px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:500;overflow:hidden;">
+                    <div style="padding:8px;">
+                      <input type="text" id="pt-search-input" placeholder="🔍 ค้นหา PT..." oninput="filterPTList()"
+                        onclick="event.stopPropagation()"
+                        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;background:var(--bg2);">
+                    </div>
+                    <div id="pt-option-list" style="max-height:220px;overflow-y:auto;padding:0 4px 6px 4px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="df-group">
+                <div class="df-label">SAMPLE LIMIT</div>
+                <select id="daily-sample-limit" class="form-select" style="min-width:130px;">
+                  <option value="10">10 ล่าสุด</option>
+                  <option value="20">20 ล่าสุด</option>
+                  <option value="30">30 ล่าสุด</option>
+                  <option value="50">50 ล่าสุด</option>
+                  <option value="0" selected>ทั้งหมด (All)</option>
+                </select>
+              </div>
+
+              <div class="df-group"
+                style="flex-direction:row; align-items:flex-end; gap:8px; justify-content:flex-end;">
+                <button class="df-apply-btn" onclick="applyDailyFilter()">
+                  🔍 แสดงผล
+                </button>
+                <button class="btn btn-outline" style="height:36px;" onclick="exportDailyCompareCSV()">↓ Export</button>
+              </div>
+
+            </div>
+            <div id="daily-compare-body">
+              <div class="empty">
+                <div style="font-size:40px; margin-bottom:12px;">📅</div>
+                <p style="font-size:13px; color:var(--text3);">เลือก Date Range และ Product เพื่อดูข้อมูล</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-2" style="margin-bottom:16px">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>CHART PARAMETERS</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                <div class="form-group"><label>Product</label><select id="v-model" class="form-select"
+                    onchange="updateVizParams()"></select></div>
+                <div class="form-group"><label>Data Type / Mode</label><select id="v-datatype" class="form-select"
+                    onchange="drawSPCChart()">
+                    <option value="">🔀 เปรียบเทียบ Buy off + Roving</option>
+                    <option value="Buy off">🔴 Buy off เท่านั้น</option>
+                    <option value="Roving Audit">🔵 Roving เท่านั้น</option>
+                  </select></div>
+                <div class="form-group"><label>Time Filter (SPC)</label><select id="v-time-filter" class="form-select"
+                    onchange="drawSPCChart()">
+                    <option value="all">ทุกวัน (All Time)</option>
+                    <option value="selected_date" selected>เฉพาะวันที่เลือก (Daily)</option>
+                  </select></div>
+                <div class="form-group"><label>Sample Count</label><select id="v-count" class="form-select"
+                    onchange="drawSPCChart()">
+                    <option value="30">30 ล่าสุด</option>
+                    <option value="50">50 ล่าสุด</option>
+                    <option value="100">100 ล่าสุด</option>
+                    <option value="0" selected>ทั้งหมด</option>
+                  </select></div>
+              </div>
+              <div class="form-group" style="margin-bottom:12px"><label>Parameter</label><select id="v-param"
+                  class="form-select" onchange="drawSPCChart()"></select></div>
+              <div class="param-btn-grid" id="v-param-btns"></div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>SPC VIOLATIONS</h3>
+            </div>
+            <div class="card-body" style="display:flex;flex-direction:column;height:100%;">
+              <div class="violations-list" id="violations-list" style="flex-grow:1;margin-bottom:10px;">
+                <div class="empty" style="padding:20px">
+                  <div class="ei" style="font-size:24px">✅</div>
+                  <p style="font-size:13px">ไม่มี Violation</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:0">
+          <div class="card-hdr">
+            <h3>SPC TREND CHART — <span id="v-chart-title">เลือกพารามิเตอร์</span></h3>
+            <div class="spc-legend">
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart-wrap"><canvas id="spc-chart"></canvas></div>
+          </div>
+        </div>
+
+        <div id="all-params-section" style="display:none; margin-top:16px;"></div>
+
+        <div class="split-2" style="margin-top:16px">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>PROCESS STATS</h3>
+            </div>
+            <div class="card-body">
+              <div id="v-stats"
+                style="font-family:'Calibri','Candara','Segoe UI',sans-serif;font-size:14px;color:var(--text2);line-height:2">
+                —</div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>PROCESS CAPABILITY (Histogram)</h3>
+            </div>
+            <div class="card-body">
+              <div
+                style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11px;font-family:'Calibri','Candara','Segoe UI',sans-serif">
+                <span style="display:flex;align-items:center;gap:4px"><span
+                    style="width:18px;height:2px;background:#2D9CDB;display:inline-block;border-radius:2px"></span>Normal
+                  Dist.</span><span style="display:flex;align-items:center;gap:4px"><span
+                    style="width:18px;height:2px;background:#F5A623;display:inline-block;border-radius:2px;border-top:2px dashed #F5A623"></span>Trend</span><span
+                  style="display:flex;align-items:center;gap:4px"><span
+                    style="width:12px;height:2px;background:#E74C3C;display:inline-block"></span>USL/LSL</span><span
+                  style="display:flex;align-items:center;gap:4px"><span
+                    style="width:12px;height:2px;background:#F39C12;display:inline-block"></span>UCL/LCL</span><span
+                  style="display:flex;align-items:center;gap:4px"><span
+                    style="width:12px;height:2px;background:#27AE60;display:inline-block"></span>CL</span><span
+                  style="display:flex;align-items:center;gap:4px"><span
+                    style="width:12px;height:2px;background:#9B59B6;display:inline-block"></span>Mean</span>
+              </div>
+              <div style="height:220px"><canvas id="hist-chart"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB 6: ALERTS LOG                          -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-alerts">
+        <div class="split-2" style="margin-bottom:16px">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>🚨 OUTLIER / ALERT LOG</h3>
+              <div class="btn-row">
+                <button class="btn btn-outline btn-sm" onclick="syncDataConsistency(false)">🔄 Re-Scan & Sync
+                  All</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAlertLog()">🗑️ Clear Log</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="filter-row" style="margin-bottom:12px">
+                <select id="log-level-filter" onchange="renderAlertLog()" class="form-select" style="width:160px">
+                  <option value="">ทุก Level</option>
+                  <option value="critical">🔴 Critical (NG)</option>
+                  <option value="warn">🟡 Warning (Alert)</option>
+                  <option value="incomplete">❓ INCOMPLETE</option>
+                  <option value="info">🔵 Info</option>
+                </select>
+                <select id="log-model-filter" onchange="renderAlertLog()" class="form-select" style="width:160px">
+                  <option value="">ทุก Product</option>
+                </select>
+              </div>
+              <div id="alert-log-body" style="max-height:500px;overflow-y:auto;"></div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <h3>📧 REPORT & NOTIFICATION</h3>
+              <div class="card-sub">ออกรายงานพร้อมกราฟ / สร้างร่างอีเมล</div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:12px">
+                <label style="display:flex; justify-content:space-between; align-items:center;">
+                  <span>รายชื่อผู้รับแจ้งเตือน (ดึงจาก Dashboard ส่วนกลาง)</span>
+                </label>
+                <div id="recipient-list"
+                  style="padding: 8px; background: #f9f9f9; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-height: 38px;">
+                  กำลังโหลด...
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:12px"><label>Alert Threshold</label><select
+                  id="outlook-threshold" class="form-select">
+                  <option value="critical">🔴 Critical (NG) เท่านั้น</option>
+                  <option value="warn">🟡 Warning + Critical</option>
+                  <option value="all">ทั้งหมด (รวม INCOMPLETE)</option>
+                </select></div>
+              <div class="btn-row" style="margin-bottom:14px"><button class="btn btn-primary"
+                  onclick="generateOutlookDraft()">1. 🔄 ดึงข้อมูล Report (Draft)</button></div>
+              <div id="export-actions" style="display:none;border-top:1px solid var(--border);padding-top:14px;">
+                <span style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;display:block;">2.
+                  เลือกรูปแบบการส่งรายงาน:</span>
+                <div class="btn-row">
+                  <button class="btn btn-blue" onclick="downloadOutlookEml()">📧 ส่งผ่าน Outlook (.eml)</button>
+                  <button class="btn btn-danger" onclick="copyAndOpenGmail()">📮 Gmail</button>
+                  <button class="btn btn-outline" onclick="downloadHtmlReport()">📊 HTML Report</button>
+                </div>
+              </div>
+              <div id="outlook-draft-area" style="display:none;margin-top:14px">
+                <div class="outlook-preview">
+                  <div class="outlook-subject" id="ol-subject"></div>
+                  <div class="outlook-meta" id="ol-meta"></div>
+                  <div class="outlook-body" id="ol-body"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
+    </div><!-- end main container -->
+
+    <!-- ========================================== -->
+    <!-- MODALS & ALERTS                            -->
+    <!-- ========================================== -->
+
+    <div class="alert-panel" id="toast-panel"></div>
+
+    <div class="modal-overlay" id="edit-modal">
+      <div class="modal modal-lg">
+        <div class="modal-hdr"><span style="font-weight:700;font-size:16px">แก้ไขข้อมูล</span><button
+            class="modal-close" onclick="closeModal('edit-modal')">✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group"><label>Data Type</label><select id="e-datatype" class="form-select">
+                <option value="Buy off">Buy off</option>
+                <option value="Roving Audit">Roving Audit</option>
+              </select></div>
+            <div class="form-group"><label>Product</label><select id="e-model" class="form-select"></select></div>
+            <div class="form-group"><label>Fixture</label><input type="text" id="e-fixture" class="form-input"></div>
+            <div class="form-group"><label>PT Name</label><input type="text" id="e-pt" class="form-input"></div>
+            <div class="form-group"><label>Date</label><input type="date" id="e-date" class="form-input"></div>
+            <div class="form-group"><label>Time Buy Off</label><input type="time" id="e-buytime" class="form-input">
+            </div>
+            <div class="form-group"><label>Time M/C</label><input type="time" id="e-mctime" class="form-input"></div>
+            <div class="form-group"><label>Team</label><input type="text" id="e-team" class="form-input"></div>
+          </div>
+          <div id="e-values-section"></div>
+          <div style="text-align:right;margin-top:16px" class="btn-row"><button class="btn btn-outline"
+              onclick="closeModal('edit-modal')">ยกเลิก</button><button class="btn btn-primary"
+              onclick="saveEdit()">บันทึก</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="detail-modal">
+      <div class="modal modal-lg">
+        <div class="modal-hdr"><span style="font-weight:700;font-size:16px">รายละเอียดข้อมูล (Values)</span><button
+            class="modal-close" onclick="closeModal('detail-modal')">✕</button></div>
+        <div class="modal-body" id="detail-modal-body"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="insert-modal">
+      <div class="modal modal-lg">
+        <div class="modal-hdr"><span style="font-weight:700;font-size:16px">เพิ่มข้อมูลใหม่</span><button
+            class="modal-close" onclick="closeModal('insert-modal')">✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group"><label>Product</label><select id="i-model" class="form-select"></select></div>
+            <div class="form-group"><label>Fixture</label><input type="text" id="i-fixture" class="form-input"></div>
+            <div class="form-group"><label>PT Name</label><input type="text" id="i-pt" class="form-input"></div>
+            <div class="form-group"><label>Date</label><input type="date" id="i-date" class="form-input"></div>
+            <div class="form-group"><label>Time Buy Off</label><input type="time" id="i-buytime" class="form-input">
+            </div>
+            <div class="form-group"><label>Time M/C</label><input type="time" id="i-mctime" class="form-input"></div>
+            <div class="form-group"><label>Team / Shift</label><select id="i-team" class="form-select">
+                <option value="A/Day">A / Day</option>
+                <option value="A/Night">A / Night</option>
+                <option value="B/Day">B / Day</option>
+                <option value="B/Night">B / Night</option>
+              </select></div>
+            <div class="form-group"><label>Operator</label><input type="text" id="i-op" class="form-input"
+                value="ADMIN"></div>
+          </div>
+          <div style="text-align:right;margin-top:16px" class="btn-row"><button class="btn btn-outline"
+              onclick="closeModal('insert-modal')">ยกเลิก</button><button class="btn btn-primary"
+              onclick="insertRecord()">เพิ่ม</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SM FLASH IMPORT MODAL -->
+    <div class="modal-overlay" id="smflash-modal">
+      <div class="modal modal-lg" style="max-width:700px">
+        <div class="modal-hdr">
+          <span style="font-weight:700;font-size:16px">SM Flash Import — <span id="smflash-model-display"
+              style="color:var(--accent)">—</span></span>
+          <button class="modal-close" onclick="closeSMFlashModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div
+            style="margin-bottom:10px;padding:10px 14px;background:rgba(9,132,227,0.07);border-radius:6px;border-left:3px solid var(--blue);font-size:12px;color:var(--text2);line-height:1.7">
+            <b>📌 วิธีใช้:</b> Copy ข้อมูลจากหน้าจอ SM Flash แล้ว Paste ลงในช่องด้านล่าง
+            หรืออัปโหลดไฟล์ <code>.txt</code> ที่ Export จาก SM Flash<br>
+            <b>รองรับ Parameter:</b> Coil profile, Epoxy length, Crash stop, Coil position, Bobbin position, Symmetry,
+            Fantail ฯลฯ<br>
+            <span style="color:var(--text3)">⚠️ ระบบจะ <b>ไม่นำเข้า</b> ค่า Parallel, DTM, NDTM (ต้องกรอกแยก)</span>
+          </div>
+
+          <div class="btn-row" style="margin-bottom:8px">
+            <label class="btn btn-outline btn-sm" style="cursor:pointer">
+              📂 Upload .txt File
+              <input type="file" accept=".txt,.csv" style="display:none" onchange="handleSMFlashFileUpload(this)">
+            </label>
+            <span style="font-size:11px;color:var(--text3);margin-left:4px">หรือ Paste ข้อความด้านล่าง</span>
+          </div>
+
+          <textarea id="smflash-textarea"
+            placeholder="วางข้อมูลจาก SM Flash ที่นี่ เช่น:&#10;Coil outer profile U   0.9570&#10;Coil outer profile V   0.9572&#10;Coil outer profile W   0.9568&#10;Epoxy length 1   0.0023&#10;Epoxy length 2  -0.0015&#10;Crash stop profile 1   0.0001&#10;&#10;หรือแบบ key=value:&#10;Coil_outer_profile_u=0.9570&#10;Epoxy_length_1=0.0023"
+            style="width:100%;height:160px;resize:vertical;padding:10px;border:1.5px solid var(--border2);border-radius:6px;font-family:'Calibri','Candara','Segoe UI',sans-serif;font-size:13px;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box"
+            oninput="document.getElementById('smflash-result').innerHTML=''"></textarea>
+
+          <div style="margin-top:8px" class="btn-row">
+            <button class="btn btn-primary" onclick="parseSMFlashFromTextarea()">🔍 อ่านค่า (Parse)</button>
+            <button class="btn btn-success" id="smflash-apply-btn" onclick="applySMFlashValues()" style="display:none">✅
+              นำค่าเข้าฟอร์ม</button>
+          </div>
+
+          <div id="smflash-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function runNav() { if (typeof initGlobalNavigation === 'function') initGlobalNavigation(); }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runNav);
+      } else {
+        runNav();
+      }
+    </script>
+    <script src="dispensing.js"></script>
+  </main>
+</body>
+
+</html>

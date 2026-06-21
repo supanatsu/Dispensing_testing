@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Configuration - BELTON IPQC</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="main.css">
+</head>
+<body>
+  <aside id="sidebar-root"></aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">⚙️ System Configuration</div>
+    </header>
+
+    <div class="content" style="padding: 20px; max-width: 1200px; margin: 0 auto; width: 100%; min-width: 0; box-sizing: border-box;">
+        <div style="background:var(--bg-card); border-radius:var(--radius); padding:24px; box-shadow:0 4px 6px rgba(0,0,0,0.04); margin-bottom:24px; border-left: 4px solid var(--blue);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 24px; flex-wrap:wrap; gap:16px;">
+                <div>
+                    <h2 style="color:var(--primary-dark); margin-top:0; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        System SPC Settings
+                    </h2>
+                    <p style="color:var(--text-muted); font-size:13px; margin:0;">
+                        จัดการเส้น Control Limits (LSL, LCL, CL, UCL, USL) ของกราฟ SPC สำหรับทุกโมดูลในระบบ
+                    </p>
+                </div>
+                <div class="btn-row" style="gap: 12px;">
+                    <button class="btn btn-outline" onclick="exportSysConfig()" style="font-weight:600; padding:8px 16px;">↓ Export JSON</button>
+                    <button class="btn btn-outline" onclick="document.getElementById('sys-config-file-input').click()" style="font-weight:600; padding:8px 16px;">↑ Import JSON</button>
+                    <input type="file" id="sys-config-file-input" style="display:none" accept=".json" onchange="importSysConfig(this)">
+                    <button class="btn btn-primary" onclick="saveSysConfigs()" style="background:#10b981; border:none; padding:8px 20px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾 บันทึกการตั้งค่า</button>
+                </div>
+            </div>
+
+            <div style="background:var(--bg2); padding: 16px 20px; border-radius:8px; margin-bottom: 24px;">
+                <div class="form-grid" style="grid-template-columns:auto auto auto 1fr; align-items: end;">
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label style="font-weight:bold; color:var(--text-dark); margin-bottom:8px;">1. เลือกโมดูล (Module)</label>
+                        <div class="btn-row" id="sys-cfg-module-btns" style="margin-bottom:8px; flex-wrap: wrap; gap:8px;">
+                            <button class="btn btn-primary sys-mod-btn" data-mod="dispensing" onclick="setSysModule('dispensing', this)" style="padding:8px 20px; font-weight:600;">Dispensing</button>
+                            <button class="btn btn-outline sys-mod-btn" data-mod="laser" onclick="setSysModule('laser', this)" style="padding:8px 20px; font-weight:600;">Laser Engraving</button>
+                            <button class="btn btn-outline sys-mod-btn" data-mod="pof" onclick="setSysModule('pof', this)" style="padding:8px 20px; font-weight:600;">Push Out Force</button>
+                            <button class="btn btn-outline sys-mod-btn" data-mod="damper" onclick="setSysModule('damper', this)" style="padding:8px 20px; font-weight:600;">Damper Install</button>
+                        </div>
+                        <input type="hidden" id="sys-cfg-module" value="dispensing">
+                    </div>
+                </div>
+            </div>
+
+            <!-- DISPENSING CONFIG PANEL -->
+            <div id="cfg-panel-dispensing">
+                <div class="form-grid" style="grid-template-columns:auto auto 1fr; align-items: end; margin-bottom: 16px;">
+                    <div class="form-group">
+                        <label style="font-weight:bold; color:var(--text-dark);">2. เลือกประเภท (Data Type)</label>
+                        <select id="sys-cfg-datatype" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; padding:10px; border-radius:6px; background:#fff;">
+                            <option value="Buy off">Buy off</option>
+                            <option value="Roving Audit">Roving Audit</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:bold; color:var(--text-dark);">3. เลือก Dispensing Product</label>
+                        <select id="sys-cfg-model" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; padding:10px; border-radius:6px; background:#fff; min-width: 200px;">
+                            <option value="">— เลือก Dispensing Product —</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                        <button class="btn btn-outline" onclick="addSysConfigRow()" style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
+                        <button class="btn btn-danger" onclick="resetSysModelConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                    </div>
+                </div>
+
+                <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee;">
+                    <table style="margin: 0; width: 100%;">
+                        <thead style="background: #f8fafc;">
+                            <tr>
+                                <th style="padding: 12px 16px; font-weight: 700; color: #334155;">Parameter Name</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: var(--fail);">LSL</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: var(--warn);">LCL</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: var(--green);">CL (Target)</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: var(--warn);">UCL</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: var(--fail);">USL</th>
+                                <th style="padding: 12px 16px; font-weight: 700; color: #334155;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sys-cfg-tbody" style="background: #fff;"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LASER CONFIG PANEL -->
+            <div id="cfg-panel-laser" style="display:none;">
+                <div style="background:var(--bg2); padding: 20px; border-radius:8px; border-left: 4px solid #f59e0b;">
+                    <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                        <svg fill="none" viewBox="0 0 24 24" width="18" height="18">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" stroke="#f59e0b" />
+                        </svg>
+                        Laser Engraving — Settings
+                    </h3>
+                    
+                    <div id="gc-laser-summary" style="background: #fff; border: 1.5px solid rgba(245,158,11,0.35); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+                        <div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📋 ค่าที่บันทึกอยู่ใน LocalStorage ตอนนี้</div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+                            <div style="background:rgba(245,158,11,0.06);border-radius:6px;padding:10px 12px;">
+                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">E-BLOCK — Qty/Batch</div>
+                                <div id="gc-laser-stored-eblock" style="font-size:20px;font-weight:800;color:var(--accent);">—</div>
+                                <div style="font-size:10px;color:#b45309;">pcs / batch</div>
+                            </div>
+                            <div style="background:rgba(245,158,11,0.06);border-radius:6px;padding:10px 12px;">
+                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">BOBBIN — Qty/Batch</div>
+                                <div id="gc-laser-stored-bobbin" style="font-size:20px;font-weight:800;color:var(--accent);">—</div>
+                                <div style="font-size:10px;color:#b45309;">pcs / batch</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(245,158,11,0.2);display:flex;justify-content:flex-end;">
+                            <button class="btn btn-outline btn-sm" onclick="loadGlobalLaserConfig()" style="font-size:11px;">🔄 รีเฟรชค่าที่แสดง</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:20px; padding:16px; background:rgba(245,158,11,0.05); border-radius:8px; border:1px solid rgba(245,158,11,0.2);">
+                        <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 16px;">
+                            <div class="form-group">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก Product (สำหรับตั้งค่าเฉพาะรุ่น)</label>
+                                <select id="gc-laser-product" class="form-select" onchange="loadGlobalLaserConfig()" style="font-weight:600; min-width:250px;">
+                                    <option value="">— ค่าเริ่มต้น (Default ทุกรุ่น) —</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                <button class="btn btn-danger" onclick="resetGlobalLaserConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                            </div>
+                        </div>
+                        
+                        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">📦 Buy Off Qty / Batch</div>
+                        
+                        <div id="gc-laser-default-qtys" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px;">
+                            <div>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: E-block — Qty/Batch</label>
+                                <input type="number" id="gc-laser-qty-eblock" placeholder="Default: 2" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: Bobbin — Qty/Batch</label>
+                                <input type="number" id="gc-laser-qty-bobbin" placeholder="Default: 15" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
+                            </div>
+                        </div>
+
+                        <div id="gc-laser-product-qty-container" style="display:none; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px;">
+                            <div>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: E-block (เฉพาะรุ่น)</label>
+                                <input type="number" id="gc-laser-qty-product-eblock" placeholder="เว้นว่างไว้เพื่อใช้ค่า Default" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: Bobbin (เฉพาะรุ่น)</label>
+                                <input type="number" id="gc-laser-qty-product-bobbin" placeholder="เว้นว่างไว้เพื่อใช้ค่า Default" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tbl-wrap" style="margin-top: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #eee;">
+                        <table style="margin: 0; width: 100%; border-collapse: collapse;">
+                            <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                <tr>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Product Name</th>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">E-block Qty/Batch</th>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">Bobbin Qty/Batch</th>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center; width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sys-cfg-laser-tbody" style="background: #fff;"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POF CONFIG PANEL -->
+            <div id="cfg-panel-pof" style="display:none;">
+                <div style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #8b5cf6; margin-bottom:16px;">
+                    <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                        <svg fill="none" viewBox="0 0 24 24" width="18" height="18">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" stroke="#8b5cf6" />
+                        </svg>
+                        Push Out Force — SPC Parameters
+                    </h3>
+                    <div style="margin-bottom:20px; padding:16px; background:rgba(139,92,246,0.05); border-radius:8px; border:1px solid rgba(139,92,246,0.2);">
+                        <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 0;">
+                            <div class="form-group">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก Product</label>
+                                <select id="gc-pof-product" class="form-select" onchange="loadGlobalPofConfig()" style="font-weight:600; min-width:250px;">
+                                    <option value="">— เลือก Product —</option>
+                                    <option value="cim3d">Cimarron BP 3D</option>
+                                    <option value="cim4d">Cimarron BP 4D</option>
+                                    <option value="cim5d">Cimarron BP 5D</option>
+                                    <option value="comet">ComET</option>
+                                    <option value="dor5d">Dorado 5D</option>
+                                    <option value="dor5dbb">Dorado 5D AL BB</option>
+                                    <option value="dor10d">Dorado 10D</option>
+                                    <option value="m11p">M11 P</option>
+                                    <option value="mar10d">Marlin 10D</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                <button class="btn btn-danger" onclick="resetGlobalPofConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="gc-pof-form" style="display:none; margin-top:16px;">
+                        <div style="margin-bottom:12px;">
+                            <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">Unit</label>
+                            <select id="gc-pof-unit" style="max-width:150px;padding:9px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);box-sizing:border-box;">
+                                <option value="kg">kg</option>
+                                <option value="g">g</option>
+                                <option value="N">N</option>
+                                <option value="lbs">lbs</option>
+                                <option value="kgf">kgf</option>
+                                <option value="lbf">lbf</option>
+                            </select>
+                        </div>
+
+                        <!-- 🔴 BUY OFF SECTION -->
+                        <h4 style="margin:0 0 12px 0; font-size:14px; color:var(--fail); border-bottom:1px solid #eee; padding-bottom:8px;">🔴 Buy Off</h4>
+                        <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
+                            <table style="margin: 0; width: 100%;">
+                                <thead style="background: #f8fafc;">
+                                    <tr>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Parameter</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Spec (Min)</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Trigger</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">UCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">CL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range UCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range CL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#0ea5e9;">Main POF (SL)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-spec" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-trig" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-ucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-cl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-lcl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-rucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-rcl" class="form-input"></td>
+                                    </tr>
+                                    <tr id="gc-pof-bobbin-wrap-buyoff" style="border-bottom: 1px solid #f1f5f9; display:none;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#8b5cf6;">Bobbin POF</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-spec" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-trig" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-ucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-cl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-lcl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-rucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-rcl" class="form-input"></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 16px; font-weight:600; color:#10b981;">Epoxy Coverage (%)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-epoxy-spec" class="form-input" placeholder="e.g. 50"></td>
+                                        <td colspan="6" style="padding: 8px; text-align:center; color:var(--text-muted); font-size:12px;">(เฉพาะ Spec Min)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 🔵 ROVING AUDIT SECTION -->
+                        <h4 style="margin:0 0 12px 0; font-size:14px; color:var(--blue); border-bottom:1px solid #eee; padding-bottom:8px;">🔵 Roving Audit</h4>
+                        <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
+                            <table style="margin: 0; width: 100%;">
+                                <thead style="background: #f8fafc;">
+                                    <tr>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Parameter</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Spec (Min)</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Trigger</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">UCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">CL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range UCL</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range CL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#0ea5e9;">Main POF (SL)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-spec" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-trig" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-ucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-cl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-lcl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-rucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-rcl" class="form-input"></td>
+                                    </tr>
+                                    <tr id="gc-pof-bobbin-wrap-roving" style="border-bottom: 1px solid #f1f5f9; display:none;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#8b5cf6;">Bobbin POF</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-spec" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-trig" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-ucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-cl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-lcl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-rucl" class="form-input"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-rcl" class="form-input"></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 16px; font-weight:600; color:#10b981;">Epoxy Coverage (%)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-epoxy-spec" class="form-input" placeholder="e.g. 50"></td>
+                                        <td colspan="6" style="padding: 8px; text-align:center; color:var(--text-muted); font-size:12px;">(เฉพาะ Spec Min)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- The table ends here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- DAMPER CONFIG PANEL -->
+            <div id="cfg-panel-damper" style="display:none;">
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-hdr">
+                        <div>
+                            <h3>Damper Install Specifications</h3>
+                            <div class="card-sub">ตั้งค่า Nominal และ Tolerance ของ Dimension (อ้างอิงตามเกณฑ์ Damper)</div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Short Damper -->
+                        <div style="margin-bottom:20px; padding:16px; background:rgba(236,72,153,0.05); border-radius:8px; border:1px solid rgba(236,72,153,0.2);">
+                            <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 0;">
+                                <div class="form-group">
+                                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Select Product (เลือกเพื่อตั้งค่าเฉพาะรุ่น)</label>
+                                    <select id="gc-dmp-product" class="form-select" onchange="loadGlobalDamperConfig()" style="font-weight:600; min-width:250px;">
+                                        <option value="">— ค่าเริ่มต้น (Default ทุกรุ่น) —</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                    <button class="btn btn-danger" onclick="resetGlobalDamperConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
+                            <table style="margin: 0; width: 100%;">
+                                <thead style="background: #f8fafc;">
+                                    <tr>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Damper Type</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Point</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Nominal (in.)</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Tolerance (±)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td rowspan="2" style="padding: 12px 16px; font-weight:700; color:#0ea5e9; vertical-align:middle; border-right:1px solid #f1f5f9;">1. Short Damper</td>
+                                        <td style="padding: 8px 16px; font-weight:600; color:#334155;">Point 1 (P1)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-short_p1-nom" class="form-input" placeholder="1.358"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-short_p1-tol" class="form-input" placeholder="0.010"></td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#334155;">Point 2 (P2)</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-short_p2-nom" class="form-input" placeholder="0.030"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-short_p2-tol" class="form-input" placeholder="0.010"></td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td rowspan="2" style="padding: 12px 16px; font-weight:700; color:#d946ef; vertical-align:middle; border-right:1px solid #f1f5f9;">2. Long Damper</td>
+                                        <td style="padding: 8px 16px; font-weight:600; color:#334155;">Top</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-long_top-nom" class="form-input" placeholder="0.814"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-long_top-tol" class="form-input" placeholder="0.010"></td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px 16px; font-weight:600; color:#334155;">Bottom</td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-long_bot-nom" class="form-input" placeholder="0.030"></td>
+                                        <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-long_bot-tol" class="form-input" placeholder="0.010"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Table ends here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </main>
+  
+  <div class="alert-panel" id="toast-panel"></div>
+
+  <script src="api.js"></script>
+  <script src="global_nav.js"></script>
+  <script src="shared_products.js?v=3"></script>
+  <script src="global_config.js"></script>
+  <script>
+    if (typeof initGlobalNavigation === 'function') {
+        initGlobalNavigation('system-config');
+    }
+
+    const SYS_CFG_KEYS = {
+        'dispensing': 'belton_ipqc_dispensing_merged',
+        'laser': 'belton_laser_config_v1',
+        'pof': 'belton_pof_config_v1',
+        'damper': 'belton_damper_config_v1'
+    };
+
+    let currentSysCfg = {};
+
+    function setSysModule(mod, btn) {
+        document.querySelectorAll('.sys-mod-btn').forEach(b => {
+            b.classList.remove('btn-primary');
+            b.classList.add('btn-outline');
+        });
+        if (btn) {
+            btn.classList.remove('btn-outline');
+            btn.classList.add('btn-primary');
+        }
+        document.getElementById('sys-cfg-module').value = mod;
+        sysConfigModuleChange();
+    }
+
+    function sysConfigModuleChange() {
+        const mod = document.getElementById('sys-cfg-module').value;
+
+        // Show/Hide Panels
+        const panelDispensing = document.getElementById('cfg-panel-dispensing');
+        const panelLaser = document.getElementById('cfg-panel-laser');
+        const panelPof = document.getElementById('cfg-panel-pof');
+        const panelDamper = document.getElementById('cfg-panel-damper');
+
+        if (panelDispensing) panelDispensing.style.display = 'none';
+        if (panelLaser) panelLaser.style.display = 'none';
+        if (panelPof) panelPof.style.display = 'none';
+        if (panelDamper) panelDamper.style.display = 'none';
+
+        if (mod === 'dispensing') {
+            if (panelDispensing) panelDispensing.style.display = 'block';
+        } else if (mod === 'laser') {
+            if (panelLaser) panelLaser.style.display = 'block';
+            if (typeof initGlobalConfig === 'function') initGlobalConfig();
+            if (typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
+            return; // Laser has no SPC table logic here
+        } else if (mod === 'pof') {
+            if (panelPof) panelPof.style.display = 'block';
+            if (typeof initGlobalConfig === 'function') initGlobalConfig(); // reset POF dropdown
+            return; // POF has its own config panel logic
+        } else if (mod === 'damper') {
+            if (panelDamper) panelDamper.style.display = 'block';
+            if (typeof initGlobalConfig === 'function') initGlobalConfig();
+            if (typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
+            return;
+        }
+
+        // Only Dispensing reaches here
+        const lsKey = SYS_CFG_KEYS[mod];
+        let data = localStorage.getItem(lsKey);
+        currentSysCfg = {};
+
+        if (data) {
+            try {
+                let parsed = JSON.parse(data);
+                // Handle dispensing merged DB vs raw config objects
+                if (mod === 'dispensing') {
+                    currentSysCfg = parsed.configs || {};
+                } else {
+                    currentSysCfg = parsed || {};
+                }
+            } catch (e) {
+                console.error("Parse error for config:", mod);
+            }
+        }
+
+        // Fill default configs for Dispensing if empty or missing
+        if (mod === 'dispensing') {
+            for (let k in PRODUCTS) {
+                if (!currentSysCfg[k]) currentSysCfg[k] = {};
+                if (!currentSysCfg[k + '_rov']) currentSysCfg[k + '_rov'] = {};
+
+                // Ensure all dims are present
+                const dims = PRODUCTS[k].dims || [];
+                dims.forEach(dim => {
+                    let param = typeof dim === 'string' ? dim : dim.id;
+                    if (!currentSysCfg[k][param]) currentSysCfg[k][param] = {};
+                    if (!currentSysCfg[k + '_rov'][param]) currentSysCfg[k + '_rov'][param] = {};
+                });
+
+                // Fill Buy off specs
+                let defBuyoff = SPEC_BUYOFF[k] || {};
+                for (let param in defBuyoff) {
+                    if (!currentSysCfg[k][param]) currentSysCfg[k][param] = {};
+                    currentSysCfg[k][param] = { ...defBuyoff[param], ...currentSysCfg[k][param] };
+                }
+                // Fill Roving specs
+                let defRov = SPEC_ROVING[k] || {};
+                for (let param in defRov) {
+                    if (!currentSysCfg[k + '_rov'][param]) currentSysCfg[k + '_rov'][param] = {};
+                    currentSysCfg[k + '_rov'][param] = { ...defRov[param], ...currentSysCfg[k + '_rov'][param] };
+                }
+            }
+        }
+
+        // Populate products based on existing keys in the config
+        const selModel = document.getElementById('sys-cfg-model');
+        selModel.innerHTML = '<option value="">— เลือก Product —</option>';
+
+        // Extract unique base models (removing _rov suffix for display)
+        let models = new Set();
+        Object.keys(currentSysCfg).forEach(k => {
+            if (typeof currentSysCfg[k] === 'object' && !k.endsWith('_settings') && !k.endsWith('_config')) {
+                models.add(k.replace('_rov', ''));
+            }
+        });
+
+        // If empty, add some defaults to start with
+        if (models.size === 0) {
+            models.add('DefaultModel');
+        }
+
+        models.forEach(m => {
+            let opt = document.createElement('option');
+            opt.value = m;
+
+            let label = m;
+            const moduleName = document.getElementById('sys-cfg-module').value;
+            if (moduleName === 'dispensing' && typeof PRODUCTS !== 'undefined' && PRODUCTS[m]) {
+                label = PRODUCTS[m].label;
+            } else if (moduleName === 'pof' && typeof POF_PRODUCTS_DEFAULT !== 'undefined' && POF_PRODUCTS_DEFAULT[m]) {
+                label = POF_PRODUCTS_DEFAULT[m].label;
+            }
+
+            opt.textContent = label;
+            selModel.appendChild(opt);
+        });
+
+        renderSysConfigTable();
+    }
+
+    function renderSysConfigTable() {
+        const tbody = document.getElementById('sys-cfg-tbody');
+        const mod = document.getElementById('sys-cfg-model').value;
+        const dtype = document.getElementById('sys-cfg-datatype').value;
+
+        if (!mod) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">กรุณาเลือก Product ด้านบนเพื่อจัดการพารามิเตอร์</td></tr>';
+            return;
+        }
+
+        const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+        const targetCfg = currentSysCfg[cfgKey] || {};
+
+        let html = '';
+        Object.keys(targetCfg).forEach(param => {
+            const vals = targetCfg[param];
+            if (typeof vals !== 'object') return; // Skip non-parameter keys
+            html += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px; text-align:center;"><button class="btn btn-danger btn-sm" onclick="deleteSysConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button></td>
+                </tr>
+            `;
+        });
+
+        if (!html) {
+            html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">ยังไม่มีพารามิเตอร์ กรุณากด ＋ เพิ่มพารามิเตอร์ ด้านบน</td></tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function addSysConfigRow() {
+        const mod = document.getElementById('sys-cfg-model').value;
+        const dtype = document.getElementById('sys-cfg-datatype').value;
+        if (!mod) return alert('กรุณาเลือก Product ก่อนเพิ่มพารามิเตอร์');
+
+        const param = prompt('ระบุชื่อ Parameter:');
+        if (!param) return;
+
+        const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+        if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
+        if (currentSysCfg[cfgKey][param]) return alert('พารามิเตอร์นี้มีอยู่แล้ว');
+
+        currentSysCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null };
+        renderSysConfigTable();
+    }
+
+    function deleteSysConfigRow(param) {
+        const mod = document.getElementById('sys-cfg-model').value;
+        const dtype = document.getElementById('sys-cfg-datatype').value;
+        if (!confirm(`ลบพารามิเตอร์ ${param} หรือไม่?`)) return;
+
+        const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+        if (currentSysCfg[cfgKey]) {
+            delete currentSysCfg[cfgKey][param];
+        }
+        renderSysConfigTable();
+    }
+
+    function saveSysConfigs() {
+        const moduleName = document.getElementById('sys-cfg-module').value;
+
+        // Dispatch to specific save functions if needed
+        if (moduleName === 'laser') {
+            if (typeof saveGlobalLaserConfig === 'function') saveGlobalLaserConfig();
+            return;
+        } else if (moduleName === 'pof') {
+            if (typeof saveGlobalPofConfig === 'function') saveGlobalPofConfig();
+            return;
+        } else if (moduleName === 'damper') {
+            if (typeof saveGlobalDamperConfig === 'function') saveGlobalDamperConfig();
+            return;
+        }
+
+        // --- Dispensing Save Logic ---
+        const mod = document.getElementById('sys-cfg-model').value;
+        const dtype = document.getElementById('sys-cfg-datatype').value;
+        if (!mod) return alert('กรุณาเลือก Product');
+
+        const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+        if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
+
+        const inputs = document.querySelectorAll('.sys-cfg-val');
+        inputs.forEach(inp => {
+            const param = inp.dataset.param;
+            const type = inp.dataset.type;
+            const val = inp.value === '' ? null : parseFloat(inp.value);
+            if (!currentSysCfg[cfgKey][param]) currentSysCfg[cfgKey][param] = {};
+            currentSysCfg[cfgKey][param][type] = val;
+        });
+
+        // Save back to local storage
+        const lsKey = SYS_CFG_KEYS[moduleName];
+        let data = localStorage.getItem(lsKey);
+        let parsed = {};
+        if (data) {
+            try { parsed = JSON.parse(data); } catch (e) { }
+        }
+
+        parsed.configs = currentSysCfg;
+
+        localStorage.setItem(lsKey, JSON.stringify(parsed));
+        alert(`✅ บันทึก Config ของ Dispensing สำเร็จ`);
+    }
+
+    function resetSysModelConfig() {
+        if (!confirm('ยืนยันการล้างค่าพารามิเตอร์ทั้งหมดใน Product นี้?')) return;
+        const mod = document.getElementById('sys-cfg-model').value;
+        const dtype = document.getElementById('sys-cfg-datatype').value;
+        const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+        currentSysCfg[cfgKey] = {};
+        renderSysConfigTable();
+    }
+
+    function exportSysConfig() {
+        const mod = document.getElementById('sys-cfg-module').value;
+        let dataToExport = {};
+        
+        if (mod === 'dispensing') {
+            dataToExport = currentSysCfg;
+        } else {
+            const lsKey = SYS_CFG_KEYS[mod];
+            let data = localStorage.getItem(lsKey);
+            if (data) {
+                try { dataToExport = JSON.parse(data); } catch(e) {}
+            }
+        }
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+        const node = document.createElement('a');
+        node.setAttribute("href", dataStr);
+        node.setAttribute("download", `system_config_${mod}_export.json`);
+        document.body.appendChild(node);
+        node.click();
+        node.remove();
+    }
+
+    function importSysConfig(input) {
+        if (!input.files || !input.files[0]) return;
+        const mod = document.getElementById('sys-cfg-module').value;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                let parsed = JSON.parse(e.target.result);
+                if (mod === 'dispensing') {
+                    currentSysCfg = parsed;
+                    alert("Import สำเร็จ! กรุณากดบันทึกเพื่อบันทึกลงระบบ");
+                    renderSysConfigTable();
+                } else {
+                    const lsKey = SYS_CFG_KEYS[mod];
+                    localStorage.setItem(lsKey, JSON.stringify(parsed));
+                    alert(`Import ${mod.toUpperCase()} Config สำเร็จ!`);
+                    if (mod === 'laser' && typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
+                    if (mod === 'pof' && typeof loadGlobalPofConfig === 'function') loadGlobalPofConfig();
+                    if (mod === 'damper' && typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
+                }
+            } catch (err) {
+                alert("รูปแบบไฟล์ไม่ถูกต้อง");
+            }
+            input.value = "";
+        };
+        reader.readAsText(input.files[0]);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof sysConfigModuleChange === 'function') {
+            sysConfigModuleChange();
+        }
+    });
+  </script>
+</body>
+</html>

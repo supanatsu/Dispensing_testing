@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BELTON IPQC — Push Out Force</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="tablet_patch.css">
+  <style>
+    body,
+    .form-input,
+    .form-select,
+    .btn,
+    .nav-btn {
+      font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif !important;
+    }
+
+    body {
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    thead th[onclick] {
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+
+    thead th[onclick]:hover {
+      background: var(--bg4);
+      color: var(--text);
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(.95);
+        opacity: .5;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(.95);
+        opacity: .5;
+      }
+    }
+
+    /* Live result row */
+    .live-box {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    .live-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .live-item span:first-child {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .live-item span:last-child {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    /* SPC Gauge */
+    .spc-wrap {
+      padding: 12px 16px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .spc-bar {
+      position: relative;
+      height: 16px;
+      border-radius: 8px;
+      overflow: visible;
+      background: linear-gradient(90deg, rgba(220, 38, 38, .18) 0%, rgba(234, 179, 8, .18) 20%, rgba(22, 163, 74, .18) 40%, rgba(22, 163, 74, .18) 60%, rgba(234, 179, 8, .18) 80%, rgba(220, 38, 38, .18) 100%);
+      border: 1px solid var(--border);
+    }
+
+    .spc-needle {
+      position: absolute;
+      top: -4px;
+      width: 4px;
+      height: 24px;
+      border-radius: 2px;
+      background: var(--accent);
+      transform: translateX(-50%);
+      transition: left .4s cubic-bezier(.4, 0, .2, 1);
+      box-shadow: 0 0 6px rgba(232, 51, 58, .5);
+    }
+
+    .spc-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 3px;
+      font-size: 9px;
+      color: var(--text3);
+    }
+
+    .spc-chips {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .spc-chip {
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .spc-chip.ok {
+      background: rgba(22, 163, 74, .12);
+      color: var(--pass);
+    }
+
+    .spc-chip.out {
+      background: rgba(220, 38, 38, .12);
+      color: var(--fail);
+    }
+
+    /* SPC Config Cards */
+    .cfg-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px;
+    }
+
+    .cfg-item label {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .cfg-item input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1.5px solid var(--border2);
+      border-radius: 5px;
+      font-size: 12px;
+      text-align: center;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+    }
+
+    .cfg-item input:focus {
+      border-color: var(--accent);
+    }
+
+    .cfg-ucl input,
+    .cfg-lcl input {
+      border-color: rgba(220, 38, 38, .4);
+    }
+
+    .cfg-cl input {
+      border-color: rgba(22, 163, 74, .4);
+    }
+
+    .cfg-trig input {
+      border-color: rgba(234, 179, 8, .4);
+    }
+
+    @media(max-width:680px) {
+      .live-box {
+        grid-template-columns: repeat(2, 1fr)
+      }
+    }
+
+    /* ── Galaxy Tab A11 / tablet ≤900px ── */
+    @media (max-width: 900px) {
+      .cfg-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .live-box {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .spc-ticks {
+        font-size: 8px;
+      }
+    }
+
+    /* ── PASS/FAIL Toggle (matches Dispensing module) ── */
+    .pf-toggle {
+      display: flex;
+      gap: 4px;
+      background: var(--bg2);
+      padding: 3px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      height: 32px;
+      box-sizing: border-box;
+    }
+
+    .pf-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+    }
+
+    .pf-btn:hover {
+      background: var(--bg3);
+      color: var(--text2);
+    }
+
+    .pf-toggle[data-value="Pass"] .pf-pass {
+      background: var(--pass);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0, 184, 148, 0.3);
+    }
+
+    .pf-toggle[data-value="Fail"] .pf-fail {
+      background: var(--fail);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(214, 48, 49, 0.3);
+    }
+
+    .pf-toggle[data-value="Hold"] .pf-hold {
+      background: var(--warn);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(243, 156, 18, 0.3);
+    }
+  </style>
+  <script src="loader.js"></script>
+  <script src="api.js"></script>
+  <script src="global_nav.js"></script>
+</head>
+
+<body>
+
+  <!-- ══════════════ SIDEBAR (rendered by global_nav.js) ══════════════ -->
+  <aside id="sidebar-root"></aside>
+
+  <!-- ══════════════ MAIN ══════════════ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">Push Out Force</div>
+      <div class="topbar-right">
+        <div class="topbar-date" id="clock"></div>
+        <div id="sync-container" class="sync-container" style="border:none;background:transparent;padding:0;gap:8px;">
+          <span id="sync-status-indicator" class="sync-dot offline"
+            style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>
+          <span id="sync-status-text" style="color:var(--text-muted);font-size:12px;">Offline Mode</span>
+          <button id="sync-btn" onclick="syncWithServer()"
+            style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);font-size:11px;font-weight:600;cursor:pointer;color:var(--text-muted);">🔄
+            Sync</button>
+        </div>
+        <span style="color:var(--text-muted); font-size:13px;">Administrator</span>
+        <div class="avatar">QC</div>
+      </div>
+    </header>
+
+    <!-- ═══ KPI STRIP ═══ -->
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(30,58,138,.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="2" y="4" width="16" height="12" rx="2" stroke="#1e3a8a" stroke-width="1.5" />
+            <path d="M6 9h8M6 12h5" stroke="#1e3a8a" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-total" style="color:#1e3a8a">0</div>
+          <div class="kpi-lbl">Total Records</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(108,92,231,.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="#6C5CE7" stroke-width="1.5" />
+            <path d="M10 6v4.5l2.5 2" stroke="#6C5CE7" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-today" style="color:#6C5CE7">0</div>
+          <div class="kpi-lbl">Today's Records</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(22,163,74,.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M4 11l4 4 8-9" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-pass" style="color:var(--pass)">0</div>
+          <div class="kpi-lbl">IN Spec</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(220,38,38,.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M5 5l10 10M15 5L5 15" stroke="#dc2626" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-fail" style="color:var(--fail)">0</div>
+          <div class="kpi-lbl">OUT Spec</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(234,179,8,.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="#ca8a04" stroke-width="1.5" />
+            <path d="M10 7v4M10 13v.5" stroke="#ca8a04" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-trigger" style="color:var(--warn)">0</div>
+          <div class="kpi-lbl">Out Trigger</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(0,184,148,.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M4 11l4 4 8-9" stroke="#00B894" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-yield" style="color:var(--pass)">—%</div>
+          <div class="kpi-lbl">Overall Yield</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(45,156,219,.12)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="7" width="6" height="9" rx="1" stroke="#2D9CDB" stroke-width="1.5" />
+            <rect x="11" y="4" width="6" height="12" rx="1" stroke="#2D9CDB" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-avg" style="color:var(--blue)">—</div>
+          <div class="kpi-lbl">Overall Avg</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:rgba(220,38,38,.10)">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 4l1.5 4.5H16l-3.5 2.5 1.5 4.5L10 13l-4 2.5 1.5-4.5L4 8.5h4.5L10 4z" stroke="#dc2626"
+              stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val" id="kpi-alerts" style="color:var(--fail)">0</div>
+          <div class="kpi-lbl">SPC Alerts</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ NAV ═══ -->
+    <div class="nav-bar">
+      <button class="nav-btn active" data-tab="manual" onclick="switchTab('manual',this)">Manual Input</button>
+      <button class="nav-btn" data-tab="records" onclick="switchTab('records',this)">
+        About Data <span class="badge" id="badge-records">0</span>
+      </button>
+      <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization</button>
+      <button class="nav-btn" data-tab="alerts" onclick="switchTab('alerts',this)">
+        Alert Log <span class="badge" id="badge-alerts" style="background:var(--fail);color:#fff">0</span>
+      </button>
+    </div>
+
+    <div class="content">
+
+      <!-- ═══════════════════════════════════════════
+     TAB 1 : MANUAL INPUT
+═══════════════════════════════════════════ -->
+      <div class="tab-panel active" id="panel-manual">
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <h3>MANUAL DATA ENTRY — PUSH OUT FORCE
+                <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;
+                       background:rgba(30,58,138,.10);color:#1e3a8a;border:1px solid rgba(30,58,138,.2);
+                       vertical-align:middle;margin-left:6px">IPQC INSPECTION</span>
+              </h3>
+              <div class="card-sub" id="form-spec-label">เลือก Product และ Mode เพื่อดู SPC Spec</div>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <!-- ── Header Fields ── -->
+            <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+
+              <!-- Inspection Mode -->
+              <div class="form-group" id="grp-mode">
+                <label style="color:var(--accent)">Inspection Mode <span style="color:var(--fail)">*</span></label>
+                <select id="m-mode" class="form-select" style="border-color:var(--accent);font-weight:600"
+                  onchange="onModeChange()">
+                  <option value="buyoff">🔴 Buy Off</option>
+                  <option value="roving">🔵 Roving Audit</option>
+                  <option value="oba">🟢 OBA</option>
+                  <option value="special">⭐ Special</option>
+                </select>
+              </div>
+
+              <!-- Product -->
+              <div class="form-group" id="grp-product">
+                <label>Product <span style="color:var(--fail)">*</span></label>
+                <select id="m-product" class="form-select" onchange="onProductChange()">
+                  <option value="">— เลือก Product —</option>
+                </select>
+              </div>
+
+              <!-- Condition (TC/NTC) — ต่อกับ Product -->
+              <div class="form-group" id="grp-condition">
+                <label>Condition <span style="color:var(--fail)">*</span></label>
+                <select id="m-condition" class="form-select">
+                  <option value="NTC">NTC (Normal / Non-Thermal Cycle)</option>
+                  <option value="TC">TC (Thermal Cycle)</option>
+                </select>
+              </div>
+
+              <!-- Coil Type removed per user request -->
+
+              <div class="form-group" id="grp-date">
+                <label>Date <span style="color:var(--fail)">*</span></label>
+                <input type="date" id="m-date" class="form-input">
+              </div>
+
+              <div class="form-group" id="grp-team">
+                <label>Shift / Team</label>
+                <select id="m-team" class="form-select">
+                  <option value="">— Select —</option>
+                  <option>A/Day</option>
+                  <option>A/Night</option>
+                  <option>B/Day</option>
+                  <option>B/Night</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="grp-en">
+                <label>EN # <span style="color:var(--fail)">*</span></label>
+                <input type="text" id="m-en" class="form-input" placeholder="e.g. 722" style="letter-spacing:1px">
+              </div>
+
+              <div class="form-group" id="grp-traveler">
+                <label>Traveler Number</label>
+                <input type="text" id="m-traveler" class="form-input" placeholder="e.g. PT251225145_N">
+              </div>
+
+              <div class="form-group" id="grp-oven">
+                <label>Oven / Machine #</label>
+                <input type="text" id="m-oven" class="form-input" placeholder="e.g. 9/1" style="letter-spacing:1px">
+              </div>
+
+              <div class="form-group" id="grp-lot">
+                <label>E-block Store Lot</label>
+                <input type="text" id="m-lot" class="form-input" placeholder="e.g. LOT-2601-001">
+              </div>
+
+              <div class="form-group" id="grp-qty">
+                <label>Qty Shipment</label>
+                <input type="number" id="m-qty" class="form-input" placeholder="e.g. 200">
+              </div>
+
+              <div class="form-group" id="grp-remark" style="grid-column:1/-1">
+                <label>Remark</label>
+                <input type="text" id="m-remark" class="form-input" placeholder="พิมพ์หมายเหตุ (ถ้ามี)">
+              </div>
+            </div>
+
+            <!-- ── Measurement Section ── -->
+            <div id="meas-section" style="display:none">
+              <div class="sec-label">📏 Coil &amp; E-block Measurement
+                <span id="meas-spec-tag"
+                  style="font-size:11px;color:var(--text3);font-weight:400;margin-left:8px;text-transform:none;letter-spacing:0">
+                </span>
+              </div>
+
+              <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:0">
+                <div class="form-group">
+                  <label id="label-long1">Long (unit)</label>
+                  <input type="number" id="m-long1" class="form-input" step="0.01" placeholder="e.g. 119.7"
+                    oninput="calcResult()">
+                </div>
+                <div class="form-group">
+                  <label id="label-short2">Short (unit)</label>
+                  <input type="number" id="m-short2" class="form-input" step="0.01" placeholder="e.g. 125.0"
+                    oninput="calcResult()">
+                </div>
+              </div>
+              <div class="form-grid" id="grp-bobbin"
+                style="grid-template-columns:1fr 1fr;margin-bottom:0;display:none;">
+                <div class="form-group">
+                  <label id="label-bobbin1">Bobbin 1 (unit)</label>
+                  <input type="number" id="m-bobbin1" class="form-input" step="0.01" placeholder="e.g. 120.0"
+                    oninput="calcResult()">
+                </div>
+                <div class="form-group">
+                  <label id="label-bobbin2">Bobbin 2 (unit)</label>
+                  <input type="number" id="m-bobbin2" class="form-input" step="0.01" placeholder="e.g. 121.0"
+                    oninput="calcResult()">
+                </div>
+              </div>
+
+              <!-- Live result -->
+              <div class="live-box" id="live-box">
+                <div class="live-item">
+                  <span>Average</span>
+                  <span id="r-avg" style="color:var(--text3)">—</span>
+                </div>
+                <div class="live-item">
+                  <span>Max</span>
+                  <span id="r-max" style="color:var(--text3)">—</span>
+                </div>
+                <div class="live-item">
+                  <span>Min</span>
+                  <span id="r-min" style="color:var(--text3)">—</span>
+                </div>
+                <div class="live-item">
+                  <span>Spec Result</span>
+                  <span id="r-result" style="font-size:16px">—</span>
+                </div>
+              </div>
+
+              <!-- SPC Gauge -->
+              <div class="spc-wrap">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                      letter-spacing:.5px;margin-bottom:7px">SPC Position (X-bar)</div>
+                <div class="spc-bar">
+                  <div class="spc-needle" id="spc-needle" style="left:50%"></div>
+                </div>
+                <div class="spc-ticks">
+                  <span id="t-lcl">LCL</span>
+                  <span id="t-cl">CL</span>
+                  <span id="t-ucl">UCL</span>
+                </div>
+                <div class="spc-chips" id="spc-chips"></div>
+              </div>
+
+              <!-- Epoxy Coverage -->
+              <div class="sec-label" style="margin-top:18px">🔍 Epoxy Coverage</div>
+              <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0">
+                <div class="form-group">
+                  <label>E-Block Long</label>
+                  <input type="number" id="m-epoxy-long" class="form-input" step="0.01" placeholder="e.g. 50">
+                </div>
+                <div class="form-group">
+                  <label>E-Block Short</label>
+                  <input type="number" id="m-epoxy-short" class="form-input" step="0.01" placeholder="e.g. 50">
+                </div>
+                <div class="form-group" id="grp-epoxy-bobbin" style="display:none">
+                  <label>Bobbin</label>
+                  <input type="number" id="m-epoxy-bobbin" class="form-input" step="0.01" placeholder="e.g. 50">
+                </div>
+                <div class="form-group">
+                  <label>Overall Result</label>
+                  <div class="pf-toggle" id="toggle-overall" data-value="Pass">
+                    <div class="pf-btn pf-pass" onclick="setOverallPF('Pass')">Pass</div>
+                    <div class="pf-btn pf-hold" onclick="setOverallPF('Hold')">Hold</div>
+                    <div class="pf-btn pf-fail" onclick="setOverallPF('Fail')">Fail</div>
+                    <input type="hidden" id="m-overall" value="Pass">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No product selected placeholder -->
+            <div id="no-product-msg" class="empty" style="padding:28px">
+              <div class="ei">🔧</div>
+              <p>กรุณาเลือก Product และ Inspection Mode ด้านบนเพื่อเริ่มกรอกข้อมูล</p>
+            </div>
+
+          </div><!-- /card-body -->
+
+          <div class="status-bar">
+            <div id="m-status-msg" style="font-size:12px;color:var(--text3)"></div>
+            <div style="margin-left:auto" class="btn-row">
+              <button class="btn btn-outline" onclick="clearForm()">↺ ล้างจอ</button>
+              <button class="btn btn-primary" id="btn-save" onclick="saveRecord()" style="padding:10px 24px;font-size:14px;font-weight:800;
+                       background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);
+                       box-shadow:0 3px 10px rgba(30,58,138,.35);min-width:180px">
+                💾 Save Record
+              </button>
+            </div>
+          </div>
+
+          <div style="padding:6px 14px 10px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)">
+            💡 <b>Tip:</b> กด
+            <kbd
+              style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;font-size:11px">Enter</kbd>
+            ในช่องค่าวัด เพื่อเลื่อนไปช่องถัดไปอัตโนมัติ
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+     TAB 2 : ABOUT DATA
+═══════════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-records">
+        <div class="card">
+          <div class="card-hdr">
+            <h3>ABOUT DATA — PUSH OUT FORCE RECORDS</h3>
+            <div class="btn-row">
+              <button class="btn btn-outline btn-sm" onclick="exportCSV()">↓ Export CSV</button>
+              <button class="btn btn-success btn-sm" onclick="document.getElementById('import-csv-file').click()">↑
+                Import Excel/CSV</button>
+              <input type="file" id="import-csv-file" accept=".csv,.xlsx,.xls" style="display:none;"
+                onchange="importExportedCSV(event)" multiple>
+            </div>
+          </div>
+          <div class="card-body" style="padding:12px 16px">
+            <!-- Filters -->
+            <div class="filter-row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              <input type="text" id="flt-search" class="form-input"
+                placeholder="🔍 ค้นหา EN#, Traveler, Product, Lot..." style="flex:1;min-width:200px"
+                oninput="renderRecords()">
+              <select id="flt-mode" class="form-select" onchange="renderRecords()" style="max-width:180px">
+                <option value="">ทุก Mode</option>
+              </select>
+              <select id="flt-product" class="form-select" onchange="renderRecords()" style="max-width:180px">
+                <option value="">ทุก Product</option>
+              </select>
+              <select id="flt-result" class="form-select" onchange="renderRecords()" style="max-width:140px">
+                <option value="">ทุก Result</option>
+                <option value="IN">✅ IN Spec</option>
+                <option value="OUT">❌ OUT Spec</option>
+              </select>
+              <input type="date" id="flt-from" onchange="renderRecords()" class="form-input" style="max-width:140px">
+              <input type="date" id="flt-to" onchange="renderRecords()" class="form-input" style="max-width:140px">
+              <button class="btn btn-outline btn-sm" onclick="resetFilter()">Reset</button>
+            </div>
+
+            <!-- Table -->
+            <div class="tbl-wrap" style="max-height:550px;overflow:auto">
+              <table>
+                <thead id="records-thead">
+                  <tr>
+                    <th style="width:40px"><input type="checkbox" id="rec-chk-all" onclick="toggleAllRecChk(this)"
+                        title="Select All"></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('no')">NO. <span id="s-no"></span>
+                    </th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('date')">DATE <span
+                        id="s-date"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('mode')">MODE <span
+                        id="s-mode"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('condition')">CONDITION <span
+                        id="s-condition"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('productLabel')">PRODUCT <span
+                        id="s-productLabel"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('oven')">OVEN <span
+                        id="s-oven"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('team')">TEAM <span
+                        id="s-team"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('en')">EN# <span id="s-en"></span>
+                    </th>
+                    <th>TRAVELER</th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('spec_result')">SPEC <span
+                        id="s-spec_result"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('trigger')">TRIGGER <span
+                        id="s-trigger"></span></th>
+                    <th style="cursor:pointer;user-select:none" onclick="sortTable('overall')">OVERALL <span
+                        id="s-overall"></span></th>
+                    <th style="text-align:right;width:120px">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="records-body">
+                  <tr>
+                    <td colspan="15" style="text-align:center;padding:32px;color:var(--text3)">
+                      <div style="font-size:28px;margin-bottom:8px">📋</div>ไม่มีข้อมูล
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Footer row: bulk delete + count -->
+            <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+              <button class="btn btn-danger btn-sm" onclick="deleteSelectedRecords()">🗑️ ลบข้อมูลที่เลือก</button>
+              <span style="font-size:12px;color:var(--text3);font-weight:600" id="records-count-label"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Record Detail Modal ──────────────────────────────────── -->
+      <div class="modal-overlay" id="modal-rec-detail" style="display:none">
+        <div class="modal modal-lg">
+          <div class="modal-hdr">
+            <h3 id="rec-detail-title">รายละเอียด Record</h3>
+            <button class="modal-close" onclick="closeModal('modal-rec-detail')">✕</button>
+          </div>
+          <div class="modal-body" id="rec-detail-body"
+            style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
+        </div>
+      </div>
+
+      <!-- ─── Record Edit Modal ─────────────────────────────────────── -->
+      <div class="modal-overlay" id="modal-rec-edit" style="display:none">
+        <div class="modal">
+          <div class="modal-hdr">
+            <h3>✏️ แก้ไข Record <span id="edit-rec-no"></span></h3>
+            <button class="modal-close" onclick="closeModal('modal-rec-edit')">✕</button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="edit-rec-id">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="form-group"><label>Date</label><input type="date" id="edit-date" class="form-input"></div>
+              <div class="form-group"><label>Team</label>
+                <select id="edit-team" class="form-select">
+                  <option>A/Day</option>
+                  <option>A/Night</option>
+                  <option>B/Day</option>
+                  <option>B/Night</option>
+                </select>
+              </div>
+              <div class="form-group"><label>EN#</label><input type="text" id="edit-en" class="form-input"></div>
+              <div class="form-group"><label>Traveler Number</label><input type="text" id="edit-traveler"
+                  class="form-input"></div>
+              <div class="form-group"><label>Oven / Machine #</label><input type="text" id="edit-oven"
+                  class="form-input"></div>
+              <div class="form-group"><label>E-block Store Lot</label><input type="text" id="edit-lot"
+                  class="form-input"></div>
+              <div class="form-group"><label>Long (unit)</label><input type="number" step="0.01" id="edit-long1"
+                  class="form-input"></div>
+              <div class="form-group"><label>Short (unit)</label><input type="number" step="0.01" id="edit-short2"
+                  class="form-input"></div>
+              <div class="form-group"><label>Bobbin 1 (unit)</label><input type="number" step="0.01" id="edit-bobbin1"
+                  class="form-input"></div>
+              <div class="form-group"><label>Bobbin 2 (unit)</label><input type="number" step="0.01" id="edit-bobbin2"
+                  class="form-input"></div>
+              <div class="form-group"><label>Condition</label>
+                <select id="edit-condition" class="form-select">
+                  <option value="NTC">NTC (Normal)</option>
+                  <option value="TC">TC (Thermal Cycle)</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Spec Result</label>
+                <select id="edit-spec" class="form-select">
+                  <option value="IN">IN</option>
+                  <option value="OUT">OUT</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Out Trigger</label>
+                <select id="edit-trigger" class="form-select">
+                  <option value="IN">IN</option>
+                  <option value="OUT">OUT</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Overall Result</label>
+                <select id="edit-overall" class="form-select">
+                  <option value="Pass">Pass</option>
+                  <option value="Hold">Hold</option>
+                  <option value="Fail">Fail</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Remark</label><input type="text" id="edit-remark" class="form-input"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('modal-rec-edit')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEditRecord()">💾 บันทึก</button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+     TAB 3 : VISUALIZATION
+═══════════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-viz">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:700;color:var(--text2)">Filter Product:</label>
+          <select id="viz-product" class="form-select" style="max-width:200px" onchange="renderCharts()">
+            <option value="">All Products</option>
+          </select>
+        </div>
+        <div class="split-2">
+          <div class="card">
+            <div class="card-hdr">
+              <h3>X-bar Chart — Average Push Out Force</h3>
+              <span id="xbar-lbl" style="font-size:11px;color:var(--text3)">—</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-holder"><canvas id="chart-xbar"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <h3>R-Chart — Range (Max − Min)</h3>
+              <span id="rchart-lbl" style="font-size:11px;color:var(--text3)">—</span>
+            </div>
+            <div class="card-body">
+              <div class="chart-holder"><canvas id="chart-range"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div class="split-2">
+          <div class="card">
+            <div class="card-hdr">
+              <h3>Distribution Histogram</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-holder" style="height:200px"><canvas id="chart-dist"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <h3>Spec Result by Product</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-holder" style="height:200px"><canvas id="chart-prod"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+     TAB 4 : ALERT LOG
+═══════════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-alerts">
+        <div class="split-2">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <div>
+                <h3>🚨 Real-Time Alert Log</h3>
+                <div class="card-sub">บันทึกเมื่อพบค่าที่เกิน Spec หรือ Trigger</div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-outline btn-sm" onclick="renderAlerts()">🔄 Refresh</button>
+                <button class="btn btn-danger  btn-sm" onclick="clearAlerts()">🗑️ Clear</button>
+              </div>
+            </div>
+            <div id="alerts-body"
+              style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto;padding:14px">
+              <div class="empty" style="padding:30px;text-align:center">
+                <div style="font-size:32px">✅</div>
+                <p>ไม่มี Alert Log</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:0">
+            <div class="card-hdr">
+              <div>
+                <h3>📧 Outlook Alert Dispatcher</h3>
+                <div class="card-sub">ส่งออกรายงานพร้อม SPC Summary เป็น .eml</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:12px">
+                <label style="font-weight:700">Recipients</label>
+                <input type="email" id="outlook-to" class="form-input" value="supanatt04@gmail.com"
+                  style="margin-top:6px">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label style="font-weight:700">Alert Threshold</label>
+                <select id="outlook-threshold" class="form-select" style="margin-top:6px">
+                  <option value="critical">🔴 Critical (OUT Spec) only</option>
+                  <option value="warn">🟡 Warning + Critical</option>
+                </select>
+              </div>
+              <div class="btn-row" style="margin-bottom:14px">
+                <button class="btn btn-primary" onclick="generateOutlookDraft()">Step 1: Generate EML</button>
+              </div>
+              <div id="export-actions" style="display:none;border-top:1px solid var(--border);padding-top:14px">
+                <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:10px">
+                  Step 2: Download แล้วเปิดใน Outlook
+                </div>
+                <button class="btn btn-blue" onclick="downloadOutlookEml()">📧 Download .eml</button>
+                <div class="ol-preview" style="margin-top:12px">
+                  <div class="ol-subject" id="ol-subject">Subject</div>
+                  <div class="ol-body" id="ol-body"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
+    </div>
+
+    <!-- ─── Confirm Modal ─────────────────────────────────────── -->
+    <div class="modal-overlay" id="modal-confirm" style="display:none">
+      <div class="modal" style="max-width:380px">
+        <div class="modal-hdr">
+          <h3 id="confirm-title">ยืนยัน</h3>
+          <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p id="confirm-msg" style="color:var(--text2)"></p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal('modal-confirm')">Cancel</button>
+          <button class="btn btn-danger" id="confirm-ok-btn">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-panel" id="toast-panel"></div>
+    <script src="push_out_force.js"></script>
+    <script>document.addEventListener('DOMContentLoaded', function () { initGlobalNavigation('pof'); });</script>
+  </main>
+</body>
+
+</html>

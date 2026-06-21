@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BELTON IPQC</title>
+    <script src="api.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="loader.js"></script>
+    <script src="global_nav.js"></script>
+    <style>
+        /* เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+           ROOT VARIABLES เน€เธยเนยเธเนโฌย Red & White Theme
+        เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย */
+        :root {
+            --primary: #CC1033;
+            --primary-dark: #a50d28;
+            --primary-light: #fff0f2;
+            --accent: #CC1033;
+            --pass: #10b981;
+            --pass-bg: #d1fae5;
+            --fail: #ef4444;
+            --fail-bg: #fee2e2;
+            --warn: #f59e0b;
+            --warn-bg: #fef3c7;
+            --pend: #6b7280;
+            --pend-bg: #f3f4f6;
+            --bg-main: #fff5f6;
+            --bg-card: #ffffff;
+            --text-main: #1a0608;
+            --text-muted: #7a4a50;
+            --border: #f5cdd2;
+            --sidebar-w: 260px;
+            --topbar-h: 64px;
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+        }
+
+
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ MAIN เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .main {
+            margin-left: var(--sidebar-w);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            height: var(--topbar-h);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .topbar-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+        }
+
+        .topbar-date {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .avatar {
+            width: 34px;
+            height: 34px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ CONTENT เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .content {
+            padding: 24px 28px;
+            flex: 1;
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ NAV BAR เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .nav-bar {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            padding: 0 16px;
+        }
+
+        .nav-btn {
+            padding: 14px 20px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            position: relative;
+            white-space: nowrap;
+            transition: color 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-main);
+        }
+
+        .nav-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ MODULE CARDS ROW เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .modules-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .module-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--radius) var(--radius) 0 0;
+        }
+
+        .module-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            border-color: transparent;
+        }
+
+        .module-card.dispensing::before {
+            background: #CC1033;
+        }
+
+        .module-card.laser::before {
+            background: #e8555e;
+        }
+
+        .module-card.pof::before {
+            background: #a50d28;
+        }
+
+        .module-card.damper::before {
+            background: #ff6b7a;
+        }
+
+        .module-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .module-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .module-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .icon-blue {
+            background: #ffe0e4;
+            color: #CC1033;
+            stroke: #CC1033;
+        }
+
+        .icon-amber {
+            background: #ffd6da;
+            color: #a50d28;
+            stroke: #a50d28;
+        }
+
+        .icon-purple {
+            background: #ffebec;
+            color: #e8555e;
+            stroke: #e8555e;
+        }
+
+        .icon-green {
+            background: #ffc8cd;
+            color: #8a0020;
+            stroke: #8a0020;
+        }
+
+        .module-yield {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+
+        .module-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .module-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        .module-stats {
+            display: flex;
+            gap: 12px;
+        }
+
+        .module-stat {
+            text-align: center;
+        }
+
+        .module-stat-val {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .module-stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-weight: 500;
+        }
+
+        .module-divider {
+            width: 1px;
+            background: var(--border);
+            align-self: stretch;
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ KPI SUMMARY เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .kpi-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .kpi-icon.total {
+            background: var(--primary-light);
+            stroke: var(--primary);
+        }
+
+        .kpi-icon.pass {
+            background: var(--pass-bg);
+            stroke: var(--pass);
+        }
+
+        .kpi-icon.fail {
+            background: var(--fail-bg);
+            stroke: var(--fail);
+        }
+
+        .kpi-icon.yield {
+            background: #ffe0e4;
+            stroke: var(--primary);
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .kpi-value {
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .kpi-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ BOTTOM GRID เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .filter-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-input,
+        .select-input {
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-family: inherit;
+            font-size: 12px;
+            color: var(--text-main);
+            outline: none;
+            background: var(--bg-card);
+        }
+
+        .select-input {
+            padding-right: 6px;
+        }
+
+        .btn {
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ ACTIVITY LIST เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+        }
+
+        .activity-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .activity-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-title {
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .activity-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .activity-right {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .pill-pass {
+            background: var(--pass-bg);
+            color: var(--pass);
+        }
+
+        .pill-fail {
+            background: var(--fail-bg);
+            color: var(--fail);
+        }
+
+        .pill-warn {
+            background: var(--warn-bg);
+            color: var(--warn);
+        }
+
+        .pill-pend {
+            background: var(--pend-bg);
+            color: var(--pend);
+        }
+
+        .activity-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .module-tag {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+
+        .tag-dispensing {
+            background: #ffe0e4;
+            color: #CC1033;
+        }
+
+        .tag-laser {
+            background: #ffd6da;
+            color: #a50d28;
+        }
+
+        .tag-pof {
+            background: #ffebec;
+            color: #e8555e;
+        }
+
+        .tag-damper {
+            background: #ffc8cd;
+            color: #8a0020;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ RESPONSIVE เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ */
+        @media (max-width: 1200px) {
+            .modules-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sync-dot.online {
+            background: #10b981 !important;
+            box-shadow: 0 0 6px rgba(16, 185, 129, .5);
+        }
+
+        .sync-dot.offline {
+            background: #ef4444 !important;
+        }
+
+        @media (max-width: 767px) {
+            .main {
+                margin-left: 0;
+            }
+
+            .modules-row {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .content {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย SIDEBAR (rendered by global_nav.js) เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย -->
+    <aside id="sidebar-root"></aside>
+
+    <!-- เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย MAIN เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย -->
+    <main class="main">
+        <header class="topbar">
+            <div class="topbar-title">Dashboard Overview</div>
+            <div class="topbar-right">
+                <div class="topbar-date" id="today-label"></div>
+                <div id="sync-status-indicator" class="sync-dot offline"
+                    style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></div>
+                <span id="sync-status-text" style="color:var(--text-muted);font-size:12px;">Offline Mode</span>
+                <button onclick="manualRefresh()"
+                    style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);font-size:11px;font-weight:600;cursor:pointer;color:var(--text-muted);"
+                    title="Refresh Now">เน€เธยเธขยเนโฌยเธขย Refresh</button>
+                <span style="color:var(--text-muted); font-size:13px;">Administrator</span>
+                <div class="avatar">A</div>
+            </div>
+        </header>
+
+        <!-- TAB: DASHBOARD -->
+        <div id="tab-dashboard">
+            <div class="content">
+
+                <!-- MODULE CARDS -->
+                <div class="modules-row">
+                    <!-- Dispensing -->
+                    <a href="dispensing.html" class="module-card dispensing">
+                        <div class="module-header">
+                            <div class="module-icon icon-blue">
+                                <svg fill="none" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                            </div>
+                            <span class="module-yield pill-pass" id="yield-dispensing">เน€เธยเนยเธเนโฌย%</span>
+                        </div>
+                        <div>
+                            <div class="module-name">IPQC Dispensing</div>
+                            <div class="module-sub">Buy off / Roving Audit</div>
+                        </div>
+                        <div class="module-stats">
+                            <div class="module-stat">
+                                <div class="module-stat-val" id="total-dispensing">0</div>
+                                <div class="module-stat-label">Total</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--pass)" id="pass-dispensing">0</div>
+                                <div class="module-stat-label">Pass</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--fail)" id="fail-dispensing">0</div>
+                                <div class="module-stat-label">Reject</div>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Laser -->
+                    <a href="laser.html" class="module-card laser">
+                        <div class="module-header">
+                            <div class="module-icon icon-amber">
+                                <svg fill="none" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <span class="module-yield pill-pass" id="yield-laser">เน€เธยเนยเธเนโฌย%</span>
+                        </div>
+                        <div>
+                            <div class="module-name">Laser Engraving</div>
+                            <div class="module-sub">E-block / Bobbin</div>
+                        </div>
+                        <div class="module-stats">
+                            <div class="module-stat">
+                                <div class="module-stat-val" id="total-laser">0</div>
+                                <div class="module-stat-label">Total</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--pass)" id="pass-laser">0</div>
+                                <div class="module-stat-label">Pass</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--fail)" id="fail-laser">0</div>
+                                <div class="module-stat-label">Fail</div>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Push Out Force -->
+                    <a href="push_out_force.html" class="module-card pof">
+                        <div class="module-header">
+                            <div class="module-icon icon-purple">
+                                <svg fill="none" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                            </div>
+                            <span class="module-yield pill-pass" id="yield-pof">เน€เธยเนยเธเนโฌย%</span>
+                        </div>
+                        <div>
+                            <div class="module-name">Push Out Force</div>
+                            <div class="module-sub">Buy off / Roving / OBA</div>
+                        </div>
+                        <div class="module-stats">
+                            <div class="module-stat">
+                                <div class="module-stat-val" id="total-pof">0</div>
+                                <div class="module-stat-label">Total</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--pass)" id="pass-pof">0</div>
+                                <div class="module-stat-label">Pass</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--fail)" id="fail-pof">0</div>
+                                <div class="module-stat-label">Fail</div>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Damper -->
+                    <a href="damper_install.html" class="module-card damper">
+                        <div class="module-header">
+                            <div class="module-icon icon-green">
+                                <svg fill="none" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
+                            <span class="module-yield pill-pass" id="yield-damper">เน€เธยเนยเธเนโฌย%</span>
+                        </div>
+                        <div>
+                            <div class="module-name">Damper Install</div>
+                            <div class="module-sub">Short / Long</div>
+                        </div>
+                        <div class="module-stats">
+                            <div class="module-stat">
+                                <div class="module-stat-val" id="total-damper">0</div>
+                                <div class="module-stat-label">Total</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--pass)" id="pass-damper">0</div>
+                                <div class="module-stat-label">Pass</div>
+                            </div>
+                            <div class="module-divider"></div>
+                            <div class="module-stat">
+                                <div class="module-stat-val" style="color:var(--fail)" id="fail-damper">0</div>
+                                <div class="module-stat-label">Fail</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- KPI SUMMARY (All Modules Combined) -->
+                <div class="kpi-row">
+                    <div class="kpi-card">
+                        <div class="kpi-icon total">
+                            <svg fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="kpi-label">Total Records (All)</div>
+                            <div class="kpi-value" id="kpi-total">0</div>
+                            <div class="kpi-sub" id="kpi-total-sub">
+                                เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขย
+                                Module</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon pass">
+                            <svg fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="kpi-label">Pass / Accept</div>
+                            <div class="kpi-value" style="color:var(--pass)" id="kpi-pass">0</div>
+                            <div class="kpi-sub" id="kpi-pass-sub">เน€เธยเนยเธเนโฌย</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon fail">
+                            <svg fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="kpi-label">Fail / Reject</div>
+                            <div class="kpi-value" style="color:var(--fail)" id="kpi-fail">0</div>
+                            <div class="kpi-sub" id="kpi-fail-sub">เน€เธยเนยเธเนโฌย</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon yield">
+                            <svg fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="kpi-label">Overall Yield</div>
+                            <div class="kpi-value" style="color:var(--primary)" id="kpi-yield">เน€เธยเนยเธเนโฌย%
+                            </div>
+                            <div class="kpi-sub">
+                                เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขย
+                                Module</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BOTTOM: TREND CHART + ACTIVITY -->
+                <div class="bottom-grid">
+                    <!-- Trend Chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Inspection Trend (All Modules)</div>
+                            <div class="filter-row" style="flex-wrap: wrap;">
+                                <div class="btn-group" id="filter-module-btns" style="margin-right: 8px;">
+                                    <button class="btn btn-primary btn-sm dash-filter-btn" data-val="all"
+                                        onclick="setDashboardFilter('all', this)">All Modules</button>
+                                    <button class="btn btn-outline btn-sm dash-filter-btn" data-val="dispensing"
+                                        onclick="setDashboardFilter('dispensing', this)">Dispensing</button>
+                                    <button class="btn btn-outline btn-sm dash-filter-btn" data-val="laser"
+                                        onclick="setDashboardFilter('laser', this)">Laser</button>
+                                    <button class="btn btn-outline btn-sm dash-filter-btn" data-val="pof"
+                                        onclick="setDashboardFilter('pof', this)">Push Out Force</button>
+                                    <button class="btn btn-outline btn-sm dash-filter-btn" data-val="damper"
+                                        onclick="setDashboardFilter('damper', this)">Damper</button>
+                                </div>
+                                <input type="hidden" id="filter-module" value="all">
+                                <input type="date" id="start-date" class="date-input">
+                                <span style="color:var(--text-muted);font-size:11px">เน€เธยเนยเธเนโฌย</span>
+                                <input type="date" id="end-date" class="date-input">
+                                <button class="btn btn-primary" onclick="applyFilter()">Filter</button>
+                            </div>
+                        </div>
+                        <div style="position:relative;height:280px;width:100%">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Recent Activity</div>
+                            <span id="activity-count" style="font-size:11px;color:var(--text-muted)">0 records</span>
+                        </div>
+                        <div id="activity-body" class="activity-list">
+                            <div class="empty-state">
+                                เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเน€เธโ€ฆเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€ฆเน€เธโฌเน€เธยเนโฌย...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+
+
+
+    </main>
+
+    <script>
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        //  CONFIG เน€เธยเนยเธเนโฌย เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขย API_BASE เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย api.js
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        const BACKEND = API_BASE;
+        const POLL_MS = 30000;   // refresh เน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขย 30 เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€ข
+
+        // label & tag เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย UI
+        const MOD_META = {
+            dispensing: { label: 'Dispensing', tagCls: 'tag-dispensing' },
+            laser: { label: 'Laser', tagCls: 'tag-laser' },
+            pof: { label: 'Push Out Force', tagCls: 'tag-pof' },
+            damper: { label: 'Damper', tagCls: 'tag-damper' },
+        };
+
+        // normalise activity records เน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€ขเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย server (recentActivities)
+        const MODULE_KEY = {
+            'Dispensing': 'dispensing',
+            'Laser Engraving': 'laser',
+            'Push Out Force': 'pof',
+            'Damper Install': 'damper',
+        };
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย
+        let _summary = null;   // { total, pass, fail, yield }
+        let _moduleStats = {};     // { dispensing:{total,pass,fail}, laser:{...}, pof:{...}, damper:{...} }
+        let _activities = [];     // recentActivities[]
+        let _trend = {};     // { date: { pass, fail } }
+        let _trendChart = null;
+        let _pollTimer = null;
+
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        //  STATUS INDICATOR
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        function setStatus(online, msg) {
+            const dot = document.getElementById('sync-status-indicator');
+            const text = document.getElementById('sync-status-text');
+            if (dot) dot.className = online ? 'sync-dot' : 'sync-dot offline';
+            if (dot) dot.style.background = online ? '#10b981' : '#ef4444';
+            if (text) text.textContent = msg || (online ? 'Live' : 'Offline');
+        }
+
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        //  FETCH DASHBOARD SUMMARY  เน€เธยเธขยเธขย เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขย /api/dashboard/summary
+        //  (server.js เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเนโฌย 858 เน€เธยเนยเธเนโฌย เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€ข endpoint เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€ขเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€ฆเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธย)
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        async function fetchSummary() {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 8000);
+            try {
+                const res = await fetch(`${BACKEND}/api/dashboard/summary`, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                if (!json.success) throw new Error(json.error || 'API error');
+
+                _summary = json.summary;           // { total, pass, fail, yield }
+                _moduleStats = json.modules || {};
+                _activities = json.recentActivities || [];
+                setStatus(true, 'Live เน€เธเธเน€เธโ€” ' + new Date().toLocaleTimeString('th-TH'));
+                return true;
+            } catch (e) {
+                clearTimeout(tid);
+                setStatus(false, 'Offline');
+                console.warn('[Dashboard] fetchSummary error:', e.message);
+                return false;
+            }
+        }
+
+        function getModuleStat(mod) {
+            return _moduleStats[mod] || { total: 0, pass: 0, fail: 0 };
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const now = new Date();
+            document.getElementById('today-label').textContent =
+                now.toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+            const fmt = d => d.toISOString().split('T')[0];
+            const week = new Date(); week.setDate(now.getDate() - 6);
+            document.getElementById('start-date').value = fmt(week);
+            document.getElementById('end-date').value = fmt(now);
+            setStatus(false, 'Connecting...');
+            await loadAllData();
+            renderDashboard();
+
+            // Auto-refresh เธ—เธธเธ 30 เธงเธดเธเธฒเธ—เธต
+            _pollTimer = setInterval(async () => {
+                await loadAllData();
+                renderDashboard();
+            }, POLL_MS);
+        });
+
+        function normalizeRecord(mod, r) {
+            switch (mod) {
+                case 'dispensing':
+                    return {
+                        ...r,
+                        isPass: r.status === 'ACCEPT',
+                        isFail: r.status === 'REJECT',
+                        date: r.date || r.test_date || ''
+                    };
+                case 'pof':
+                    return {
+                        ...r,
+                        isPass: r.overall === 'Pass',
+                        isFail: r.overall === 'Fail',
+                        date: r.date || ''
+                    };
+                case 'damper':
+                    return {
+                        ...r,
+                        isPass: r.overallPass === true,
+                        isFail: r.overallPass === false,
+                        date: r.date || ''
+                    };
+                case 'laser':
+                    return {
+                        ...r,
+                        isPass: r.overall === 'Pass',
+                        isFail: r.overall === 'Fail',
+                        date: r.date || r.test_date || ''
+                    };
+                default:
+                    return r;
+            }
+        }
+
+        async function fetchModuleRecords() {
+            const modules = ['dispensing', 'laser', 'pof', 'damper'];
+            const results = {};
+            await Promise.allSettled(modules.map(async (mod) => {
+                try {
+                    const startVal = document.getElementById('start-date').value;
+                    const endVal = document.getElementById('end-date').value;
+                    const params = new URLSearchParams();
+                    if (startVal) params.set('start', startVal);
+                    if (endVal) params.set('end', endVal);
+
+                    const res = await fetch(`${BACKEND}/api/${mod}/records?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
+                    const json = await res.json();
+                    const raw = json.records || (Array.isArray(json) ? json : []);
+                    // normalize เน€เธโฌเน€เธหเนโฌโ€เน€เธโฌเน€เธหเน€เธหเน€เธโฌเน€เธหเธข  record เน€เธโฌเน€เธโขเธขฦ’เน€เธโฌเน€เธหเน€เธโ€นเน€เธโฌเน€เธโขเธขโ€ฐเน€เธโฌเน€เธหเน€เธ เน€เธโฌเน€เธหเน€เธโ€ข isPass/isFail เน€เธโฌเน€เธหเนโฌโ€เน€เธโฌเน€เธหเน€เธโ€ขเน€เธโฌเน€เธโขเธขหเน€เธโฌเน€เธหเนโฌโ€เน€เธโฌเน€เธหเน€เธโขเน€เธโฌเน€เธหเธข เน€เธโฌเน€เธหเนโฌเธเน€เธโฌเน€เธโขเธขโ€ฐเน€เธโฌเน€เธหเน€เธ เน€เธโฌเน€เธหเธขโ€กเน€เธโฌเน€เธหเนโฌเธเน€เธโฌเน€เธหเน€เธโ€เน€เธโฌเน€เธหเน€เธ  field เน€เธโฌเน€เธหเธขหเน€เธโฌเน€เธหเน€เธฦ’เน€เธโฌเน€เธหเน€เธโ€เน€เธโฌเน€เธหเธขโ€กเน€เธโฌเน€เธหเธขโ€เน€เธโฌเน€เธหเน€เธ เน€เธโฌเน€เธหเธขโ€กเน€เธโฌเน€เธโขเธข เน€เธโฌเน€เธหเนโฌเธเน€เธโฌเน€เธโขเธขหเน€เธโฌเน€เธหเน€เธโ€ฆเน€เธโฌเน€เธหเน€เธ  module
+                    results[mod] = { records: raw.map(r => normalizeRecord(mod, r)) };
+                } catch (e) {
+                    results[mod] = { records: [] };
+                }
+            }));
+            return results;
+        }
+
+        //  LOAD ALL
+        let _modRecords = {};
+
+        async function loadAllData() {
+            await Promise.all([
+                fetchSummary(),
+                fetchModuleRecords().then(r => { _modRecords = r; })
+            ]);
+        }
+
+        //  RENDER
+        function renderDashboard() {
+            renderModuleCards();
+            renderKpiSummary();
+            renderTrendChart();
+            renderActivity();
+        }
+        function renderModuleCards() {
+            Object.keys(MOD_META).forEach(key => {
+                const stats = getModuleStat(key);
+                const total = stats.total || 0;
+                const pass = stats.pass || 0;
+                const fail = stats.fail || 0;
+                const yld = total > 0 ? ((pass / total) * 100).toFixed(1) : null;
+
+                setEl(`total-${key}`, total);
+                setEl(`pass-${key}`, pass);
+                setEl(`fail-${key}`, fail);
+
+                const yieldEl = document.getElementById(`yield-${key}`);
+                if (yieldEl) {
+                    yieldEl.textContent = yld !== null ? `${yld}%` : 'เน€เธยเนยเธเนโฌย%';
+                    yieldEl.className = 'module-yield ' + (yld === null ? 'pill-pend' : parseFloat(yld) >= 95 ? 'pill-pass' : 'pill-fail');
+                }
+                setEl(`badge-${key}`, total);
+            });
+        }
+
+        function renderKpiSummary() {
+            if (!_summary) return;
+            const s = _summary;
+            setEl('kpi-total', Number(s.total).toLocaleString());
+            setEl('kpi-pass', Number(s.pass).toLocaleString());
+            setEl('kpi-fail', Number(s.fail).toLocaleString());
+            setEl('kpi-yield', s.yield || 'เน€เธยเนยเธเนโฌย%');
+
+            function modStat(k) {
+                return getModuleStat(k);
+            }
+
+            setEl('kpi-total-sub',
+                Object.entries(MOD_META).map(([k, m]) => `${m.label}: ${modStat(k).total}`).join(' | '));
+            setEl('kpi-pass-sub',
+                Object.entries(MOD_META).map(([k, m]) => `${m.label}: ${modStat(k).pass}`).join(' | '));
+            setEl('kpi-fail-sub',
+                Object.entries(MOD_META).map(([k, m]) => `${m.label}: ${modStat(k).fail}`).join(' | '));
+        }
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ Trend Chart เน€เธยเนยเธเนโฌย เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย _modCounts records เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ
+        function setDashboardFilter(val, btn) {
+            document.querySelectorAll('#filter-module-btns .dash-filter-btn').forEach(b => {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline');
+            });
+            if (btn) {
+                btn.classList.remove('btn-outline');
+                btn.classList.add('btn-primary');
+            }
+            document.getElementById('filter-module').value = val;
+            applyFilter();
+        }
+
+        async function applyFilter() {
+            await loadAllData();
+            renderDashboard();
+        }
+
+        function renderTrendChart() {
+            const startVal = document.getElementById('start-date').value;
+            const endVal = document.getElementById('end-date').value;
+            const modFilter = document.getElementById('filter-module').value;
+            const start = new Date(startVal), end = new Date(endVal);
+            if (isNaN(start) || isNaN(end) || start > end) return;
+
+            // เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย date axis
+            const labels = [], dateMap = {}, passData = [], failData = [];
+            let cur = new Date(start), idx = 0;
+            while (cur <= end && idx < 60) {
+                const key = cur.toISOString().slice(0, 10);
+                labels.push(key.slice(8) + '/' + key.slice(5, 7));
+                passData.push(0); failData.push(0);
+                dateMap[key] = idx;
+                cur.setDate(cur.getDate() + 1); idx++;
+            }
+
+            // เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธย records เน€เธโฌเน€เธยเนโฌเธเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเน€เธย filter (เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย _modRecords เน€เธโฌเน€เธยเนยเธเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขย)
+            let recs = [];
+            if (modFilter === 'all') {
+                recs = Object.values(_modRecords).flatMap(d => d.records || []);
+            } else {
+                recs = (_modRecords[modFilter] || {}).records || [];
+            }
+
+            recs.forEach(r => {
+                const d = (r.date || r.test_date || '');
+                const dt = typeof d === 'object' ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+                if (!dateMap.hasOwnProperty(dt)) return;
+                const i = dateMap[dt];
+                if (r.isPass) passData[i]++;
+                else if (r.isFail) failData[i]++;
+            });
+
+            const canvas = document.getElementById('trendChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (_trendChart) _trendChart.destroy();
+
+            _trendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Pass / Accept', data: passData, backgroundColor: '#10b981', borderRadius: 4, barPercentage: 0.75 },
+                        { label: 'Fail / Reject', data: failData, backgroundColor: '#ef4444', borderRadius: 4, barPercentage: 0.75 },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Calibri' }, maxRotation: 45 } },
+                        y: { stacked: true, beginAtZero: true, border: { dash: [4, 4] }, ticks: { stepSize: 1, font: { family: 'Calibri' } } },
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Calibri', size: 12 } } },
+                        tooltip: { mode: 'index', intersect: false },
+                    },
+                },
+            });
+        }
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ Recent Activity เน€เธยเนยเธเนโฌย เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขย recentActivities เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขย /api/dashboard/summary เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ
+        function renderActivity() {
+            document.getElementById('activity-count').textContent =
+                `${_activities.length} recent records`;
+
+            const body = document.getElementById('activity-body');
+            if (!_activities.length) {
+                body.innerHTML = '<div class="empty-state">เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€ฆ<br><small>เน€เธโฌเน€เธยเนโฌเธเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€ Server เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเน€เธโ€ฆเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€ขเน€เธโฌเน€เธยเธขย localhost:3001</small></div>';
+                return;
+            }
+
+            const MOD_TAG = {
+                'Dispensing': 'tag-dispensing',
+                'Laser Engraving': 'tag-laser',
+                'Push Out Force': 'tag-pof',
+                'Damper Install': 'tag-damper',
+            };
+
+            body.innerHTML = _activities.map(r => {
+                const st = (r.status || '').toUpperCase();
+                const isPass = st === 'ACCEPT' || st === 'PASS';
+                const isFail = st === 'REJECT' || st === 'FAIL';
+                const dotClr = isPass ? 'var(--pass)' : isFail ? 'var(--fail)' : 'var(--warn)';
+                const pill = isPass ? 'pill-pass' : isFail ? 'pill-fail' : 'pill-warn';
+                const label = isPass ? 'PASS' : isFail ? 'FAIL' : st || 'PENDING';
+                const tagCls = MOD_TAG[r.module] || 'tag-dispensing';
+                const modLbl = r.module || 'เน€เธยเนยเธเนโฌย';
+                const model = r.model || 'เน€เธยเนยเธเนโฌย';
+                const op = r.operator || 'เน€เธยเนยเธเนโฌย';
+                const time = r.time || '';
+                const date = r.date || '';
+
+                return `<div class="activity-item">
+            <div class="activity-dot" style="background:${dotClr};box-shadow:0 0 6px ${dotClr}66"></div>
+            <div class="activity-info">
+                <div class="activity-title">
+                    <span class="module-tag ${tagCls}">${modLbl}</span>${model}
+                </div>
+                <div class="activity-meta">Op: ${op}</div>
+            </div>
+            <div class="activity-right">
+                <span class="status-pill ${pill}">${label}</span>
+                <div class="activity-time">${date} ${time}</div>
+            </div>
+        </div>`;
+            }).join('');
+        }
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ Manual Refresh เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ
+        async function manualRefresh() {
+            const btn = document.querySelector('[title="Refresh Now"]');
+            if (btn) { btn.textContent = 'เน€เธยเธขยเน€เธโ€ Loading...'; btn.disabled = true; }
+            await loadAllData();
+            renderDashboard();
+            if (btn) { btn.textContent = 'เน€เธยเธขยเนโฌยเธขย Refresh'; btn.disabled = false; }
+        }
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ Util เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ
+        function setEl(id, val) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        }
+
+        // เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ TABS & ALERT CONFIG เน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธเน€เธยเนโฌยเนยเธ
+        function switchTab(tabId, el) {
+            // Update sidebar links
+            document.querySelectorAll('.nav-link').forEach(n => {
+                const id = n.getAttribute('data-nav-id');
+                if (id && tabId.includes(id)) {
+                    n.classList.add('active');
+                } else {
+                    n.classList.remove('active');
+                }
+            });
+
+            // Update top nav-btn links
+            document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
+            if (el && el.classList.contains('nav-btn')) {
+                el.classList.add('active');
+            } else {
+                // Find matching nav-btn if el is not provided or is a sidebar link
+                const targetBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+                if (targetBtn) targetBtn.classList.add('active');
+            }
+
+            const tabDash = document.getElementById('tab-dashboard');
+            const tabAlert = document.getElementById('tab-alert-config');
+            const tabSystem = document.getElementById('tab-system-config');
+
+            if (tabDash) tabDash.style.display = 'none';
+            if (tabAlert) tabAlert.style.display = 'none';
+            if (tabSystem) tabSystem.style.display = 'none';
+
+            const targetTab = document.getElementById(tabId);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+            }
+
+            const titleEl = document.querySelector('.topbar-title');
+            if (titleEl) {
+                if (tabId === 'tab-dashboard') titleEl.textContent = 'Dashboard Overview';
+                else if (tabId === 'tab-alert-config') titleEl.textContent = 'Alert Configuration';
+                else if (tabId === 'tab-system-config') titleEl.textContent = 'System Configuration';
+            }
+
+            if (tabId === 'tab-system-config') sysConfigModuleChange();
+        }
+
+
+
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        //  INIT
+        // เน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขยเน€เธยเนโฌเธเธขย
+        document.addEventListener('DOMContentLoaded', async () => {
+            const now = new Date();
+            document.getElementById('today-label').textContent =
+                now.toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+            const fmt = d => d.toISOString().split('T')[0];
+            const week = new Date(); week.setDate(now.getDate() - 6);
+            document.getElementById('start-date').value = fmt(week);
+            document.getElementById('end-date').value = fmt(now);
+            setStatus(false, 'Connecting...');
+            await loadAllData();
+            renderDashboard();
+
+            // Auto-refresh เน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเธขย 30 เน€เธโฌเน€เธยเน€เธยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเธขยเน€เธโฌเน€เธยเน€เธโ€เน€เธโฌเน€เธยเนโฌโ€เน€เธโฌเน€เธยเน€เธโ€ข
+            _pollTimer = setInterval(async () => {
+                await loadAllData();
+                renderDashboard();
+            }, POLL_MS);
+        });
+
+        function runInit() {
+            if (typeof initGlobalNavigation === 'function') initGlobalNavigation();
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runInit);
+        } else {
+            runInit();
+        }
+    </script>
+    <script src="global_config.js"></script>
+</body>
+
+</html>

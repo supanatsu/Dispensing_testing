@@ -1,0 +1,545 @@
+// ==========================================
+// global_config.js
+// Handles centralized configuration for all modules
+// ==========================================
+
+const LS_KEY_POF_CFG = 'belton_pof_v4_config';
+const LS_KEY_LASER_CFG = 'belton_laser_config_v1';
+
+// We pull the default POF products to populate the UI if no config exists
+const POF_PRODUCTS_DEFAULT = {
+  cim3d: { label: 'Cimarron BP 3D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } } } },
+  cim4d: { label: 'Cimarron BP 4D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 2.5, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } } } },
+  cim5d: { label: 'Cimarron BP 5D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } } } },
+  comet: { label: 'ComET', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } } } },
+  dor5d: { label: 'Dorado 5D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 } } } },
+  dor5dbb: { label: 'Dorado 5D AL BB', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 } } } },
+  dor10d: { label: 'Dorado 10D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 60, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 2.5, trigger: 3.4, ucl: 15.53, cl: 9.94, lcl: 4.34, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 5, rcl: 2.5 } } } },
+  m11p: { label: 'M11 P', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 30, trigger: 65.2, ucl: 250.2, cl: 179.8, lcl: 109.4, rucl: 15, rcl: 7.5 }, bobbin: { spec: 30, trigger: 53.75, ucl: 150.49, cl: 103, lcl: 55.51, rucl: 10, rcl: 5 } }, roving: { sl: { spec: 30, trigger: 65.2, ucl: 250.2, cl: 179.8, lcl: 109.4, rucl: 15, rcl: 7.5 }, bobbin: { spec: 30, trigger: 53.75, ucl: 150.49, cl: 103, lcl: 55.51, rucl: 10, rcl: 5 } } } },
+  mar10d: { label: 'Marlin 10D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 10, rcl: 5 } }, roving: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 10, rcl: 5 } } } },
+  ros1d: { label: 'Rosewood 1D', unit: 'Kgf', types: ['sl'], spc: { buyoff: { sl: { spec: 5.9, trigger: 10.1, ucl: 23.7, cl: 15.2, lcl: 6.6, rucl: 5, rcl: 2.5 }, bobbin: { spec: 2.5, trigger: 7.17, ucl: 23.18, cl: 13.86, lcl: 4.54, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 5.9, trigger: 10.1, ucl: 23.7, cl: 15.2, lcl: 6.6, rucl: 5, rcl: 2.5 }, bobbin: { spec: 2.5, trigger: 7.17, ucl: 23.18, cl: 13.86, lcl: 4.54, rucl: 5, rcl: 2.5 } } } },
+  ros2d: { label: 'Rosewood 2D', unit: 'Kgf', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 5.9, trigger: 10.1, ucl: 23.7, cl: 15.2, lcl: 6.6, rucl: 5, rcl: 2.5 }, bobbin: { spec: 2.5, trigger: 7.17, ucl: 23.18, cl: 13.86, lcl: 4.54, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 5.9, trigger: 10.1, ucl: 23.7, cl: 15.2, lcl: 6.6, rucl: 5, rcl: 2.5 }, bobbin: { spec: 2.5, trigger: 7.17, ucl: 23.18, cl: 13.86, lcl: 4.54, rucl: 5, rcl: 2.5 } } } },
+  sky1d: { label: 'Skybolt 1D', unit: 'Kgf', types: ['sl'], spc: { buyoff: { sl: { spec: 6.81, trigger: 13.05, ucl: 25.77, cl: 17.46, lcl: 9.16, rucl: 5, rcl: 2.5 }, bobbin: { spec: 6.81, trigger: 13.05, ucl: 25.77, cl: 17.46, lcl: 9.16, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 6.81, trigger: 13.05, ucl: 25.77, cl: 17.46, lcl: 9.16, rucl: 5, rcl: 2.5 }, bobbin: { spec: 6.81, trigger: 13.05, ucl: 25.77, cl: 17.46, lcl: 9.16, rucl: 5, rcl: 2.5 } } } },
+  sky2d: { label: 'Skybolt 2D', unit: 'Kgf', types: ['sl'], spc: { buyoff: { sl: { spec: 11.34, trigger: 17.48, ucl: 37.55, cl: 25.27, lcl: 12.99, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 17.48, ucl: 37.55, cl: 25.27, lcl: 12.99, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 11.34, trigger: 17.48, ucl: 37.55, cl: 25.27, lcl: 12.99, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 17.48, ucl: 37.55, cl: 25.27, lcl: 12.99, rucl: 5, rcl: 2.5 } } } },
+  sky3d: { label: 'Skybolt 3D', unit: 'Kgf', types: ['sl'], spc: { buyoff: { sl: { spec: 11.34, trigger: 17.34, ucl: 44.14, cl: 36.14, lcl: 28.14, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 17.34, ucl: 44.14, cl: 36.14, lcl: 28.14, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 11.34, trigger: 17.34, ucl: 44.14, cl: 36.14, lcl: 28.14, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 17.34, ucl: 44.14, cl: 36.14, lcl: 28.14, rucl: 5, rcl: 2.5 } } } },
+  sky4d: { label: 'Skybolt 4D', unit: 'Kgf', types: ['sl'], spc: { buyoff: { sl: { spec: 11.34, trigger: 22.17, ucl: 79.09, cl: 57.44, lcl: 35.78, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 22.17, ucl: 79.09, cl: 57.44, lcl: 35.78, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 11.34, trigger: 22.17, ucl: 79.09, cl: 57.44, lcl: 35.78, rucl: 5, rcl: 2.5 }, bobbin: { spec: 11.34, trigger: 22.17, ucl: 79.09, cl: 57.44, lcl: 35.78, rucl: 5, rcl: 2.5 } } } },
+  sum10d: { label: 'Summit 10D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 10, rcl: 5 } }, roving: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 10, rcl: 5 } } } },
+  v111d: { label: 'V11 1D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 87.03, ucl: 172.13, cl: 115.39, lcl: 58.66, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60, ucl: 120, cl: 90, lcl: 60, rucl: 10, rcl: 5 } }, roving: { sl: { spec: 25, trigger: 87.03, ucl: 172.13, cl: 115.39, lcl: 58.66, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60, ucl: 130, cl: 90, lcl: 50, rucl: 10, rcl: 5 } } } },
+  v112d: { label: 'V11 2D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 93.97, ucl: 169.01, cl: 118.98, lcl: 68.95, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 93.97, ucl: 169.01, cl: 118.98, lcl: 68.95, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 93.97, ucl: 169.01, cl: 118.98, lcl: 68.95, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 93.97, ucl: 169.01, cl: 118.98, lcl: 68.95, rucl: 25, rcl: 12.5 } } } },
+  v114d: { label: 'V11 4D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 } } } },
+  v15: { label: 'V15 CMR 4D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 60.22, ucl: 317.89, cl: 247.46, lcl: 177.03, rucl: 25, rcl: 12.5 } } } }
+};
+
+// Called when the Module Config tab is opened
+function initGlobalConfig() {
+    const laserProductSel = document.getElementById('gc-laser-product');
+    if (laserProductSel && typeof PRODUCTS !== 'undefined') {
+        const currentVal = laserProductSel.value;
+        let opts = '<option value="">— ค่าเริ่มต้น (Default ทุกรุ่น) —</option>';
+        Object.keys(PRODUCTS).forEach(k => {
+            opts += `<option value="${k}">${PRODUCTS[k].label || k}</option>`;
+        });
+        laserProductSel.innerHTML = opts;
+        laserProductSel.value = currentVal;
+    }
+
+    // --- Damper Products ---
+    const DMP_PRODUCTS_DEFAULT = {
+        cim3d: 'Cimarron BP 3D', cim4d: 'Cimarron BP 4D', cim5d: 'Cimarron BP 5D',
+        dor10n: 'Dorado 10D NOAR', dor10d: 'Dorado 10D', dor5dbb: 'Dorado 5D AL BB', dor5d: 'Dorado 5D',
+        mar10d: 'Marlin 10D', sky1d: 'Skybolt 1D', sky2d: 'Skybolt 2D', sky3d: 'Skybolt 3D', sky4d: 'Skybolt 4D',
+        sum10d: 'Summit 10D', v114d: 'V11 4D', v15: 'V15 CMR 4D'
+    };
+    const dmpProductSel = document.getElementById('gc-dmp-product');
+    if (dmpProductSel) {
+        const currentVal = dmpProductSel.value;
+        let opts = `<option value="">— ค่าเริ่มต้น (Default ทุกรุ่น) —</option>`;
+        Object.keys(DMP_PRODUCTS_DEFAULT).forEach(k => {
+            opts += `<option value="${k}">${DMP_PRODUCTS_DEFAULT[k]}</option>`;
+        });
+        dmpProductSel.innerHTML = opts;
+        dmpProductSel.value = currentVal;
+    }
+
+    loadGlobalLaserConfig();
+    loadGlobalDamperConfig();
+    document.getElementById('gc-pof-product').value = '';
+    document.getElementById('gc-pof-form').style.display = 'none';
+}
+
+// ========================
+// LASER CONFIG
+// ========================
+function loadGlobalLaserConfig() {
+    let cfg = { typeQty: {}, productQty: {}, fixtures: [], shifts: [] };
+    
+    // Fallback to localStorage if any legacy arrays exist, but prefer window.LASER_CONFIG
+    try {
+        const raw = localStorage.getItem(LS_KEY_LASER_CFG);
+        if (raw) cfg = JSON.parse(raw);
+    } catch (e) { }
+
+    if (typeof window !== 'undefined' && window.LASER_CONFIG) {
+        cfg.typeQty = window.LASER_CONFIG.typeQty || {};
+        cfg.productQty = window.LASER_CONFIG.productQty || {};
+    }
+
+    if (!cfg.typeQty) cfg.typeQty = {};
+    if (!cfg.productQty) cfg.productQty = {};
+
+    if (!cfg.typeQty) cfg.typeQty = {};
+    if (!cfg.fixtures) cfg.fixtures = [];
+    if (!cfg.typeQty) cfg.typeQty = {};
+    if (!cfg.productQty) cfg.productQty = {};
+
+    // Get selected product
+    const prodSel = document.getElementById('gc-laser-product');
+    const selectedKey = prodSel ? prodSel.value : '';
+
+    const defaultContainer = document.getElementById('gc-laser-default-qtys');
+    const productContainer = document.getElementById('gc-laser-product-qty-container');
+    const productEblockInput = document.getElementById('gc-laser-qty-product-eblock');
+    const productBobbinInput = document.getElementById('gc-laser-qty-product-bobbin');
+
+    if (selectedKey) {
+        if (defaultContainer) defaultContainer.style.display = 'none';
+        if (productContainer) productContainer.style.display = 'grid';
+
+        if (productEblockInput) {
+            productEblockInput.value = (cfg.productQty[selectedKey] && cfg.productQty[selectedKey]['E-block']) || '';
+        }
+        if (productBobbinInput) {
+            productBobbinInput.value = (cfg.productQty[selectedKey] && cfg.productQty[selectedKey]['Bobbin']) || '';
+        }
+    } else {
+        if (defaultContainer) defaultContainer.style.display = 'grid';
+        if (productContainer) productContainer.style.display = 'none';
+
+        // --- Qty per batch ---
+        const eblockEl = document.getElementById('gc-laser-qty-eblock');
+        const bobbinEl = document.getElementById('gc-laser-qty-bobbin');
+        if (eblockEl) eblockEl.value = cfg.typeQty['E-block'] || '';
+        if (bobbinEl) bobbinEl.value = cfg.typeQty['Bobbin'] || '';
+    }
+
+    // --- Summary cards (index.html) ---
+    const storedEblock = document.getElementById('gc-laser-stored-eblock');
+    const storedBobbin = document.getElementById('gc-laser-stored-bobbin');
+    const ebVal = cfg.typeQty['E-block'];
+    const bbVal = cfg.typeQty['Bobbin'];
+    if (storedEblock) storedEblock.textContent = (ebVal && !isNaN(parseInt(ebVal))) ? parseInt(ebVal) : '2 (default)';
+    if (storedBobbin) storedBobbin.textContent = (bbVal && !isNaN(parseInt(bbVal))) ? parseInt(bbVal) : '15 (default)';
+
+    renderLaserConfigTable(cfg);
+}
+
+function renderLaserConfigTable(cfg) {
+    const tbody = document.getElementById('sys-cfg-laser-tbody');
+    if (!tbody) return;
+    
+    let html = '';
+
+    // 1. Default row
+    const defEb = cfg.typeQty['E-block'] || '2 (System Default)';
+    const defBb = cfg.typeQty['Bobbin'] || '15 (System Default)';
+    html += `
+        <tr>
+            <td style="padding: 12px 16px; font-weight:700; color:var(--text); background:rgba(0,0,0,0.02);">— ค่าเริ่มต้น (Default ทุกรุ่น) —</td>
+            <td style="padding: 12px 16px; text-align:center;">${defEb}</td>
+            <td style="padding: 12px 16px; text-align:center;">${defBb}</td>
+            <td style="padding: 12px 16px; text-align:center;"><button class="btn btn-outline btn-sm" onclick="editLaserConfig('')">แก้ไข</button></td>
+        </tr>
+    `;
+
+    // 2. Product overrides
+    if (typeof PRODUCTS !== 'undefined') {
+        for (let k in PRODUCTS) {
+            let pq = cfg.productQty[k];
+            if (pq) {
+                let eb = pq['E-block'] || '-';
+                let bb = pq['Bobbin'] || '-';
+                html += `
+                    <tr style="border-top: 1px solid #f1f5f9;">
+                        <td style="padding: 12px 16px; font-weight:600;">${PRODUCTS[k].label || k}</td>
+                        <td style="padding: 12px 16px; text-align:center; color: ${eb!=='-'?'#059669':'var(--text3)'}; font-weight: ${eb!=='-'?'700':'400'};">${eb}</td>
+                        <td style="padding: 12px 16px; text-align:center; color: ${bb!=='-'?'#059669':'var(--text3)'}; font-weight: ${bb!=='-'?'700':'400'};">${bb}</td>
+                        <td style="padding: 12px 16px; text-align:center;"><button class="btn btn-outline btn-sm" onclick="editLaserConfig('${k}')">แก้ไข</button></td>
+                    </tr>
+                `;
+            }
+        }
+    }
+    tbody.innerHTML = html;
+}
+
+window.editLaserConfig = function(key) {
+    const prodSel = document.getElementById('gc-laser-product');
+    if (prodSel) {
+        prodSel.value = key;
+        loadGlobalLaserConfig();
+        prodSel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+};
+
+async function saveGlobalLaserConfig() {
+    const prodSel = document.getElementById('gc-laser-product');
+    const selectedKey = prodSel ? prodSel.value : '';
+    
+    let payload = {
+        product_key: selectedKey || 'DEFAULT',
+        eblock_qty: null,
+        bobbin_qty: null
+    };
+
+    if (selectedKey) {
+        const eb = document.getElementById('gc-laser-qty-product-eblock').value.trim();
+        const bb = document.getElementById('gc-laser-qty-product-bobbin').value.trim();
+        payload.eblock_qty = eb ? eb : null;
+        payload.bobbin_qty = bb ? bb : null;
+    } else {
+        const eb = document.getElementById('gc-laser-qty-eblock').value.trim();
+        const bb = document.getElementById('gc-laser-qty-bobbin').value.trim();
+        payload.eblock_qty = eb ? eb : null;
+        payload.bobbin_qty = bb ? bb : null;
+    }
+
+    try {
+        const res = await fetch(API_BASE + '/api/laser_config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Network response was not ok');
+        
+        alert('บันทึก Laser Settings สำเร็จ\\n(กำลังโหลดข้อมูลใหม่...)');
+        window.location.reload();
+    } catch (e) {
+        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        console.error(e);
+    }
+}
+
+// ========================
+// POF CONFIG
+// ========================
+function loadGlobalPofConfig() {
+    const key = document.getElementById('gc-pof-product').value;
+    const formEl = document.getElementById('gc-pof-form');
+
+    if (!key) {
+        formEl.style.display = 'none';
+        return;
+    }
+    formEl.style.display = 'block';
+
+    // Check if product has Bobbin
+    const prodDef = POF_PRODUCTS_DEFAULT[key] || {};
+    const hasBobbin = prodDef.types && prodDef.types.includes('bobbin');
+    
+    document.getElementById('gc-pof-bobbin-wrap-buyoff').style.display = hasBobbin ? 'table-row' : 'none';
+    document.getElementById('gc-pof-bobbin-wrap-roving').style.display = hasBobbin ? 'table-row' : 'none';
+
+    // Get default
+    let defaultBuyoff = prodDef.spc?.buyoff || {};
+    let defaultRoving = prodDef.spc?.roving || {};
+    let unit = prodDef.unit || '';
+
+    // Get override from LS
+    let cfg = {};
+    try {
+        const raw = localStorage.getItem(LS_KEY_POF_CFG);
+        if (raw) cfg = JSON.parse(raw);
+    } catch (e) { }
+
+    const userSpc = cfg.products?.[key] || {};
+    
+    // Merge Buyoff
+    const b_sl = { ...(defaultBuyoff.sl || {}), ...(userSpc.buyoff?.sl || {}) };
+    const b_bobbin = { ...(defaultBuyoff.bobbin || {}), ...(userSpc.buyoff?.bobbin || {}) };
+    const b_epoxy = { ...(defaultBuyoff.epoxy || {}), ...(userSpc.buyoff?.epoxy || {}) };
+    
+    // Merge Roving
+    const r_sl = { ...(defaultRoving.sl || {}), ...(userSpc.roving?.sl || {}) };
+    const r_bobbin = { ...(defaultRoving.bobbin || {}), ...(userSpc.roving?.bobbin || {}) };
+    const r_epoxy = { ...(defaultRoving.epoxy || {}), ...(userSpc.roving?.epoxy || {}) };
+
+    document.getElementById('gc-pof-unit').value = userSpc.unit || unit;
+
+    // Set Buy Off - SL
+    document.getElementById('gc-pof-buyoff-sl-spec').value = b_sl.spec || '';
+    document.getElementById('gc-pof-buyoff-sl-trig').value = b_sl.trigger || '';
+    document.getElementById('gc-pof-buyoff-sl-ucl').value = b_sl.ucl || '';
+    document.getElementById('gc-pof-buyoff-sl-cl').value = b_sl.cl || '';
+    document.getElementById('gc-pof-buyoff-sl-lcl').value = b_sl.lcl || '';
+    document.getElementById('gc-pof-buyoff-sl-rucl').value = b_sl.rucl || '';
+    document.getElementById('gc-pof-buyoff-sl-rcl').value = b_sl.rcl || '';
+
+    // Set Buy Off - Bobbin
+    document.getElementById('gc-pof-buyoff-bobbin-spec').value = b_bobbin.spec || '';
+    document.getElementById('gc-pof-buyoff-bobbin-trig').value = b_bobbin.trigger || '';
+    document.getElementById('gc-pof-buyoff-bobbin-ucl').value = b_bobbin.ucl || '';
+    document.getElementById('gc-pof-buyoff-bobbin-cl').value = b_bobbin.cl || '';
+    document.getElementById('gc-pof-buyoff-bobbin-lcl').value = b_bobbin.lcl || '';
+    document.getElementById('gc-pof-buyoff-bobbin-rucl').value = b_bobbin.rucl || '';
+    document.getElementById('gc-pof-buyoff-bobbin-rcl').value = b_bobbin.rcl || '';
+
+    // Set Buy Off - Epoxy
+    document.getElementById('gc-pof-buyoff-epoxy-spec').value = b_epoxy.spec || '';
+
+    // Set Roving - SL
+    document.getElementById('gc-pof-roving-sl-spec').value = r_sl.spec || '';
+    document.getElementById('gc-pof-roving-sl-trig').value = r_sl.trigger || '';
+    document.getElementById('gc-pof-roving-sl-ucl').value = r_sl.ucl || '';
+    document.getElementById('gc-pof-roving-sl-cl').value = r_sl.cl || '';
+    document.getElementById('gc-pof-roving-sl-lcl').value = r_sl.lcl || '';
+    document.getElementById('gc-pof-roving-sl-rucl').value = r_sl.rucl || '';
+    document.getElementById('gc-pof-roving-sl-rcl').value = r_sl.rcl || '';
+
+    // Set Roving - Bobbin
+    document.getElementById('gc-pof-roving-bobbin-spec').value = r_bobbin.spec || '';
+    document.getElementById('gc-pof-roving-bobbin-trig').value = r_bobbin.trigger || '';
+    document.getElementById('gc-pof-roving-bobbin-ucl').value = r_bobbin.ucl || '';
+    document.getElementById('gc-pof-roving-bobbin-cl').value = r_bobbin.cl || '';
+    document.getElementById('gc-pof-roving-bobbin-lcl').value = r_bobbin.lcl || '';
+    document.getElementById('gc-pof-roving-bobbin-rucl').value = r_bobbin.rucl || '';
+    document.getElementById('gc-pof-roving-bobbin-rcl').value = r_bobbin.rcl || '';
+
+    // Set Roving - Epoxy
+    document.getElementById('gc-pof-roving-epoxy-spec').value = r_epoxy.spec || '';
+}
+
+function saveGlobalPofConfig() {
+    const key = document.getElementById('gc-pof-product').value;
+    if (!key) return;
+
+    const parseNum = (val) => isNaN(parseFloat(val)) ? null : parseFloat(val);
+
+    const updates = {
+        unit: document.getElementById('gc-pof-unit').value,
+        buyoff: {
+            sl: {
+                spec: parseNum(document.getElementById('gc-pof-buyoff-sl-spec').value),
+                trigger: parseNum(document.getElementById('gc-pof-buyoff-sl-trig').value),
+                ucl: parseNum(document.getElementById('gc-pof-buyoff-sl-ucl').value),
+                cl: parseNum(document.getElementById('gc-pof-buyoff-sl-cl').value),
+                lcl: parseNum(document.getElementById('gc-pof-buyoff-sl-lcl').value),
+                rucl: parseNum(document.getElementById('gc-pof-buyoff-sl-rucl').value),
+                rcl: parseNum(document.getElementById('gc-pof-buyoff-sl-rcl').value)
+            },
+            bobbin: {
+                spec: parseNum(document.getElementById('gc-pof-buyoff-bobbin-spec').value),
+                trigger: parseNum(document.getElementById('gc-pof-buyoff-bobbin-trig').value),
+                ucl: parseNum(document.getElementById('gc-pof-buyoff-bobbin-ucl').value),
+                cl: parseNum(document.getElementById('gc-pof-buyoff-bobbin-cl').value),
+                lcl: parseNum(document.getElementById('gc-pof-buyoff-bobbin-lcl').value),
+                rucl: parseNum(document.getElementById('gc-pof-buyoff-bobbin-rucl').value),
+                rcl: parseNum(document.getElementById('gc-pof-buyoff-bobbin-rcl').value)
+            },
+            epoxy: {
+                spec: parseNum(document.getElementById('gc-pof-buyoff-epoxy-spec').value)
+            }
+        },
+        roving: {
+            sl: {
+                spec: parseNum(document.getElementById('gc-pof-roving-sl-spec').value),
+                trigger: parseNum(document.getElementById('gc-pof-roving-sl-trig').value),
+                ucl: parseNum(document.getElementById('gc-pof-roving-sl-ucl').value),
+                cl: parseNum(document.getElementById('gc-pof-roving-sl-cl').value),
+                lcl: parseNum(document.getElementById('gc-pof-roving-sl-lcl').value),
+                rucl: parseNum(document.getElementById('gc-pof-roving-sl-rucl').value),
+                rcl: parseNum(document.getElementById('gc-pof-roving-sl-rcl').value)
+            },
+            bobbin: {
+                spec: parseNum(document.getElementById('gc-pof-roving-bobbin-spec').value),
+                trigger: parseNum(document.getElementById('gc-pof-roving-bobbin-trig').value),
+                ucl: parseNum(document.getElementById('gc-pof-roving-bobbin-ucl').value),
+                cl: parseNum(document.getElementById('gc-pof-roving-bobbin-cl').value),
+                lcl: parseNum(document.getElementById('gc-pof-roving-bobbin-lcl').value),
+                rucl: parseNum(document.getElementById('gc-pof-roving-bobbin-rucl').value),
+                rcl: parseNum(document.getElementById('gc-pof-roving-bobbin-rcl').value)
+            },
+            epoxy: {
+                spec: parseNum(document.getElementById('gc-pof-roving-epoxy-spec').value)
+            }
+        }
+    };
+
+    let cfg = { products: {} };
+    try {
+        const raw = localStorage.getItem(LS_KEY_POF_CFG);
+        if (raw) cfg = JSON.parse(raw);
+    } catch (e) { }
+
+    if (!cfg.products) cfg.products = {};
+    
+    // Merge existing configs for this product (in case there's something else not overwritten here)
+    const existingSpc = cfg.products[key] || {};
+    cfg.products[key] = {
+        ...existingSpc,
+        unit: updates.unit,
+        buyoff: {
+            ...existingSpc.buyoff,
+            sl: updates.buyoff.sl,
+            bobbin: updates.buyoff.bobbin,
+            epoxy: updates.buyoff.epoxy
+        },
+        roving: {
+            ...existingSpc.roving,
+            sl: updates.roving.sl,
+            bobbin: updates.roving.bobbin,
+            epoxy: updates.roving.epoxy
+        }
+    };
+
+    localStorage.setItem(LS_KEY_POF_CFG, JSON.stringify(cfg));
+    alert('บันทึก SPC Parameters สำหรับ ' + key + ' สำเร็จ\n(รีเฟรชหน้า Push Out Force เพื่อใช้งานค่าใหม่)');
+}
+
+// ========================
+// DAMPER CONFIG
+// ========================
+const LS_KEY_DMR_CFG = 'belton_damper_v3_config';
+
+// Default spec values matching damper_install.js DIM_GROUPS
+const DMR_DIM_DEFAULTS = {
+    short_p1: { nom: 1.3580, tol: 0.0100 },
+    short_p2: { nom: 0.0300, tol: 0.0100 },
+    long_top: { nom: 0.8140, tol: 0.0100 },
+    long_bot: { nom: 0.0300, tol: 0.0100 },
+};
+
+function loadGlobalDamperConfig() {
+    let cfg = {};
+    try {
+        const raw = localStorage.getItem(LS_KEY_DMR_CFG);
+        if (raw) cfg = JSON.parse(raw);
+    } catch (e) { }
+
+    const prodSel = document.getElementById('gc-dmp-product');
+    const selectedKey = prodSel ? prodSel.value : '';
+
+    let dims;
+    if (selectedKey) {
+        const prodOverride = (cfg.productDims && cfg.productDims[selectedKey]) ? cfg.productDims[selectedKey] : {};
+        const globalDefault = cfg.dims || {};
+        dims = {};
+        const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+        keys.forEach(k => {
+            dims[k] = {};
+            if (prodOverride[k]?.nom !== undefined) {
+                dims[k].nom = prodOverride[k].nom;
+                dims[k].isOverride = true;
+            } else if (globalDefault[k]?.nom !== undefined) {
+                dims[k].nom = globalDefault[k].nom;
+            } else {
+                dims[k].nom = DMR_DIM_DEFAULTS[k].nom;
+            }
+
+            if (prodOverride[k]?.tol !== undefined) {
+                dims[k].tol = prodOverride[k].tol;
+                dims[k].isOverride = true;
+            } else if (globalDefault[k]?.tol !== undefined) {
+                dims[k].tol = globalDefault[k].tol;
+            } else {
+                dims[k].tol = DMR_DIM_DEFAULTS[k].tol;
+            }
+        });
+    } else {
+        dims = cfg.dims || {};
+    }
+
+    const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+    keys.forEach(k => {
+        const nomEl = document.getElementById(`gc-dmp-${k}-nom`);
+        const tolEl = document.getElementById(`gc-dmp-${k}-tol`);
+        if (nomEl) {
+            nomEl.value = dims[k]?.nom !== undefined ? dims[k].nom : DMR_DIM_DEFAULTS[k].nom;
+            nomEl.style.borderColor = (selectedKey && dims[k]?.isOverride) ? '#059669' : '';
+            nomEl.style.backgroundColor = (selectedKey && dims[k]?.isOverride) ? 'rgba(16,185,129,0.05)' : '';
+        }
+        if (tolEl) {
+            tolEl.value = dims[k]?.tol !== undefined ? dims[k].tol : DMR_DIM_DEFAULTS[k].tol;
+            tolEl.style.borderColor = (selectedKey && dims[k]?.isOverride) ? '#059669' : '';
+            tolEl.style.backgroundColor = (selectedKey && dims[k]?.isOverride) ? 'rgba(16,185,129,0.05)' : '';
+        }
+    });
+}
+
+function saveGlobalDamperConfig() {
+    let cfg = {};
+    try {
+        const raw = localStorage.getItem(LS_KEY_DMR_CFG);
+        if (raw) cfg = JSON.parse(raw);
+    } catch (e) { }
+
+    const prodSel = document.getElementById('gc-dmp-product');
+    const selectedKey = prodSel ? prodSel.value : '';
+
+    if (!cfg.dims) cfg.dims = {};
+    if (!cfg.productDims) cfg.productDims = {};
+
+    const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+    let changed = false;
+
+    let targetObj;
+    if (selectedKey) {
+        if (!cfg.productDims[selectedKey]) cfg.productDims[selectedKey] = {};
+        targetObj = cfg.productDims[selectedKey];
+    } else {
+        targetObj = cfg.dims;
+    }
+
+    keys.forEach(k => {
+        const nomStr = document.getElementById(`gc-dmp-${k}-nom`)?.value.trim();
+        const tolStr = document.getElementById(`gc-dmp-${k}-tol`)?.value.trim();
+
+        if (nomStr === '' && tolStr === '' && selectedKey) {
+            // Delete product override for this point if both empty
+            if (targetObj[k]) { delete targetObj[k]; changed = true; }
+        } else {
+            const nomVal = parseFloat(nomStr);
+            const tolVal = parseFloat(tolStr);
+            if (!isNaN(nomVal) || !isNaN(tolVal)) {
+                if (!targetObj[k]) targetObj[k] = {};
+                if (!isNaN(nomVal)) targetObj[k].nom = nomVal;
+                if (!isNaN(tolVal)) targetObj[k].tol = tolVal;
+                changed = true;
+            }
+        }
+    });
+
+    if (changed || selectedKey) {
+        localStorage.setItem(LS_KEY_DMR_CFG, JSON.stringify(cfg));
+        alert('บันทึก Damper Specifications สำเร็จ\n(รีเฟรชหน้า Damper Install เพื่อใช้งานค่าใหม่)');
+        loadGlobalDamperConfig();
+    } else {
+        alert('กรุณากรอกข้อมูลที่ต้องการบันทึก');
+    }
+}
+
+// ========================
+// RESET CONFIGURATIONS
+// ========================
+function resetGlobalLaserConfig() {
+    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตค่า Laser Config คืนค่าเดิมทั้งหมด?")) {
+        localStorage.removeItem(LS_KEY_LSR_CFG);
+        alert("รีเซ็ตค่า Laser Config สำเร็จ");
+        loadGlobalLaserConfig();
+    }
+}
+
+function resetGlobalPofConfig() {
+    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตค่า POF Config คืนค่าเดิมทั้งหมด?")) {
+        localStorage.removeItem(LS_KEY_POF_CFG);
+        alert("รีเซ็ตค่า POF Config สำเร็จ");
+        loadGlobalPofConfig();
+    }
+}
+
+function resetGlobalDamperConfig() {
+    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตค่า Damper Config คืนค่าเดิมทั้งหมด?")) {
+        localStorage.removeItem(LS_KEY_DMR_CFG);
+        alert("รีเซ็ตค่า Damper Config สำเร็จ");
+        loadGlobalDamperConfig();
+    }
+}
