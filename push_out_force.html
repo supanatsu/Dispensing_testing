@@ -3,8 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
   <title>BELTON IPQC — Push Out Force</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -393,9 +392,6 @@
         About Data <span class="badge" id="badge-records">0</span>
       </button>
       <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization</button>
-      <button class="nav-btn" data-tab="alerts" onclick="switchTab('alerts',this)">
-        Alert Log <span class="badge" id="badge-alerts" style="background:var(--fail);color:#fff">0</span>
-      </button>
     </div>
 
     <div class="content">
@@ -434,63 +430,76 @@
 
               <!-- Product -->
               <div class="form-group" id="grp-product">
-                <label>Product <span style="color:var(--fail)">*</span></label>
+                <label>1. Product <span style="color:var(--fail)">*</span></label>
                 <select id="m-product" class="form-select" onchange="onProductChange()">
                   <option value="">— เลือก Product —</option>
                 </select>
               </div>
 
-              <!-- Condition (TC/NTC) — ต่อกับ Product -->
+              <!-- type_condition -->
               <div class="form-group" id="grp-condition">
-                <label>Condition <span style="color:var(--fail)">*</span></label>
+                <label>2. Type Condition <span style="color:var(--fail)">*</span></label>
                 <select id="m-condition" class="form-select">
-                  <option value="NTC">NTC (Normal / Non-Thermal Cycle)</option>
-                  <option value="TC">TC (Thermal Cycle)</option>
+                  <option value="NTC">NTC</option>
+                  <option value="TC">TC</option>
                 </select>
               </div>
 
-              <!-- Coil Type removed per user request -->
+              <!-- PT no. -->
+              <div class="form-group" id="grp-ptno">
+                <label>3. PT no. <span style="color:var(--fail)">*</span></label>
+                <input type="text" id="m-ptno" class="form-input" placeholder="e.g. PT251225145">
+              </div>
 
+              <!-- Frequency -->
+              <div class="form-group" id="grp-qty">
+                <label>Frequency <span style="font-size:10px;color:var(--text3)">(ดูดค่าจาก System Config)</span></label>
+                <input type="text" id="m-qty" class="form-input" placeholder="-" readonly style="background-color: var(--bg2); border-color: var(--border2); color: var(--text2); cursor: not-allowed; font-weight: bold;">
+              </div>
+
+              <!-- date -->
               <div class="form-group" id="grp-date">
-                <label>Date <span style="color:var(--fail)">*</span></label>
+                <label>5. Date <span style="color:var(--fail)">*</span></label>
                 <input type="date" id="m-date" class="form-input">
               </div>
 
+              <!-- time -->
+              <div class="form-group" id="grp-time">
+                <label>6. Time <span style="color:var(--fail)">*</span></label>
+                <input type="time" id="m-time" class="form-input">
+              </div>
+
+              <!-- sample build date -->
+              <div class="form-group" id="grp-sample-date">
+                <label>7. Sample Build Date</label>
+                <input type="date" id="m-sample-date" class="form-input">
+              </div>
+
+              <!-- shift -->
               <div class="form-group" id="grp-team">
-                <label>Shift / Team</label>
+                <label>8. Shift</label>
                 <select id="m-team" class="form-select">
                   <option value="">— Select —</option>
-                  <option>A/Day</option>
-                  <option>A/Night</option>
-                  <option>B/Day</option>
-                  <option>B/Night</option>
+                  <option value="A/Day">A/Day</option>
+                  <option value="A/Night">A/Night</option>
+                  <option value="B/Day">B/Day</option>
+                  <option value="B/Night">B/Night</option>
                 </select>
               </div>
 
-              <div class="form-group" id="grp-en">
-                <label>EN # <span style="color:var(--fail)">*</span></label>
-                <input type="text" id="m-en" class="form-input" placeholder="e.g. 722" style="letter-spacing:1px">
-              </div>
-
-              <div class="form-group" id="grp-traveler">
-                <label>Traveler Number</label>
-                <input type="text" id="m-traveler" class="form-input" placeholder="e.g. PT251225145_N">
-              </div>
-
+              <!-- Oven -->
               <div class="form-group" id="grp-oven">
-                <label>Oven / Machine #</label>
+                <label>9. Oven</label>
                 <input type="text" id="m-oven" class="form-input" placeholder="e.g. 9/1" style="letter-spacing:1px">
               </div>
 
-              <div class="form-group" id="grp-lot">
-                <label>E-block Store Lot</label>
-                <input type="text" id="m-lot" class="form-input" placeholder="e.g. LOT-2601-001">
+              <!-- En no. -->
+              <div class="form-group" id="grp-en">
+                <label>10. En no. <span style="color:var(--fail)">*</span></label>
+                <input type="text" id="m-en" class="form-input" placeholder="e.g. 722" style="letter-spacing:1px">
               </div>
 
-              <div class="form-group" id="grp-qty">
-                <label>Qty Shipment</label>
-                <input type="number" id="m-qty" class="form-input" placeholder="e.g. 200">
-              </div>
+              <!-- Extra (Keep for system compatibility) -->
 
               <div class="form-group" id="grp-remark" style="grid-column:1/-1">
                 <label>Remark</label>
@@ -569,19 +578,128 @@
 
               <!-- Epoxy Coverage -->
               <div class="sec-label" style="margin-top:18px">🔍 Epoxy Coverage</div>
+
+              <!-- hidden inputs for saveRecord() compatibility -->
+              <input type="hidden" id="m-eblock-long">
+              <input type="hidden" id="m-eblock-short">
+              <input type="hidden" id="m-eblock-avg">
+              <input type="hidden" id="m-coil-short">
+              <input type="hidden" id="m-coil-center">
+              <input type="hidden" id="m-coil-long">
+              <input type="hidden" id="m-bobbin-short">
+              <input type="hidden" id="m-bobbin-center">
+              <input type="hidden" id="m-bobbin-long">
+
+              <style>
+                /* ── Epoxy Coverage Picker ─────────────────── */
+                .ep-row-new { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; align-items: center; margin-bottom: 8px; }
+                .ep-row-lbl { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; }
+                .ep-avg-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: var(--accent); }
+                .ep-picker-row { display: flex; flex-wrap: wrap; gap: 4px; }
+                .ep-pick-btn {
+                  min-width: 36px; padding: 5px 3px; border-radius: 5px;
+                  border: 1.5px solid var(--border); background: var(--bg2);
+                  font-size: 11px; font-weight: 700; color: var(--text3);
+                  cursor: pointer; text-align: center; transition: all .15s;
+                  flex: 1; min-width: 32px;
+                }
+                .ep-pick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg3); }
+                .ep-pick-btn.ep-sel-reject { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+                .ep-pick-btn.ep-sel-hold   { border-color: #f59e0b; background: #fffbeb; color: #b45309; }
+                .ep-pick-btn.ep-sel-accept { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
+
+                .ep-col-hdr { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; margin-bottom: 4px; }
+                .ep-col-hdr span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); text-align: center; }
+                .ep-divider { border: none; border-top: 1px dashed var(--border); margin: 8px 0; }
+
+                .ep-overall-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 10px; }
+                .ep-pill { padding: 9px; border-radius: 7px; text-align: center; font-size: 12px; font-weight: 800; border: 1px solid var(--border); color: var(--text3); background: var(--bg2); transition: all .2s; }
+                .ep-pill.ep-pass { background: var(--pass); color: #fff; border-color: var(--pass); }
+                .ep-pill.ep-hold { background: var(--warn); color: #fff; border-color: var(--warn); }
+                .ep-pill.ep-fail { background: var(--fail); color: #fff; border-color: var(--fail); }
+
+                /* hidden: retain for coil/bobbin cfg ref */
+                .ep-cfg-row { display:none; }
+
+                @media(max-width:600px) {
+                  .ep-row-new { grid-template-columns: 90px 1fr 52px; gap:5px; }
+                  .ep-col-hdr { grid-template-columns: 90px 1fr 52px; }
+                  .ep-pick-btn { min-width:28px; font-size:10px; }
+                }
+              </style>
+
+              <!-- Column headers -->
+              <div class="ep-col-hdr">
+                <span></span>
+                <span>เลือกค่า (%)</span>
+                <span>Value</span>
+              </div>
+
+              <!-- E-Block Long Fantail -->
+              <div class="ep-row-lbl" style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #1e3a8a; font-size: 13px;">🔵 E-Block Long Fantail</div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
+                <div class="ep-picker-row" id="ep-picker-ebl_long"></div>
+                <div class="ep-avg-box" id="epavg-ebl_long">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
+                <div class="ep-picker-row" id="ep-picker-ebl_center"></div>
+                <div class="ep-avg-box" id="epavg-ebl_center">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
+                <div class="ep-picker-row" id="ep-picker-ebl_short"></div>
+                <div class="ep-avg-box" id="epavg-ebl_short">0</div>
+              </div>
+              <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+                Avg E-Block Long: <span id="epavg-ebl" style="color: var(--accent); font-size: 14px;">0</span> %
+              </div>
+
+              <hr class="ep-divider">
+
+              <!-- Short Fantail -->
+              <div class="ep-row-lbl" style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #ea580c; font-size: 13px;">🟠 Short Fantail</div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
+                <div class="ep-picker-row" id="ep-picker-ebs_long"></div>
+                <div class="ep-avg-box" id="epavg-ebs_long">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
+                <div class="ep-picker-row" id="ep-picker-ebs_center"></div>
+                <div class="ep-avg-box" id="epavg-ebs_center">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
+                <div class="ep-picker-row" id="ep-picker-ebs_short"></div>
+                <div class="ep-avg-box" id="epavg-ebs_short">0</div>
+              </div>
+              <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+                Avg Short Fantail: <span id="epavg-ebs" style="color: var(--accent); font-size: 14px;">0</span> %
+              </div>
+
+              <hr class="ep-divider">
+
+              <!-- Bobbin — hidden row (preserved for ID compatibility) -->
+              <div class="ep-cfg-row" id="grp-epoxy-bobbin"></div>
+
+              <!-- Hidden inputs to keep saveRecord() compatibility -->
+              <div id="epv-ebl_long"    style="display:none">0</div>
+              <div id="epv-ebl_center"  style="display:none">0</div>
+              <div id="epv-ebl_short"   style="display:none">0</div>
+              <div id="epv-ebs_long"    style="display:none">0</div>
+              <div id="epv-ebs_center"  style="display:none">0</div>
+              <div id="epv-ebs_short"   style="display:none">0</div>
+
+              <!-- Overall result pills -->
+              <div class="ep-overall-row" id="ep-overall-row">
+                <div class="ep-pill" id="ep-btn-pass">Pass</div>
+                <div class="ep-pill" id="ep-btn-hold">Hold</div>
+                <div class="ep-pill" id="ep-btn-fail">Fail</div>
+              </div>
+
               <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0">
-                <div class="form-group">
-                  <label>E-Block Long</label>
-                  <input type="number" id="m-epoxy-long" class="form-input" step="0.01" placeholder="e.g. 50">
-                </div>
-                <div class="form-group">
-                  <label>E-Block Short</label>
-                  <input type="number" id="m-epoxy-short" class="form-input" step="0.01" placeholder="e.g. 50">
-                </div>
-                <div class="form-group" id="grp-epoxy-bobbin" style="display:none">
-                  <label>Bobbin</label>
-                  <input type="number" id="m-epoxy-bobbin" class="form-input" step="0.01" placeholder="e.g. 50">
-                </div>
                 <div class="form-group">
                   <label>Overall Result</label>
                   <div class="pf-toggle" id="toggle-overall" data-value="Pass">
@@ -844,71 +962,6 @@
           </div>
         </div>
       </div>
-
-
-      <!-- ═══════════════════════════════════════════
-     TAB 4 : ALERT LOG
-═══════════════════════════════════════════ -->
-      <div class="tab-panel" id="panel-alerts">
-        <div class="split-2">
-          <div class="card" style="margin-bottom:0">
-            <div class="card-hdr">
-              <div>
-                <h3>🚨 Real-Time Alert Log</h3>
-                <div class="card-sub">บันทึกเมื่อพบค่าที่เกิน Spec หรือ Trigger</div>
-              </div>
-              <div class="btn-row">
-                <button class="btn btn-outline btn-sm" onclick="renderAlerts()">🔄 Refresh</button>
-                <button class="btn btn-danger  btn-sm" onclick="clearAlerts()">🗑️ Clear</button>
-              </div>
-            </div>
-            <div id="alerts-body"
-              style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto;padding:14px">
-              <div class="empty" style="padding:30px;text-align:center">
-                <div style="font-size:32px">✅</div>
-                <p>ไม่มี Alert Log</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" style="margin-bottom:0">
-            <div class="card-hdr">
-              <div>
-                <h3>📧 Outlook Alert Dispatcher</h3>
-                <div class="card-sub">ส่งออกรายงานพร้อม SPC Summary เป็น .eml</div>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="form-group" style="margin-bottom:12px">
-                <label style="font-weight:700">Recipients</label>
-                <input type="email" id="outlook-to" class="form-input" value="supanatt04@gmail.com"
-                  style="margin-top:6px">
-              </div>
-              <div class="form-group" style="margin-bottom:12px">
-                <label style="font-weight:700">Alert Threshold</label>
-                <select id="outlook-threshold" class="form-select" style="margin-top:6px">
-                  <option value="critical">🔴 Critical (OUT Spec) only</option>
-                  <option value="warn">🟡 Warning + Critical</option>
-                </select>
-              </div>
-              <div class="btn-row" style="margin-bottom:14px">
-                <button class="btn btn-primary" onclick="generateOutlookDraft()">Step 1: Generate EML</button>
-              </div>
-              <div id="export-actions" style="display:none;border-top:1px solid var(--border);padding-top:14px">
-                <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:10px">
-                  Step 2: Download แล้วเปิดใน Outlook
-                </div>
-                <button class="btn btn-blue" onclick="downloadOutlookEml()">📧 Download .eml</button>
-                <div class="ol-preview" style="margin-top:12px">
-                  <div class="ol-subject" id="ol-subject">Subject</div>
-                  <div class="ol-body" id="ol-body"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
 
 
     </div>

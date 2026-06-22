@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
   <title>Alert Configuration - BELTON IPQC</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="tablet_patch.css">
 </head>
 <body>
   <aside id="sidebar-root"></aside>
@@ -116,7 +117,7 @@
                   if (sysData.SENDER_PASS) document.getElementById('sys-pass').value = sysData.SENDER_PASS;
               }
 
-              const res = await fetch(`${API_BASE}/api/dispensing/alert-recipients`);
+              const res = await fetch(`${API_BASE}/api/system/alert-recipients`);
               if (!res.ok) return;
               const data = await res.json();
               const tbody = document.getElementById('recipient-tbody');
@@ -176,7 +177,7 @@
               active: document.getElementById('rec-active').checked ? 1 : 0
           };
           try {
-              const res = await fetch(`${API_BASE}/api/dispensing/alert-recipients`, {
+              const res = await fetch(`${API_BASE}/api/system/alert-recipients`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(payload)
@@ -191,7 +192,7 @@
       async function deleteRecipient(id, email) {
           if (!confirm(`ยืนยันการลบ ${email} ออกจากระบบรับแจ้งเตือน?`)) return;
           try {
-              const res = await fetch(`${API_BASE}/api/dispensing/alert-recipients/${id}`, { method: 'DELETE' });
+              const res = await fetch(`${API_BASE}/api/system/alert-recipients/${id}`, { method: 'DELETE' });
               if (res.ok) fetchRecipients();
           } catch (e) { console.error(e); }
       }

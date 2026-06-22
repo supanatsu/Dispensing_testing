@@ -115,9 +115,35 @@ const fs = require('fs');
 async function autoSeedData() {
   try {
     try {
-      const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8').replace(/^\uFEFF/, '');
-      await pool.query(sql);
-      console.log('✅ Database schema verified/created successfully!');
+      const rawSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8')
+        .replace(/^\uFEFF/, '')
+        .replace(/--.*$/gm, '') // Remove single-line comments
+        .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove multi-line comments
+
+      // mysql2 ไม่รัน multi-statement ใน pool.query() โดย default
+      // → split เป็น statement ย่อย แล้วรันทีละอัน
+      // กรองเอาเฉพาะ statement ที่ไม่ว่างเปล่าออกมา
+      const statements = rawSql
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      let ok = 0, skip = 0;
+      for (const stmt of statements) {
+        try {
+          await pool.query(stmt);
+          ok++;
+        } catch (stmtErr) {
+          // ไม่หยุดถ้า error เป็น "already exists" หรือ duplicate key
+          if (/already exists|Duplicate entry/i.test(stmtErr.message)) {
+            skip++;
+          } else {
+            console.warn(`⚠️ Schema stmt skipped: ${stmtErr.message.substring(0, 80)}`);
+            skip++;
+          }
+        }
+      }
+      console.log(`✅ Database schema verified/created successfully! (${ok} ok, ${skip} skipped)`);
     } catch (e) {
       console.error('⚠️ Schema import failed:', e.message);
     }
@@ -136,7 +162,7 @@ async function autoSeedData() {
         );
       `);
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS dispensing_alert_recipients (
+        CREATE TABLE IF NOT EXISTS alert_recipients (
           id INT AUTO_INCREMENT PRIMARY KEY,
           email VARCHAR(255) UNIQUE,
           name VARCHAR(255),
@@ -401,29 +427,77 @@ app.post('/api/pof/sync', async (req, res) => {
       else if(dataType.toLowerCase().includes('special')) dataType = 'Special';
       else dataType = 'Buy off';
 
-      let status = r.overall || 'WAITING';
+      let status = r.overall || r.status || 'WAITING';
       if (status.toLowerCase() === 'pass') status = 'ACCEPT';
       if (status.toLowerCase() === 'fail') status = 'REJECT';
 
+      // Parse explicit POF measurement fields
+      const config_id = r.config_id || null;
+      const mode = r.mode || 'buyoff';
+      const coil_type = r.coil_type || r.coilType || 'sl';
+      const product_label = r.product_label || r.productLabel || '';
+      const unit = r.unit || 'Lbs';
+      const overall = r.overall || 'Pass';
+      const spc_ucl = r.spc_ucl != null ? parseFloat(r.spc_ucl) : null;
+      const spc_cl = r.spc_cl != null ? parseFloat(r.spc_cl) : null;
+      const spc_lcl = r.spc_lcl != null ? parseFloat(r.spc_lcl) : null;
+      const spc_trig = r.spc_trig != null ? parseFloat(r.spc_trig) : null;
+      const spc_spec = r.spc_spec != null ? parseFloat(r.spc_spec) : null;
+      const remark = r.remark || '';
+      const en = r.en || r.op || '';
+      const traveler = r.traveler || r.ptno || '';
+      const long1 = r.long1 != null ? parseFloat(r.long1) : null;
+      const short2 = r.short2 != null ? parseFloat(r.short2) : null;
+      const avg_val = r.avg != null ? parseFloat(r.avg) : null;
+      const max_val = r.max != null ? parseFloat(r.max) : null;
+      const min_val = r.min != null ? parseFloat(r.min) : null;
+      const range_val = r.range != null ? parseFloat(r.range) : null;
+      const spec_result = r.spec_result || null;
+      const trigger_val = r.trigger_val || r.trigger || null;
+      const out_cl = r.out_cl || null;
+      const trend = r.trend || null;
+      const nine_pt = r.nine_pt || null;
+      const eblock_long = r.eblock_long != null ? parseFloat(r.eblock_long) : null;
+      const eblock_short = r.eblock_short != null ? parseFloat(r.eblock_short) : null;
+      const eblock_avg = r.eblock_avg != null ? parseFloat(r.eblock_avg) : null;
+      const coil_short = r.coil_short != null ? parseFloat(r.coil_short) : null;
+      const coil_center = r.coil_center != null ? parseFloat(r.coil_center) : null;
+      const coil_long = r.coil_long != null ? parseFloat(r.coil_long) : null;
+      const bobbin_short = r.bobbin_short != null ? parseFloat(r.bobbin_short) : null;
+      const bobbin_center = r.bobbin_center != null ? parseFloat(r.bobbin_center) : null;
+      const bobbin_long = r.bobbin_long != null ? parseFloat(r.bobbin_long) : null;
+
       if (existingId) {
         await connection.query(
-          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, values_json=? WHERE id=?`,
+          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, coil_type=?, product_label=?, unit=?, overall=?, spc_ucl=?, spc_cl=?, spc_lcl=?, spc_trig=?, spc_spec=?, remark=?, en=?, traveler=?, long1=?, short2=?, avg_val=?, max_val=?, min_val=?, range_val=?, spec_result=?, trigger_val=?, out_cl=?, trend=?, nine_pt=?, eblock_long=?, eblock_short=?, eblock_avg=?, coil_short=?, coil_center=?, coil_long=?, bobbin_short=?, bobbin_center=?, bobbin_long=?, values_json=? WHERE id=?`,
           [
-            r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', r.en || r.op || '',
-            dataType, r.condition || r.category || 'NTC', status, valuesJson, existingId
+            r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson, existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            r.id || null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', r.en || r.op || '',
-            dataType, r.condition || r.category || 'NTC', status, valuesJson
+            null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
           ]
         );
       }
     }
+
+    const alerts = payload.alerts || db_data.alerts || [];
+    if (alerts && alerts.length > 0) {
+      for (const a of alerts) {
+         await connection.query(
+            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ['POF', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'POF', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+         );
+      }
+      require('./alert_service').processAlerts(pool, 'POF', alerts).catch(console.error);
+    }
+
     await connection.commit();
     res.json({ success: true, message: 'POF synced' });
   } catch(e) {
@@ -458,7 +532,7 @@ app.delete('/api/pof/records', async (req, res) => {
 // ล้างผลบันทึกของการแจ้งเตือนทั้งหมด
 app.delete('/api/pof/alerts', async (req, res) => {
   try {
-    await pool.query('TRUNCATE TABLE pof_alerts');
+    await pool.query("DELETE FROM system_alert WHERE process_type = 'POF'");
     res.json({ success: true, message: 'All POF alerts cleared successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -527,9 +601,11 @@ app.get('/api/damper/config', async (req, res) => {
 // ดึงแจ้งเตือนของ Damper
 app.get('/api/damper/alerts', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM damper_alerts ORDER BY alert_time DESC LIMIT 500');
+    const [rows] = await pool.query("SELECT * FROM system_alert WHERE process_type = 'Damper' ORDER BY alert_time DESC LIMIT 500");
     const alerts = rows.map(r => ({
-      time: new Date(r.alert_time).toLocaleString('th-TH'),
+      id: r.id,
+      ts: r.alert_time ? new Date(r.alert_time).toISOString() : new Date().toISOString(),
+      time: r.alert_time ? new Date(r.alert_time).toLocaleString('th-TH') : '',
       no: r.record_no,
       traveler: r.traveler,
       attribute: r.attribute,
@@ -567,28 +643,63 @@ app.post('/api/damper/sync', async (req, res) => {
       if(dataType.toLowerCase().includes('roving')) dataType = 'Roving Audit';
       else dataType = 'Buy off';
 
-      let status = r.overall || r.status || 'WAITING';
-      if (status.toLowerCase() === 'pass') status = 'ACCEPT';
-      if (status.toLowerCase() === 'fail') status = 'REJECT';
+      let status = r.overall || r.status || 'waiting';
+      if (status === 'Pass' || status === 'pass') status = 'ACCEPT';
+      if (status === 'Fail' || status === 'fail') status = 'REJECT';
+      
+      const config_id = r.config_id || null;
+
+      // Parse explicit Damper measurement fields
+      const mode = r.mode || 'Buy off';
+      const send_time = r.sendTime || r.send_time || '';
+      const recv_time = r.recvTime || r.recv_time || '';
+      const attribute = r.attribute || 'Normal';
+      const traveler = r.traveler || '';
+      const qc_en = r.qcEn || r.qc_en || '';
+      const me_en = r.meEn || r.me_en || '';
+      const team = r.team || '';
+      const vmi_results = r.vmi ? JSON.stringify(r.vmi) : (r.vmi_results || null);
+      const vmi_pass = r.vmiNG !== undefined ? !r.vmiNG : (r.vmiPass !== undefined ? (r.vmiPass ? 1 : 0) : (r.vmi_pass !== undefined ? r.vmi_pass : 1));
+      const short_vals = r.short?.vals ? r.short.vals.join(',') : (r.shortAvg != null ? '' : (r.short_vals || ''));
+      const short_avg = r.short?.avg != null ? parseFloat(r.short.avg) : (r.shortAvg != null ? parseFloat(r.shortAvg) : null);
+      const short_max = r.short?.max != null ? parseFloat(r.short.max) : (r.shortMax != null ? parseFloat(r.shortMax) : null);
+      const short_min = r.short?.min != null ? parseFloat(r.short.min) : (r.shortMin != null ? parseFloat(r.shortMin) : null);
+      const short_in_spec = r.short?.inSpec !== undefined ? (r.short.inSpec ? 1 : 0) : (r.shortResult === 'Pass' ? 1 : (r.shortResult === 'Fail' ? 0 : (r.short_in_spec !== undefined ? r.short_in_spec : 1)));
+      const long_vals = r.long?.vals ? r.long.vals.join(',') : (r.longAvg != null ? '' : (r.long_vals || ''));
+      const long_avg = r.long?.avg != null ? parseFloat(r.long.avg) : (r.longAvg != null ? parseFloat(r.longAvg) : null);
+      const long_max = r.long?.max != null ? parseFloat(r.long.max) : (r.longMax != null ? parseFloat(r.longMax) : null);
+      const long_min = r.long?.min != null ? parseFloat(r.long.min) : (r.longMin != null ? parseFloat(r.longMin) : null);
+      const long_in_spec = r.long?.inSpec !== undefined ? (r.long.inSpec ? 1 : 0) : (r.longResult === 'Pass' ? 1 : (r.longResult === 'Fail' ? 0 : (r.long_in_spec !== undefined ? r.long_in_spec : 1)));
+      const overall_pass = r.overall === 'Pass' ? 1 : (r.overallPass ? 1 : (r.overall_pass !== undefined ? r.overall_pass : 0));
 
       if (existingId) {
         await connection.query(
-          `UPDATE damper_records SET product=?, fixture=?, pt_number=?, test_date=?, op=?, data_type=?, category=?, status=?, values_json=? WHERE id=?`,
+          `UPDATE damper_records SET product=?, fixture=?, pt_number=?, test_date=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, send_time=?, recv_time=?, attribute=?, traveler=?, qc_en=?, me_en=?, team=?, vmi_results=?, vmi_pass=?, short_vals=?, short_avg=?, short_max=?, short_min=?, short_in_spec=?, long_vals=?, long_avg=?, long_max=?, long_min=?, long_in_spec=?, overall_pass=?, values_json=? WHERE id=?`,
           [
-            r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.op || r.en || '',
-            dataType, r.category || 'TC', status, valuesJson, existingId
+            r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
+            dataType, r.category || 'TC', status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, valuesJson, existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO damper_records (id, product, fixture, pt_number, test_date, op, data_type, category, status, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO damper_records (id, product, fixture, pt_number, test_date, op, data_type, category, status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, values_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            r.id || null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.op || r.en || '',
-            dataType, r.category || 'TC', status, valuesJson
+            null, r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
+            dataType, r.category || 'TC', status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, valuesJson
           ]
         );
       }
+    }
+    const alerts = payload.alerts || db_data.alerts || [];
+    if (alerts && alerts.length > 0) {
+      for (const a of alerts) {
+         await connection.query(
+            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ['Damper', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Damper', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+         );
+      }
+      require('./alert_service').processAlerts(pool, 'Damper', alerts).catch(console.error);
     }
     await connection.commit();
     res.json({ success: true, message: 'Damper synced' });
@@ -624,7 +735,7 @@ app.delete('/api/damper/records', async (req, res) => {
 // ล้างประวัติแจ้งเตือนของ Damper ทั้งหมด
 app.delete('/api/damper/alerts', async (req, res) => {
   try {
-    await pool.query('TRUNCATE TABLE damper_alerts');
+    await pool.query("DELETE FROM system_alert WHERE process_type = 'Damper'");
     res.json({ success: true, message: 'All damper alerts cleared successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -762,55 +873,23 @@ app.get('/api/laser/records', async (req, res) => {
 // ดึงแจ้งเตือนของ Laser — ส่ง field ให้ตรงกับที่ refreshDataFromServer ใน laser.js ต้องการ
 app.get('/api/laser/alerts', async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT a.*, r.defects_json as record_defects, r.product_label as rec_product_label, r.product as rec_product, r.machine as rec_machine, r.fixture as rec_fixture
-       FROM laser_alerts a
-       LEFT JOIN laser_records r ON r.id = a.record_id
-       ORDER BY a.alert_time DESC LIMIT 500`
-    );
-
-    // Helper to map defect keys to readable labels (keeps it lightweight)
-    const SHORT_MAP = { skip: 'Skip', incomplete: 'Incomplete', width: 'Width', length: 'Length', position: 'Position' };
-    function keyToLabel(k) {
-      if (!k) return k;
-      const low = String(k).toLowerCase();
-      if (low === 'z1_missing') return 'Zone1 Missing';
-      if (low === 'z2_missing') return 'Zone2 Missing';
-      if (low === 'z3_missing') return 'Zone3 Missing';
-      const mz = low.match(/^z([123])_(.+)$/);
-      if (mz) return `Z${mz[1]} ${SHORT_MAP[mz[2]] || mz[2]}`;
-      const legacy = low.match(/^(lf|sf)_(.+)$/);
-      if (legacy) return `${legacy[1].toUpperCase()} ${SHORT_MAP[legacy[2]] || legacy[2]}`;
-      if (low === 'vmi' || low === 'vmi_disposition') return 'VMI Disposition';
-      return k;
-    }
+    const [rows] = await pool.query("SELECT * FROM system_alert WHERE process_type = 'Laser' ORDER BY alert_time DESC LIMIT 500");
 
     const alerts = rows.map(r => {
-      // derive defects from joined record defects_json (prefer record-level data)
-      let defects = [];
-      try {
-        const raw = r.record_defects ? JSON.parse(r.record_defects) : {};
-        Object.keys(raw).forEach(k => {
-          const v = String(raw[k] || '').toLowerCase().trim();
-          if (v === 'fail' || v === 'ng' || v === '0' || v === 'x') defects.push(keyToLabel(k));
-          if (v.includes('hold')) defects.push('VMI Hold');
-        });
-      } catch (e) { defects = []; }
-
       return {
         id: r.id,
-        // ts: ต้องเป็น ISO string (laser.js ใช้ sort + แสดงผล)
-        ts: toISOSafe(r.alert_time) || new Date().toISOString(),
+        ts: r.alert_time ? new Date(r.alert_time).toISOString() : new Date().toISOString(),
+        time: r.alert_time ? new Date(r.alert_time).toLocaleString('th-TH') : '',
         recordId: r.record_id,
         traveler: r.traveler || '',
-        product: r.product || r.rec_product || '',
-        product_label: r.product_label || r.rec_product_label || r.product || r.rec_product || '',
-        productLabel: r.product_label || r.rec_product_label || r.product || r.rec_product || '',
-        fixture: r.fixture || r.rec_fixture || '',
-        machine: r.fixture || r.rec_fixture || r.rec_machine || r.machine || '',
+        product: r.product || '',
+        product_label: r.product_label || '',
+        productLabel: r.product_label || '',
+        fixture: r.fixture || '',
+        machine: r.machine || '',
         level: r.level || 'ng',
         msg: r.msg || '',
-        defects: defects
+        defects: r.details?.defects || []
       };
     });
     res.json({ success: true, alerts });
@@ -865,18 +944,18 @@ app.post('/api/laser/records', async (req, res) => {
       const attr = String(r.attr || 'Normal').trim();
       const testDate = r.date || null;
 
-      // Check duplicate
-      const [dupRows] = await connection.query(
-        `SELECT id FROM laser_records 
-         WHERE mode = ? AND machine = ? AND ptno = ? AND attr = ? AND test_date = ? 
-         LIMIT 1`,
-        [mode, machine, ptno, attr, testDate]
-      );
-
-      if (dupRows.length > 0) {
-        duplicates.push({ machine, ptno, attr, date: testDate });
-        continue; // ข้ามการ insert ถ้าเป็น duplicate
-      }
+      // Check duplicate removed to allow auto-cloned identical records
+      // const [dupRows] = await connection.query(
+      //   `SELECT id FROM laser_records 
+      //    WHERE mode = ? AND machine = ? AND ptno = ? AND attr = ? AND test_date = ? 
+      //    LIMIT 1`,
+      //   [mode, machine, ptno, attr, testDate]
+      // );
+      // 
+      // if (dupRows.length > 0) {
+      //   duplicates.push({ machine, ptno, attr, date: testDate });
+      //   continue; // ข้ามการ insert ถ้าเป็น duplicate
+      // }
 
       // แยก defect fields
       const defects = {};
@@ -885,21 +964,63 @@ app.post('/api/laser/records', async (req, res) => {
       });
 
       const defectsJson = JSON.stringify(defects);
-      const recId = r.id != null ? parseInt(r.id, 10) : null;
+      const recId = null; // Do not use r.id because it's usually Date.now() which is out of range for INT
       const recTs = r.ts ? new Date(r.ts) : new Date();
       const draftIdx = r.draftIndex != null ? parseInt(r.draftIndex, 10) : null;
+
+      // Extract individual defect columns from the record
+      const lf_skip = r.lf_skip || defects.lf_skip || null;
+      const lf_incomplete = r.lf_incomplete || defects.lf_incomplete || null;
+      const lf_width = r.lf_width != null ? r.lf_width : (defects.lf_width != null ? defects.lf_width : null);
+      const lf_length = r.lf_length != null ? r.lf_length : (defects.lf_length != null ? defects.lf_length : null);
+      const lf_position = r.lf_position != null ? r.lf_position : (defects.lf_position != null ? defects.lf_position : null);
+      const sf_skip = r.sf_skip || defects.sf_skip || null;
+      const sf_incomplete = r.sf_incomplete || defects.sf_incomplete || null;
+      const sf_width = r.sf_width != null ? r.sf_width : (defects.sf_width != null ? defects.sf_width : null);
+      const sf_length = r.sf_length != null ? r.sf_length : (defects.sf_length != null ? defects.sf_length : null);
+      const sf_position = r.sf_position != null ? r.sf_position : (defects.sf_position != null ? defects.sf_position : null);
+      const z1_skip = r.z1_skip || defects.z1_skip || null;
+      const z1_incomplete = r.z1_incomplete || defects.z1_incomplete || null;
+      const z1_width = r.z1_width != null ? r.z1_width : (defects.z1_width != null ? defects.z1_width : null);
+      const z1_length = r.z1_length != null ? r.z1_length : (defects.z1_length != null ? defects.z1_length : null);
+      const z1_position = r.z1_position != null ? r.z1_position : (defects.z1_position != null ? defects.z1_position : null);
+      const z2_skip = r.z2_skip || defects.z2_skip || null;
+      const z2_incomplete = r.z2_incomplete || defects.z2_incomplete || null;
+      const z2_width = r.z2_width != null ? r.z2_width : (defects.z2_width != null ? defects.z2_width : null);
+      const z2_length = r.z2_length != null ? r.z2_length : (defects.z2_length != null ? defects.z2_length : null);
+      const z2_position = r.z2_position != null ? r.z2_position : (defects.z2_position != null ? defects.z2_position : null);
+      const z3_skip = r.z3_skip || defects.z3_skip || null;
+      const z3_incomplete = r.z3_incomplete || defects.z3_incomplete || null;
+      const z3_width = r.z3_width != null ? r.z3_width : (defects.z3_width != null ? defects.z3_width : null);
+      const z3_length = r.z3_length != null ? r.z3_length : (defects.z3_length != null ? defects.z3_length : null);
+      const z3_position = r.z3_position != null ? r.z3_position : (defects.z3_position != null ? defects.z3_position : null);
+      const z1_missing = r.z1_missing || defects.z1_missing || null;
+      const z2_missing = r.z2_missing || defects.z2_missing || null;
 
       await connection.query(
         `INSERT INTO laser_records
            (id, mode, product_type, product, product_label, partno, qty, machine,
             test_date, en, sendtime, recvtime, fixture, ptno,
-            attr, remark, source, ts, draft_index, overall, vmi, defects_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            attr, remark, source, ts, draft_index, overall, vmi, defects_json,
+            lf_skip, lf_incomplete, lf_width, lf_length, lf_position,
+            sf_skip, sf_incomplete, sf_width, sf_length, sf_position,
+            z1_skip, z1_incomplete, z1_width, z1_length, z1_position,
+            z2_skip, z2_incomplete, z2_width, z2_length, z2_position,
+            z3_skip, z3_incomplete, z3_width, z3_length, z3_position,
+            z1_missing, z2_missing)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           recId, mode, r.type || 'Epoch', r.product || '', r.product_label || r.productLabel || r.product || '',
           r.partno || '', r.qty || '', machine, testDate, r.en || '', r.sendtime || '', r.recvtime || '',
           r.fixture || '', ptno, attr, r.remark || '', r.source || 'manual', recTs, draftIdx,
-          r.overall || 'Pass', r.vmi || 'Pass', defectsJson
+          r.overall || 'Pass', r.vmi || 'Pass', defectsJson,
+          lf_skip, lf_incomplete, lf_width, lf_length, lf_position,
+          sf_skip, sf_incomplete, sf_width, sf_length, sf_position,
+          z1_skip, z1_incomplete, z1_width, z1_length, z1_position,
+          z2_skip, z2_incomplete, z2_width, z2_length, z2_position,
+          z3_skip, z3_incomplete, z3_width, z3_length, z3_position,
+          z1_missing, z2_missing
         ]
       );
       insertedIds.push(recId);
@@ -949,24 +1070,75 @@ app.post('/api/laser/sync', async (req, res) => {
       if (status.toLowerCase() === 'pass') status = 'ACCEPT';
       if (status.toLowerCase() === 'fail') status = 'REJECT';
 
+      // Extract defect fields from the record for explicit column storage
+      const LASER_DEFECT_KEYS = [
+        'lf_skip', 'lf_incomplete', 'lf_width', 'lf_length', 'lf_position',
+        'sf_skip', 'sf_incomplete', 'sf_width', 'sf_length', 'sf_position',
+        'z1_skip', 'z1_incomplete', 'z1_width', 'z1_length', 'z1_position',
+        'z2_skip', 'z2_incomplete', 'z2_width', 'z2_length', 'z2_position',
+        'z3_skip', 'z3_incomplete', 'z3_width', 'z3_length', 'z3_position',
+        'z1_missing', 'z2_missing'
+      ];
+      const defectVals = LASER_DEFECT_KEYS.map(k => r[k] != null ? r[k] : null);
+      const defectsJson = JSON.stringify(r);
+
+      // Build defects_json from non-standard fields
+      const STANDARD_SYNC = new Set(['id','mode','type','product','product_label','productLabel','partno','qty','machine','date','en','sendtime','recvtime','fixture','ptno','attr','remark','source','ts','draftIndex','overall','vmi','no','config_id','op','category']);
+      const defectsObj = {};
+      Object.keys(r).forEach(k => { if (!STANDARD_SYNC.has(k)) defectsObj[k] = r[k]; });
+      const defectsJsonClean = JSON.stringify(defectsObj);
+
       if (existingId) {
         await connection.query(
-          `UPDATE laser_records SET product=?, fixture=?, pt_number=?, test_date=?, op=?, data_type=?, part_type=?, category=?, status=?, values_json=? WHERE id=?`,
+          `UPDATE laser_records SET product=?, product_label=?, product_type=?, mode=?, fixture=?, ptno=?, partno=?, test_date=?, en=?, machine=?, sendtime=?, recvtime=?, attr=?, remark=?, source=?, overall=?, vmi=?, config_id=?, defects_json=?, values_json=?,
+            lf_skip=?, lf_incomplete=?, lf_width=?, lf_length=?, lf_position=?,
+            sf_skip=?, sf_incomplete=?, sf_width=?, sf_length=?, sf_position=?,
+            z1_skip=?, z1_incomplete=?, z1_width=?, z1_length=?, z1_position=?,
+            z2_skip=?, z2_incomplete=?, z2_width=?, z2_length=?, z2_position=?,
+            z3_skip=?, z3_incomplete=?, z3_width=?, z3_length=?, z3_position=?,
+            z1_missing=?, z2_missing=?
+           WHERE id=?`,
           [
-            r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.en || r.op || '',
-            r.mode || 'Buy off', pType, r.category || 'TC', status, valuesJson, existingId
+            r.product || '', r.product_label || r.productLabel || r.product || '', pType, r.mode || 'buyoff',
+            r.fixture || '', r.ptno || r.partno || '', r.partno || '', r.date || new Date(), r.en || r.op || '',
+            r.machine || '', r.sendtime || '', r.recvtime || '', r.attr || 'Normal', r.remark || '',
+            r.source || 'manual', r.overall || 'Pass', r.vmi || 'Pass', r.config_id || null,
+            defectsJsonClean, valuesJson,
+            ...defectVals,
+            existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO laser_records (id, product, fixture, pt_number, test_date, op, data_type, part_type, category, status, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO laser_records (id, product, product_label, product_type, mode, fixture, ptno, partno, test_date, en, machine, sendtime, recvtime, attr, remark, source, overall, vmi, config_id, defects_json, values_json,
+            lf_skip, lf_incomplete, lf_width, lf_length, lf_position,
+            sf_skip, sf_incomplete, sf_width, sf_length, sf_position,
+            z1_skip, z1_incomplete, z1_width, z1_length, z1_position,
+            z2_skip, z2_incomplete, z2_width, z2_length, z2_position,
+            z3_skip, z3_incomplete, z3_width, z3_length, z3_position,
+            z1_missing, z2_missing)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            r.id || null, r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.en || r.op || '',
-            r.mode || 'Buy off', pType, r.category || 'TC', status, valuesJson
+            null, r.product || '', r.product_label || r.productLabel || r.product || '', pType, r.mode || 'buyoff',
+            r.fixture || '', r.ptno || r.partno || '', r.partno || '', r.date || new Date(), r.en || r.op || '',
+            r.machine || '', r.sendtime || '', r.recvtime || '', r.attr || 'Normal', r.remark || '',
+            r.source || 'manual', r.overall || 'Pass', r.vmi || 'Pass', r.config_id || null,
+            defectsJsonClean, valuesJson,
+            ...defectVals
           ]
         );
       }
+    }
+    const alerts = payload.alerts || db_data.alerts || [];
+    if (alerts && alerts.length > 0) {
+      for (const a of alerts) {
+         await connection.query(
+            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ['Laser', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Laser', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+         );
+      }
+      require('./alert_service').processAlerts(pool, 'Laser', alerts).catch(console.error);
     }
     await connection.commit();
     res.json({ success: true, message: 'Laser synced' });
@@ -1000,7 +1172,7 @@ app.delete('/api/laser/records', async (req, res) => {
 // ล้างประวัติแจ้งเตือนของ Laser ทั้งหมด
 app.delete('/api/laser/alerts', async (req, res) => {
   try {
-    await pool.query('TRUNCATE TABLE laser_alerts');
+    await pool.query("DELETE FROM system_alert WHERE process_type = 'Laser'");
     res.json({ success: true, message: 'All laser alerts cleared successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1053,11 +1225,7 @@ app.get('/api/dispensing/records', async (req, res) => {
 // ดึงประวัติการตกสเปก/Control Limit ของ Dispensing
 app.get('/api/dispensing/alerts', async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-        SELECT * 
-        FROM dispensing_alerts
-        ORDER BY alert_time DESC LIMIT 1000
-      `);
+    const [rows] = await pool.query("SELECT * FROM system_alert WHERE process_type = 'Dispensing' ORDER BY alert_time DESC LIMIT 1000");
     const alerts = rows.map(r => ({
       id: r.id,
       ts: r.alert_time ? new Date(r.alert_time).toISOString() : new Date().toISOString(),
@@ -1107,8 +1275,38 @@ app.post('/api/dispensing/sync', async (req, res) => {
 
     // 2. Sync Records
     if (records && Array.isArray(records)) {
+      // All explicit dispensing dimension column names in the DB
+      const DISP_DIM_COLS = [
+        'x1','y1','x2','y2','x3','y3','x4','y4','x1_center',
+        'coil_position_1','coil_position_2','coil_position_1_s','coil_position_2_l',
+        'epoxy_length_1','epoxy_length_2','epoxy_length_1_s','epoxy_length_2_l','epoxy_length_1_l','epoxy_length_2_s',
+        'crash_stop_profile_1','crash_stop_profile_2','crash_stop_profile_3','crash_stop_profile_1_l','crash_stop_profile_2_s',
+        'coil_outer_profile_u','coil_outer_profile_v','coil_outer_profile_w',
+        'coil_inner_profile_1','coil_inner_profile_2','coil_inner_profile_u','coil_inner_profile_v','coil_inner_profile_w','coil_inner_profile_uv',
+        'coil_symmetry',
+        'fantail_profile_1','fantail_profile_2','fantail_profile_3','fantail_profile_4','fantail_profile_5',
+        'bobbin_position_1','bobbin_position_2','bobbin_hole_true','bobbin_slote_true',
+        'coil_parallel','coil_recess_dtm','coil_recess_ndtm',
+        'bobbin_parallel','bobbin_recess_dtm','bobbin_recess_ndtm'
+      ];
+
+      // Helper: find value from r.values by case-insensitive key match
+      function findDimVal(values, colName) {
+        if (!values || typeof values !== 'object') return null;
+        // direct match
+        if (values[colName] !== undefined) return values[colName];
+        // Try capitalized variants (Coil_position_1 vs coil_position_1)
+        const lower = colName.toLowerCase();
+        for (const k of Object.keys(values)) {
+          if (k.toLowerCase() === lower) return values[k];
+        }
+        return null;
+      }
+
       for (const r of records) {
-        const valuesJson = JSON.stringify(r.values || {});
+        // Ensure pt and oven are preserved in valuesJson so GET /api/dispensing/records can extract them
+        const fullValues = { ...r.values, pt: r.pt, oven: r.oven };
+        const valuesJson = JSON.stringify(fullValues);
         const opName = r.op || r.operator || 'ADMIN';
         const product = r.product || '';
 
@@ -1127,22 +1325,34 @@ app.post('/api/dispensing/sync', async (req, res) => {
           if (rowsByComposite.length > 0) existingId = rowsByComposite[0].id;
         }
 
+        // Extract explicit dimension values from r.values
+        const dimVals = DISP_DIM_COLS.map(col => {
+          const raw = findDimVal(r.values, col);
+          if (raw === null || raw === undefined || raw === '' || raw === '-') return null;
+          const n = parseFloat(raw);
+          return isNaN(n) ? null : n;
+        });
+
+        const dimSetClause = DISP_DIM_COLS.map(c => `${c}=?`).join(', ');
+        const dimColList = DISP_DIM_COLS.join(', ');
+        const dimPlaceholders = DISP_DIM_COLS.map(() => '?').join(', ');
+
         if (existingId) {
           await connection.query(
             `UPDATE dispensing_records 
-               SET mctime = ?, team = ?, op = ?, status = ?, values_json = ?
+               SET mctime = ?, team = ?, op = ?, status = ?, config_id = ?, values_json = ?, ${dimSetClause}
                WHERE id = ?`,
-            [r.mctime || '', r.team || '', opName, r.status || 'ACCEPT', valuesJson, existingId]
+            [r.mctime || '', r.team || '', opName, r.status || 'ACCEPT', r.config_id || null, valuesJson, ...dimVals, existingId]
           );
         } else {
-          const [resInsert] = await connection.query(
+          await connection.query(
             `INSERT INTO dispensing_records 
-               (product, fixture, test_date, buytime, mctime, team, op, data_type, status, values_json, created_at) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (product, fixture, test_date, buytime, mctime, team, op, data_type, status, config_id, values_json, created_at, ${dimColList}) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${dimPlaceholders})`,
             [
               product, r.fixture || '', r.date, r.buytime || '', r.mctime || '',
-              r.team || '', opName, r.dataType || 'Buy off', r.status || 'ACCEPT', valuesJson,
-              new Date()
+              r.team || '', opName, r.dataType || 'Buy off', r.status || 'ACCEPT', r.config_id || null, valuesJson,
+              new Date(), ...dimVals
             ]
           );
         }
@@ -1159,14 +1369,14 @@ app.post('/api/dispensing/sync', async (req, res) => {
       let existingTimes = new Set();
       if (times.length > 0) {
         // DELETE matching timestamps to replace with incoming
-        const [existingAlerts] = await connection.query('SELECT alert_time FROM dispensing_alerts');
+        const [existingAlerts] = await connection.query('SELECT alert_time FROM system_alert WHERE process_type = "Dispensing"');
         existingTimes = new Set(existingAlerts.map(r => r.alert_time.toISOString().slice(0, 19)));
         
-        // Remove existing alerts that match the incoming timestamps so we can insert the new ones safely
         for (const t of times) {
-           await connection.query('DELETE FROM dispensing_alerts WHERE alert_time >= ? AND alert_time <= ?', [t, t]);
+           await connection.query('DELETE FROM system_alert WHERE process_type = "Dispensing" AND alert_time >= ? AND alert_time <= ?', [t, t]);
         }
       }
+      const newAlerts = [];
       for (const a of alert_log) {
         let alertTime = new Date();
         if (a.ts) {
@@ -1175,16 +1385,19 @@ app.post('/api/dispensing/sync', async (req, res) => {
 
         const timeStr = alertTime.toISOString().slice(0, 19);
         if (!existingTimes.has(timeStr)) {
-          require('./mailer').sendAlertEmail('Dispensing', a);
+          newAlerts.push(a);
         }
 
         await connection.query(
-          `INSERT INTO dispensing_alerts (alert_time, level, product, fixture, oven, param, value_val, spec_str, msg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, param, value_val, spec_str, msg) VALUES ('Dispensing', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             alertTime, a.level || '', a.product || '', a.fixture || '', a.oven || '',
             a.param || '', a.value != null ? parseFloat(a.value) : null, a.spec || '', a.msg || ''
           ]
         );
+      }
+      if (newAlerts.length > 0) {
+        require('./alert_service').processAlerts(pool, 'Dispensing', newAlerts).catch(console.error);
       }
     }
 
@@ -1243,7 +1456,7 @@ app.delete('/api/dispensing/records', async (req, res) => {
 // ล้างประวัติแจ้งเตือนของ Dispensing ทั้งหมด
 app.delete('/api/dispensing/alerts', async (req, res) => {
   try {
-    await pool.query('TRUNCATE TABLE dispensing_alerts');
+    await pool.query("DELETE FROM system_alert WHERE process_type = 'Dispensing'");
     res.json({ success: true, message: 'All dispensing alerts cleared successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1256,9 +1469,9 @@ app.delete('/api/dispensing/alerts', async (req, res) => {
 // =========================================================================
 
 // ดึงรายชื่ออีเมลที่ตั้งไว้
-app.get('/api/dispensing/alert-recipients', async (req, res) => {
+app.get('/api/system/alert-recipients', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM dispensing_alert_recipients');
+    const [rows] = await pool.query('SELECT * FROM alert_recipients');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1266,11 +1479,11 @@ app.get('/api/dispensing/alert-recipients', async (req, res) => {
 });
 
 // บันทึกแก้ไขรายชื่ออีเมล
-app.post('/api/dispensing/alert-recipients', async (req, res) => {
+app.post('/api/system/alert-recipients', async (req, res) => {
   const { email, name, role, active } = req.body;
   try {
     const [result] = await pool.query(
-      'INSERT INTO dispensing_alert_recipients (email, name, role, active) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=?, role=?, active=?',
+      'INSERT INTO alert_recipients (email, name, role, active) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=?, role=?, active=?',
       [email, name, role, active, name, role, active]
     );
     res.json({ success: true, insertId: result.insertId });
@@ -1279,9 +1492,9 @@ app.post('/api/dispensing/alert-recipients', async (req, res) => {
   }
 });
 
-app.delete('/api/dispensing/alert-recipients/:id', async (req, res) => {
+app.delete('/api/system/alert-recipients/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM dispensing_alert_recipients WHERE id=?', [req.params.id]);
+    await pool.query('DELETE FROM alert_recipients WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1377,7 +1590,7 @@ app.post('/api/dispensing/send-alert', async (req, res) => {
     );
 
     // 2. Send email
-    const [targets] = await pool.query('SELECT email FROM dispensing_alert_recipients WHERE active=1');
+    const [targets] = await pool.query('SELECT email FROM alert_recipients WHERE active=1');
     if (targets.length === 0) return res.json({ success: true, message: 'Saved to log, but no active recipients.' });
 
     let toList = targets.map(t => t.email).join(',');
@@ -1624,12 +1837,65 @@ app.get('/api/fix-db', async (req, res) => {
   }
 });
 // ==========================================
+// SYSTEM ALERT API
+// ==========================================
+
+app.get('/api/system-alerts', async (req, res) => {
+    try {
+        const { process_type, level, limit } = req.query;
+        let query = 'SELECT * FROM system_alert WHERE 1=1';
+        const params = [];
+
+        if (process_type) {
+            query += ' AND process_type = ?';
+            params.push(process_type);
+        }
+        if (level) {
+            query += ' AND level = ?';
+            params.push(level);
+        }
+
+        query += ' ORDER BY alert_time DESC';
+
+        if (limit) {
+            query += ' LIMIT ?';
+            params.push(Number(limit));
+        }
+
+        const [rows] = await pool.query(query, params);
+        res.json({ success: true, alerts: rows });
+    } catch (err) {
+        console.error('Error fetching system alerts:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.delete('/api/system-alerts', async (req, res) => {
+    try {
+        const { process_type } = req.query;
+        let query = 'DELETE FROM system_alert';
+        const params = [];
+
+        if (process_type) {
+            query += ' WHERE process_type = ?';
+            params.push(process_type);
+        }
+
+        await pool.query(query, params);
+        res.json({ success: true, message: 'Alerts deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting system alerts:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ==========================================
 // SYSTEM CONFIG & SPC LIMITS API
 // ==========================================
 
 app.get('/api/system/products', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT product_key, product_name FROM master_products ORDER BY product_key');
+        const [rows] = await pool.query('SELECT product_key, product_name, dims FROM master_products ORDER BY product_key');
         res.json({ success: true, products: rows });
     } catch(err) {
         // Fallback if table doesn't exist yet
@@ -1702,12 +1968,12 @@ app.post('/api/system/spc_limits/batch', async (req, res) => {
         for (const lim of limits) {
             await pool.query(
                 `INSERT INTO spc_config_limits 
-                 (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl, laser_qty, laser_fixture, laser_shift)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl, frequency, laser_qty, laser_fixture, laser_shift)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
-                 lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl),
+                 lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl), frequency=VALUES(frequency),
                  laser_qty=VALUES(laser_qty), laser_fixture=VALUES(laser_fixture), laser_shift=VALUES(laser_shift)`,
-                [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl, lim.laser_qty, lim.laser_fixture, lim.laser_shift]
+                [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl, lim.frequency, lim.laser_qty, lim.laser_fixture, lim.laser_shift]
             );
         }
         res.json({ success: true });
@@ -1717,11 +1983,16 @@ app.post('/api/system/spc_limits/batch', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+const XAMPP_PORT = process.env.XAMPP_PORT || '80';
+const phpMyAdminUrl = XAMPP_PORT === '80' || XAMPP_PORT === ''
+  ? `http://localhost/phpmyadmin`
+  : `http://localhost:${XAMPP_PORT}/phpmyadmin`;
+
 app.listen(PORT, () => {
   console.log(`================================================================`);
   console.log(`🚀 BELTON IPQC Backend server is successfully running!`);
   console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`🐬  phpMyAdmin: http://localhost/phpmyadmin`);
+  console.log(`🐬  phpMyAdmin: ${phpMyAdminUrl}`);
   console.log(`🔐 CORS and JSON Limits (50mb) are configured.`);
   console.log(`================================================================`);
 });

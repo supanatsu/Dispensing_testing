@@ -463,6 +463,12 @@ function loadGlobalDamperConfig() {
             tolEl.style.backgroundColor = (selectedKey && dims[k]?.isOverride) ? 'rgba(16,185,129,0.05)' : '';
         }
     });
+
+    // Load Frequencies (always global, not product specific)
+    const freqBuyoffEl = document.getElementById('gc-dmp-freq-buyoff');
+    const freqRovingEl = document.getElementById('gc-dmp-freq-roving');
+    if (freqBuyoffEl) freqBuyoffEl.value = cfg.freqBuyoff !== undefined ? cfg.freqBuyoff : '';
+    if (freqRovingEl) freqRovingEl.value = cfg.freqRoving !== undefined ? cfg.freqRoving : '';
 }
 
 function saveGlobalDamperConfig() {
@@ -507,6 +513,16 @@ function saveGlobalDamperConfig() {
             }
         }
     });
+
+    // Frequencies (always global)
+    const freqBuyoffVal = parseInt(document.getElementById('gc-dmp-freq-buyoff')?.value, 10);
+    const freqRovingVal = parseInt(document.getElementById('gc-dmp-freq-roving')?.value, 10);
+    
+    if (!isNaN(freqBuyoffVal) && freqBuyoffVal > 0) { cfg.freqBuyoff = freqBuyoffVal; changed = true; }
+    else if (cfg.freqBuyoff !== undefined && !selectedKey) { delete cfg.freqBuyoff; changed = true; }
+    
+    if (!isNaN(freqRovingVal) && freqRovingVal > 0) { cfg.freqRoving = freqRovingVal; changed = true; }
+    else if (cfg.freqRoving !== undefined && !selectedKey) { delete cfg.freqRoving; changed = true; }
 
     if (changed || selectedKey) {
         localStorage.setItem(LS_KEY_DMR_CFG, JSON.stringify(cfg));

@@ -3,8 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
   <title>BELTON IPQC — Dispensing (Buy off & Roving)</title>
 
   <style>
@@ -254,8 +253,6 @@
           id="badge-records">0</span></button>
 
       <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization & Compare</button>
-      <button class="nav-btn" data-tab="alerts" onclick="switchTab('alerts',this)">Alert Log <span class="badge"
-          id="badge-alerts" style="background:var(--fail)">0</span></button>
     </div>
 
     <div class="content">
@@ -808,78 +805,7 @@
       </div>
 
       <!-- ========================================== -->
-      <!-- TAB 6: ALERTS LOG                          -->
-      <!-- ========================================== -->
-      <div class="tab-panel" id="panel-alerts">
-        <div class="split-2" style="margin-bottom:16px">
-          <div class="card" style="margin-bottom:0">
-            <div class="card-hdr">
-              <h3>🚨 OUTLIER / ALERT LOG</h3>
-              <div class="btn-row">
-                <button class="btn btn-outline btn-sm" onclick="syncDataConsistency(false)">🔄 Re-Scan & Sync
-                  All</button>
-                <button class="btn btn-danger btn-sm" onclick="clearAlertLog()">🗑️ Clear Log</button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="filter-row" style="margin-bottom:12px">
-                <select id="log-level-filter" onchange="renderAlertLog()" class="form-select" style="width:160px">
-                  <option value="">ทุก Level</option>
-                  <option value="critical">🔴 Critical (NG)</option>
-                  <option value="warn">🟡 Warning (Alert)</option>
-                  <option value="incomplete">❓ INCOMPLETE</option>
-                  <option value="info">🔵 Info</option>
-                </select>
-                <select id="log-model-filter" onchange="renderAlertLog()" class="form-select" style="width:160px">
-                  <option value="">ทุก Product</option>
-                </select>
-              </div>
-              <div id="alert-log-body" style="max-height:500px;overflow-y:auto;"></div>
-            </div>
-          </div>
-          <div class="card" style="margin-bottom:0">
-            <div class="card-hdr">
-              <h3>📧 REPORT & NOTIFICATION</h3>
-              <div class="card-sub">ออกรายงานพร้อมกราฟ / สร้างร่างอีเมล</div>
-            </div>
-            <div class="card-body">
-              <div class="form-group" style="margin-bottom:12px">
-                <label style="display:flex; justify-content:space-between; align-items:center;">
-                  <span>รายชื่อผู้รับแจ้งเตือน (ดึงจาก Dashboard ส่วนกลาง)</span>
-                </label>
-                <div id="recipient-list"
-                  style="padding: 8px; background: #f9f9f9; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-height: 38px;">
-                  กำลังโหลด...
-                </div>
-              </div>
-              <div class="form-group" style="margin-bottom:12px"><label>Alert Threshold</label><select
-                  id="outlook-threshold" class="form-select">
-                  <option value="critical">🔴 Critical (NG) เท่านั้น</option>
-                  <option value="warn">🟡 Warning + Critical</option>
-                  <option value="all">ทั้งหมด (รวม INCOMPLETE)</option>
-                </select></div>
-              <div class="btn-row" style="margin-bottom:14px"><button class="btn btn-primary"
-                  onclick="generateOutlookDraft()">1. 🔄 ดึงข้อมูล Report (Draft)</button></div>
-              <div id="export-actions" style="display:none;border-top:1px solid var(--border);padding-top:14px;">
-                <span style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;display:block;">2.
-                  เลือกรูปแบบการส่งรายงาน:</span>
-                <div class="btn-row">
-                  <button class="btn btn-blue" onclick="downloadOutlookEml()">📧 ส่งผ่าน Outlook (.eml)</button>
-                  <button class="btn btn-danger" onclick="copyAndOpenGmail()">📮 Gmail</button>
-                  <button class="btn btn-outline" onclick="downloadHtmlReport()">📊 HTML Report</button>
-                </div>
-              </div>
-              <div id="outlook-draft-area" style="display:none;margin-top:14px">
-                <div class="outlook-preview">
-                  <div class="outlook-subject" id="ol-subject"></div>
-                  <div class="outlook-meta" id="ol-meta"></div>
-                  <div class="outlook-body" id="ol-body"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
 
 

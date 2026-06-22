@@ -3,8 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
   <title>BELTON IPQC — Laser Engraving Buyoff</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -323,8 +322,6 @@
       <button class="nav-btn" onclick="switchTab('about', this)">About Data <span class="badge"
           id="badge-records">0</span></button>
       <button class="nav-btn" onclick="switchTab('viz', this)">Visualization</button>
-      <button class="nav-btn" onclick="switchTab('alerts', this)">Alert Log <span class="badge"
-          id="alert-badge">0</span></button>
     </div>
 
     <div class="content">
@@ -369,7 +366,7 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>Qty / Fixture / Shift</label>
+                <label>Frequency</label>
                 <div id="m-qty"
                   style="padding:8px 12px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text2);font-size:13px;font-weight:600">
                   —</div>
@@ -638,88 +635,6 @@
             <div class="chart-wrap" style="height:220px"><canvas id="chart-product-yield"></canvas></div>
           </div>
         </div>
-      </div>
-
-
-      <div class="tab-panel" id="panel-alerts">
-        <div class="split-2">
-          <!-- Left: Real-time Alert Log -->
-          <div class="card">
-            <div class="card-hdr">
-              <div>
-                <h3>Real-Time Outlier Alert Log</h3>
-                <div class="card-sub">ระบบจะตรวจจับและบันทึกข้อมูลเมื่อพบข้อบกพร่อง (Defect)
-                  หรือความเสี่ยงทางคุณภาพในการตรวจ Laser Engraving</div>
-              </div>
-              <button class="btn btn-danger btn-sm" onclick="clearAlertLog()">Clear Log</button>
-            </div>
-            <div class="card-body" id="alerts-body"
-              style="display:flex; flex-direction:column; gap:12px; max-height:600px; overflow-y:auto; padding:15px;">
-              <!-- Will be rendered dynamically -->
-              <div class="empty" style="padding:30px">
-                <div class="ei" style="font-size:30px">✅</div>
-                <p>ไม่มี Alert Log ค้างอยู่ในระบบ</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right: Outlook Dispatcher -->
-          <div class="card">
-            <div class="card-hdr">
-              <div>
-                <h3>Outlook Alert Dispatcher</h3>
-                <div class="card-sub">ส่งออกข้อมูลออกไปในรูปแบบไฟล์ .eml เพื่อเปิดและส่งผ่านอีเมล Outlook
-                  อย่างสมบูรณ์แบบ</div>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="form-group" style="margin-bottom:16px;">
-                <label style="font-weight:700;">Default Recipient Email (ผู้รับการแจ้งเตือน)</label>
-                <input class="form-input" id="outlook-to" type="email" value="supanatt04@gmail.com"
-                  style="margin-top:6px; border-color:var(--accent); font-weight:bold;">
-              </div>
-              <div class="form-group" style="margin-bottom:16px;">
-                <label style="font-weight:700;">Alert Threshold Level</label>
-                <select class="form-select" id="outlook-threshold" style="margin-top:6px;">
-                  <option value="critical">Critical Only (Fail / Rejected / Out of Spec)</option>
-                  <option value="warn">Warning &amp; Critical (Fail &amp; Hold)</option>
-                </select>
-              </div>
-
-              <button class="btn btn-primary" onclick="generateOutlookDraft()"
-                style="width:100%; justify-content:center; gap:8px; padding:12px; font-weight:bold;">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-                Step 1: Generate EML Draft &amp; Chart
-              </button>
-
-              <!-- Export Area -->
-              <div id="export-actions" style="margin-top:20px; display:none;">
-                <div
-                  style="background:var(--bg2); border:1.5px solid var(--border); border-radius:8px; padding:15px; margin-bottom:15px;"
-                  id="outlook-draft-area">
-                  <h4 style="margin:0 0 8px 0; color:var(--accent); font-size:14px;">Outlook Draft Preview</h4>
-                  <p style="margin:4px 0; font-size:12px; color:var(--text2);"><b>Subject:</b> <span
-                      id="ol-subject">—</span></p>
-                  <p style="margin:4px 0; font-size:12px; color:var(--text3);"><span id="ol-meta">—</span></p>
-                  <p style="margin:8px 0 0 0; font-size:12px; border-top:1px solid var(--border); padding-top:8px; color:var(--text2); font-family:monospace;"
-                    id="ol-body">—</p>
-                </div>
-
-                <button class="btn btn-success" onclick="downloadOutlookEml()"
-                  style="width:100%; justify-content:center; gap:8px; padding:12px; font-weight:bold; font-size:14px;">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                  Step 2: Download EML file for Outlook
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:8px;font-size:11px;color:var(--text3)" id="alert-count"></div>
       </div>
     </div>
 

@@ -298,6 +298,24 @@ function onProductChange() {
     if (infoBar) infoBar.textContent =
         `${p.label} · ${p.pcs} pcs/batch | Short P1: 1.358±0.010 | Short P2: 0.030±0.010 | Long Top: 0.814±0.010 | Long Bot: 0.030±0.010`;
 
+    // Update Frequency
+    const qtyInput = document.getElementById('m-qty');
+    if (qtyInput) {
+        try {
+            const raw = localStorage.getItem('belton_damper_v3_config');
+            let cfg = raw ? JSON.parse(raw) : {};
+            if (mode === 'buyoff' || mode === 'oba') {
+                qtyInput.value = cfg.freqBuyoff ? `${cfg.freqBuyoff}/Shift/Oven` : '';
+            } else if (mode.includes('roving')) {
+                qtyInput.value = cfg.freqRoving ? `${cfg.freqRoving}/Shift/Oven` : '';
+            } else {
+                qtyInput.value = '';
+            }
+        } catch(e) {
+            qtyInput.value = '';
+        }
+    }
+
     // Build all 4 dimension groups
     buildAllDimGroups(p.pcs);
 }
@@ -455,12 +473,32 @@ function saveBatch() {
         for (const g of allGroups) {
             const lsl = g.nom - g.tol;
             const usl = g.nom + g.tol;
+            // Auto-clone logic: If pc-1 is filled but the rest are empty, copy pc-1 to all
+            const firstValStr = document.getElementById(`${g.key}-pc-1`)?.value;
+            const firstVal = parseFloat(firstValStr);
+            if (!isNaN(firstVal)) {
+                let othersEmpty = true;
+                for (let i = 2; i <= p.pcs; i++) {
+                    const vStr = document.getElementById(`${g.key}-pc-${i}`)?.value;
+                    if (vStr && vStr.trim() !== '') {
+                        othersEmpty = false;
+                        break;
+                    }
+                }
+                if (othersEmpty) {
+                    for (let i = 2; i <= p.pcs; i++) {
+                        const el = document.getElementById(`${g.key}-pc-${i}`);
+                        if (el) el.value = firstValStr;
+                    }
+                }
+            }
+
             const vals = [];
             for (let i = 1; i <= p.pcs; i++) {
                 const v = parseFloat(document.getElementById(`${g.key}-pc-${i}`)?.value);
                 if (!isNaN(v)) vals.push(v);
             }
-            if (!vals.length) { anyDimMissing = true; break; }
+            if (!vals.length || vals.length < p.pcs) { anyDimMissing = true; break; }
             const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
             const allOk = vals.every(v => v >= lsl && v <= usl);
             dimData[g.key] = {
@@ -508,9 +546,12 @@ function saveBatch() {
         partno: p.partno,
         mc: document.getElementById('m-mc')?.value || p.mc,
         team: document.getElementById('m-team')?.value || '',
-        qcEn: (document.getElementById('m-qc-en')?.value || '').trim(),
+        qcEn: (document.getElementById('m-en')?.value || '').trim(),
         meEn: (document.getElementById('m-me-en')?.value || '').trim(),
         traveler: (document.getElementById('m-traveler')?.value || '').trim(),
+        ptno: (document.getElementById('m-ptno')?.value || '').trim(),
+        qty: (document.getElementById('m-qty')?.value || '').trim(),
+        partno2: (document.getElementById('m-partno2')?.value || '').trim(),
         sendTime: document.getElementById('m-send-time')?.value || '',
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
@@ -538,7 +579,8 @@ function saveBatch() {
     updateBadges();
 
     // Alert if any fail
-    if (vmiNG || !shortOk || !longOk) {
+    if (vmiNG || !shortOk || !longOk || rec.overall === 'Fail') {
+        alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${rec.qcEn || '-'}`);
         const alerts = loadAlerts();
         const issues = [];
         const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
@@ -567,7 +609,7 @@ function saveBatch() {
 }
 
 function clearForm() {
-    ['m-mc', 'm-traveler', 'm-qc-en', 'm-me-en', 'm-send-time', 'm-recv-time'].forEach(id => {
+    ['m-mc', 'm-ptno', 'm-traveler', 'm-qc-en', 'm-en', 'm-me-en', 'm-send-time', 'm-recv-time', 'm-qty', 'm-partno2'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     const dateEl = document.getElementById('m-date');
@@ -627,11 +669,7 @@ function setKpi(id, v) { const el = document.getElementById(id); if (el) el.text
 
 function updateBadges() {
     const recs = loadRecords();
-    const alerts = loadAlerts();
     setKpi('badge-records', recs.length);
-    setKpi('badge-alerts', alerts.length);
-    const notif = document.getElementById('notif-count');
-    if (notif) { notif.textContent = alerts.length; notif.style.display = alerts.length > 0 ? 'flex' : 'none'; }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -780,7 +818,13 @@ function viewRecord(id) {
 }
 
 function deleteRecord(id) {
-    showConfirm('ลบข้อมูล', 'ยืนยันลบ Batch นี้?', () => {
+    showConfirm('ลบข้อมูล', 'ยืนยันลบ Batch นี้?', async () => {
+        const rec = loadRecords().find(r => r.id === id);
+        if (rec && typeof isServerOnline !== 'undefined' && isServerOnline) {
+            try {
+                await fetch(`${BACKEND_URL}/api/damper/records/${rec.no}`, { method: 'DELETE' });
+            } catch (e) { console.error('Delete Damper Record Error:', e); }
+        }
         saveRecords(loadRecords().filter(r => r.id !== id));
         updateKPIs(); updateBadges(); renderRecords();
         showToast('ลบข้อมูลสำเร็จ', 'success');
@@ -956,54 +1000,7 @@ function buildVMIChart(recs) {
 }
 
 // ------------------------------------------------------------------------------------------
-//  Alert Log
-// ------------------------------------------------------------------------------------------
-async function renderAlerts() {
-    const body = document.getElementById('alerts-body');
-    if (!body) return;
-    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">กำลังโหลดข้อมูล...</div>';
 
-    let alerts = [];
-    try {
-        const res = await fetch(`${BACKEND_URL}/api/damper/alerts`);
-        const data = await res.json();
-        if (data.success) {
-            alerts = data.alerts || [];
-            saveAlerts(alerts); // temporarily save to use in sendSingleAlertEml if needed
-        }
-    } catch (e) {
-        console.error('Fetch alerts error:', e);
-        alerts = loadAlerts(); // fallback to local
-    }
-
-    if (!alerts.length) {
-        body.innerHTML = `<div class="empty" style="padding:30px;text-align:center"><div style="font-size:32px">✅</div><p>ไม่มี Alert Log</p></div>`;
-        return;
-    }
-    body.innerHTML = alerts.map(a => `
-        <div style="border:1.5px solid var(--fail);border-radius:10px;padding:12px 16px;background:rgba(231,76,60,.04);margin-bottom:12px">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-                <span style="font-size:13px;font-weight:800;color:var(--fail)">🔴 DAMPER FAIL</span>
-                <span style="font-size:11px;color:var(--text3)">${new Date(a.ts).toLocaleString('th-TH')}</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;font-size:12px;margin-bottom:8px">
-                <div><span style="color:var(--text3)">Product:</span> <strong>${a.product}</strong></div>
-                <div><span style="color:var(--text3)">QC EN#:</span> ${a.qcEn || '—'}</div>
-                <div><span style="color:var(--text3)">Traveler:</span> ${a.traveler || '—'}</div>
-            </div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:8px">📌 ${a.msg || ''}</div>
-            <div style="display:flex;gap:6px">
-                <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="sendSingleAlertEml('${a.id}')">📧 Send Outlook</button>
-            </div>
-        </div>`).join('');
-}
-
-function clearAlerts() {
-    showConfirm('ล้าง Alert Log', 'ยืนยันล้าง Alert Log ทั้งหมด?', () => {
-        saveAlerts([]); updateBadges(); renderAlerts();
-        showToast('ล้าง Alert Log สำเร็จ', 'info');
-    });
-}
 
 function sendSingleAlertEml(id) {
     const a = loadAlerts().find(x => String(x.id) === String(id));
@@ -1411,3 +1408,169 @@ async function importExportedCSV(event) {
         showToast(`นำเข้าข้อมูล ${importedCount} รายการ และบันทึกเข้าฐานข้อมูลเรียบร้อย`, 'success');
     } else { showToast('ไม่พบข้อมูลที่จะนำเข้า (รูปแบบไฟล์ไม่ถูกต้อง หรือไม่มีข้อมูล)', 'warn'); }
 }
+
+// === STAGE 2 MERGE LOGIC ===
+function renderPendingTable() {
+    const recs = loadRecords().filter(r => r.overall === 'Waiting' || r.overall === 'WAITING');
+    const tbody = document.getElementById('pending-table-wrap');
+    if (!tbody) return;
+    if (!recs.length) {
+        tbody.innerHTML = '<div class="empty" style="padding:20px"><p>ไม่มี Pending Records</p></div>';
+        return;
+    }
+    
+    let html = '<table style="width:100%;text-align:left;">';
+    html += '<thead><tr><th>No</th><th>Date</th><th>Product</th><th>PT Number</th><th>Select</th></tr></thead><tbody>';
+    recs.forEach(r => {
+        html += `<tr>
+            <td>${r.no}</td>
+            <td>${r.date}</td>
+            <td>${r.productLabel}</td>
+            <td>${r.partno || '-'}</td>
+            <td><button class="btn btn-sm btn-outline" onclick="selectPendingForMerge(${r.id})">Select</button></td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    tbody.innerHTML = html;
+}
+
+let _selectedMergeId = null;
+function selectPendingForMerge(id) {
+    _selectedMergeId = id;
+    showToast('เลือก Record แล้ว ไปที่แถบ Stage 2 เพื่อนำเข้าข้อมูล', 'success');
+    const btn = document.querySelector('[data-tab="stage2"]');
+    if (btn) btn.click();
+}
+
+function parseStage2Data() {
+    if (!_selectedMergeId) {
+        showToast('กรุณาเลือก Pending Record ก่อน (แถบ Manual Input)', 'warn');
+        return;
+    }
+    const topText = document.getElementById('m-top-data').value;
+    const botText = document.getElementById('m-bot-data').value;
+    const topNums = topText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
+    const botNums = botText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
+    
+    let html = `<h4>Extracted Data:</h4>`;
+    html += `<p><b>Top</b>: ${topNums.length} values => ${topNums.join(', ')}</p>`;
+    html += `<p><b>Bottom</b>: ${botNums.length} values => ${botNums.join(', ')}</p>`;
+    document.getElementById('merge-preview-area').innerHTML = html;
+    
+    if(topNums.length > 0 && botNums.length > 0) {
+        document.getElementById('btn-merge-damper').disabled = false;
+        window._stage2Data = { topNums, botNums };
+    }
+}
+
+function commitStage2Damper() {
+    if (!_selectedMergeId || !window._stage2Data) return;
+    const recs = loadRecords();
+    const idx = recs.findIndex(r => r.id === _selectedMergeId);
+    if (idx === -1) return;
+    
+    const r = recs[idx];
+    const { topNums, botNums } = window._stage2Data;
+    
+    if (!r.dimData) r.dimData = {};
+    
+    const evalGroup = (key, nums, gDef) => {
+        const lsl = gDef.nom - gDef.tol;
+        const usl = gDef.nom + gDef.tol;
+        const avg = nums.reduce((a,b)=>a+b,0)/nums.length;
+        const max = Math.max(...nums);
+        const min = Math.min(...nums);
+        const allOk = nums.every(v => v >= lsl && v <= usl);
+        return { vals: nums, avg: +avg.toFixed(5), max: +max.toFixed(5), min: +min.toFixed(5), result: allOk ? 'Pass' : 'Fail' };
+    };
+    
+    const topDef = DIM_GROUPS.long.find(x => x.key === 'long_top');
+    const botDef = DIM_GROUPS.long.find(x => x.key === 'long_bot');
+    
+    r.dimData['long_top'] = evalGroup('long_top', topNums, topDef);
+    r.dimData['long_bot'] = evalGroup('long_bot', botNums, botDef);
+    
+    r.longAvg = r.dimData['long_top'].avg;
+    r.longMax = r.dimData['long_top'].max;
+    r.longMin = r.dimData['long_top'].min;
+    r.longResult = (r.dimData['long_top'].result === 'Pass' && r.dimData['long_bot'].result === 'Pass') ? 'Pass' : 'Fail';
+    
+    const shortOk = (r.dimData['short_p1']?.result === 'Pass' && r.dimData['short_p2']?.result === 'Pass');
+    r.overall = (!r.vmiNG && shortOk && r.longResult === 'Pass') ? 'Pass' : 'Fail';
+    
+    saveRecords(recs);
+    _selectedMergeId = null;
+    window._stage2Data = null;
+    document.getElementById('m-top-data').value = '';
+    document.getElementById('m-bot-data').value = '';
+    document.getElementById('merge-preview-area').innerHTML = '<div style="color:var(--pass);font-weight:bold;padding:10px;background:rgba(39,174,96,0.1);border-radius:6px;">✅ Merge สำเร็จ!</div>';
+    document.getElementById('btn-merge-damper').disabled = true;
+    
+    updateKPIs();
+    renderRecords();
+    renderPendingTable();
+    showToast('บันทึกข้อมูลเรียบร้อย', 'success');
+    
+    if (typeof syncWithServer === 'function') syncWithServer();
+}
+
+function clearAllDrafts() {
+    showConfirm('Clear Waiting', 'ลบ Waiting Records ทั้งหมด?', () => {
+        const recs = loadRecords().filter(r => r.overall !== 'Waiting' && r.overall !== 'WAITING');
+        saveRecords(recs);
+        renderPendingTable();
+        showToast('ลบข้อมูล Waiting เรียบร้อย', 'success');
+    });
+}
+
+const originalSaveBatch = saveBatch;
+saveBatch = function() {
+    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    let anyMissing = false;
+    for (const g of allGroups) {
+        if (!document.getElementById(`${g.key}-pc-1`) || !document.getElementById(`${g.key}-pc-1`).value) {
+            anyMissing = true;
+        }
+    }
+    
+    if (anyMissing) {
+        showConfirm('ข้อมูลไม่ครบ', 'ต้องการบันทึกเป็น Waiting (Stage 1) เพื่อรอ Merge ข้อมูลทีหลังหรือไม่?', () => {
+            const oldOverall = document.getElementById('m-overall').value;
+            setOverallPF('Waiting');
+            try {
+                const oldGroups = [...DIM_GROUPS.long];
+                DIM_GROUPS.long = []; 
+                originalSaveBatch();
+                DIM_GROUPS.long = oldGroups;
+                renderPendingTable();
+            } finally {
+                setOverallPF(oldOverall);
+            }
+        });
+        return;
+    }
+    originalSaveBatch();
+}
+
+// Hook tab switch to render pending table
+const originalSwitchTab = switchTab;
+switchTab = function(id, btn) {
+    originalSwitchTab(id, btn);
+    if(id === 'manual' || id === 'stage2') {
+        renderPendingTable();
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+    e.preventDefault();
+    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const index = focusable.indexOf(e.target);
+    if (index > -1 && index < focusable.length - 1) {
+      focusable[index + 1].focus();
+    }
+  }
+});
+

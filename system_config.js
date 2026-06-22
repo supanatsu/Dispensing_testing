@@ -60,6 +60,7 @@ function updateTableHeader(mod) {
             <tr>
                 <th>Product</th>
                 <th>Dimension</th>
+                <th>Frequency (pcs)</th>
                 <th>LCL</th>
                 <th>CL</th>
                 <th>UCL</th>
@@ -70,6 +71,7 @@ function updateTableHeader(mod) {
             <tr>
                 <th>Product</th>
                 <th>Dimension</th>
+                <th>Frequency (pcs)</th>
                 <th>LSL</th>
                 <th>LCL</th>
                 <th>CL</th>
@@ -147,6 +149,7 @@ async function loadSPCLimits() {
                         cl: fallback.cl !== undefined ? fallback.cl : null,
                         ucl: fallback.ucl !== undefined ? fallback.ucl : null,
                         usl: fallback.usl !== undefined ? fallback.usl : null,
+                        frequency: null,
                         laser_qty: null,
                         laser_fixture: null,
                         laser_shift: null
@@ -192,6 +195,7 @@ function renderTable() {
             tr.innerHTML = `
                 <td style="font-weight:600">${lim.product_key}</td>
                 <td>${lim.dimension_name}</td>
+                <td class="editable-cell"><input type="number" step="1" value="${lim.frequency !== null && lim.frequency !== undefined ? lim.frequency : ''}" onchange="updateLimit(${idx}, 'frequency', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.lcl !== null ? lim.lcl : ''}" onchange="updateLimit(${idx}, 'lcl', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.cl !== null ? lim.cl : ''}" onchange="updateLimit(${idx}, 'cl', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.ucl !== null ? lim.ucl : ''}" onchange="updateLimit(${idx}, 'ucl', this.value)"></td>
@@ -200,6 +204,7 @@ function renderTable() {
             tr.innerHTML = `
                 <td style="font-weight:600">${lim.product_key}</td>
                 <td>${lim.dimension_name}</td>
+                <td class="editable-cell"><input type="number" step="1" value="${lim.frequency !== null && lim.frequency !== undefined ? lim.frequency : ''}" onchange="updateLimit(${idx}, 'frequency', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.lsl !== null ? lim.lsl : ''}" onchange="updateLimit(${idx}, 'lsl', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.lcl !== null ? lim.lcl : ''}" onchange="updateLimit(${idx}, 'lcl', this.value)"></td>
                 <td class="editable-cell"><input type="number" step="0.0001" value="${lim.cl !== null ? lim.cl : ''}" onchange="updateLimit(${idx}, 'cl', this.value)"></td>

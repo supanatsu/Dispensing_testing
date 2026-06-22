@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
   <title>System Configuration - BELTON IPQC</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="tablet_patch.css">
 </head>
 <body>
   <aside id="sidebar-root"></aside>
@@ -53,26 +54,37 @@
             </div>
 
             <!-- DISPENSING CONFIG PANEL -->
-            <div id="cfg-panel-dispensing">
-                <div class="form-grid" style="grid-template-columns:auto auto 1fr; align-items: end; margin-bottom: 16px;">
-                    <div class="form-group">
-                        <label style="font-weight:bold; color:var(--text-dark);">2. เลือกประเภท (Data Type)</label>
-                        <select id="sys-cfg-datatype" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; padding:10px; border-radius:6px; background:#fff;">
-                            <option value="Buy off">Buy off</option>
-                            <option value="Roving Audit">Roving Audit</option>
-                        </select>
+            <div id="cfg-panel-dispensing" style="display:none;">
+                <div style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #3b82f6; margin-bottom:16px;">
+                    <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                        <svg fill="none" viewBox="0 0 24 24" width="18" height="18">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke="#3b82f6" />
+                        </svg>
+                        Dispensing — SPC Parameters
+                    </h3>
+
+                    <!-- Product Selector -->
+                    <div style="margin-bottom:20px; padding:16px; background:rgba(59,130,246,0.05); border-radius:8px; border:1px solid rgba(59,130,246,0.2);">
+                        <div class="form-grid" style="grid-template-columns:auto auto 1fr; align-items: end; margin-bottom: 0;">
+                            <div class="form-group">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือกประเภท (Data Type)</label>
+                                <select id="sys-cfg-datatype" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; min-width:150px;">
+                                    <option value="Buy off">Buy off</option>
+                                    <option value="Roving Audit">Roving Audit</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก Product</label>
+                                <select id="sys-cfg-model" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; min-width: 250px;">
+                                    <option value="">— เลือก Product —</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                <button class="btn btn-outline" onclick="addSysConfigRow()" style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
+                                <button class="btn btn-danger" onclick="resetSysModelConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label style="font-weight:bold; color:var(--text-dark);">3. เลือก Dispensing Product</label>
-                        <select id="sys-cfg-model" class="form-select" onchange="renderSysConfigTable()" style="font-weight:600; padding:10px; border-radius:6px; background:#fff; min-width: 200px;">
-                            <option value="">— เลือก Dispensing Product —</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
-                        <button class="btn btn-outline" onclick="addSysConfigRow()" style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
-                        <button class="btn btn-danger" onclick="resetSysModelConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
-                    </div>
-                </div>
 
                 <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee;">
                     <table style="margin: 0; width: 100%;">
@@ -90,6 +102,7 @@
                         <tbody id="sys-cfg-tbody" style="background: #fff;"></tbody>
                     </table>
                 </div>
+                </div>
             </div>
 
             <!-- LASER CONFIG PANEL -->
@@ -106,14 +119,14 @@
                         <div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📋 ค่าที่บันทึกอยู่ใน LocalStorage ตอนนี้</div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
                             <div style="background:rgba(245,158,11,0.06);border-radius:6px;padding:10px 12px;">
-                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">E-BLOCK — Qty/Batch</div>
+                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">Frequency — Buy Off</div>
                                 <div id="gc-laser-stored-eblock" style="font-size:20px;font-weight:800;color:var(--accent);">—</div>
-                                <div style="font-size:10px;color:#b45309;">pcs / batch</div>
+                                <div style="font-size:10px;color:#b45309;">/Shift/Oven</div>
                             </div>
                             <div style="background:rgba(245,158,11,0.06);border-radius:6px;padding:10px 12px;">
-                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">BOBBIN — Qty/Batch</div>
+                                <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">Frequency — Roving</div>
                                 <div id="gc-laser-stored-bobbin" style="font-size:20px;font-weight:800;color:var(--accent);">—</div>
-                                <div style="font-size:10px;color:#b45309;">pcs / batch</div>
+                                <div style="font-size:10px;color:#b45309;">/Shift/Oven</div>
                             </div>
                         </div>
                         <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(245,158,11,0.2);display:flex;justify-content:flex-end;">
@@ -134,26 +147,26 @@
                             </div>
                         </div>
                         
-                        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">📦 Buy Off Qty / Batch</div>
+                        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">📦 Frequency</div>
                         
                         <div id="gc-laser-default-qtys" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px;">
                             <div>
-                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: E-block — Qty/Batch</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">📦 Frequency — Buy Off</label>
                                 <input type="number" id="gc-laser-qty-eblock" placeholder="Default: 2" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: Bobbin — Qty/Batch</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">📦 Frequency — Roving</label>
                                 <input type="number" id="gc-laser-qty-bobbin" placeholder="Default: 15" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
                             </div>
                         </div>
 
                         <div id="gc-laser-product-qty-container" style="display:none; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px;">
                             <div>
-                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: E-block (เฉพาะรุ่น)</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">📦 Frequency — Buy Off (เฉพาะรุ่น)</label>
                                 <input type="number" id="gc-laser-qty-product-eblock" placeholder="เว้นว่างไว้เพื่อใช้ค่า Default" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type: Bobbin (เฉพาะรุ่น)</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">📦 Frequency — Roving (เฉพาะรุ่น)</label>
                                 <input type="number" id="gc-laser-qty-product-bobbin" placeholder="เว้นว่างไว้เพื่อใช้ค่า Default" min="1" style="width:100%; padding:10px; border:1.5px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); font-size:13px; box-sizing:border-box;">
                             </div>
                         </div>
@@ -164,8 +177,8 @@
                             <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
                                 <tr>
                                     <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Product Name</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">E-block Qty/Batch</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">Bobbin Qty/Batch</th>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">Frequency Buy Off</th>
+                                    <th style="padding: 12px 16px; font-weight: 700; color: #b45309; text-align: center;">Frequency Roving</th>
                                     <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center; width: 100px;">Actions</th>
                                 </tr>
                             </thead>
@@ -177,6 +190,46 @@
 
             <!-- POF CONFIG PANEL -->
             <div id="cfg-panel-pof" style="display:none;">
+                <style>
+                    /* POF Config Panel Styles */
+                    .pof-section-hdr {
+                        display: flex; align-items: center; gap: 8px;
+                        font-size: 14px; font-weight: 700; padding: 10px 0 10px 0;
+                        border-bottom: 2px solid #e2e8f0; margin-bottom: 16px;
+                    }
+                    .pof-cfg-table thead th {
+                        padding: 10px 10px; font-weight: 700; font-size: 12px;
+                        text-align: center; white-space: nowrap;
+                    }
+                    .pof-cfg-table tbody td { padding: 6px 6px; }
+                    .pof-cfg-table tbody td:first-child { padding-left: 14px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+                    .pof-cfg-table .form-input { font-size: 12px; padding: 7px 8px; text-align: center; }
+                    .pof-cfg-table tbody tr:hover { background: #f8fafc; }
+                    .pof-separator-row td { background: #f1f5f9; padding: 6px 14px !important; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+
+                    /* Epoxy coverage button picker */
+                    .ep-pct-picker { display: flex; flex-wrap: wrap; gap: 5px; }
+                    .ep-pct-btn {
+                        min-width: 42px; padding: 5px 4px; border-radius: 5px;
+                        border: 1.5px solid #e2e8f0; background: #f8fafc;
+                        font-size: 12px; font-weight: 700; color: #475569;
+                        cursor: pointer; text-align: center; transition: all .15s;
+                    }
+                    .ep-pct-btn:hover { border-color: #8b5cf6; color: #8b5cf6; background: #f5f3ff; }
+                    .ep-pct-btn.active-reject { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+                    .ep-pct-btn.active-hold   { border-color: #f59e0b; background: #fffbeb; color: #b45309; }
+                    .ep-pct-btn.active-accept { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
+                    .ep-result-badge {
+                        display: inline-flex; align-items: center; gap: 6px;
+                        padding: 6px 14px; border-radius: 6px; font-size: 13px;
+                        font-weight: 700; min-width: 90px; justify-content: center;
+                    }
+                    .ep-result-reject { background: #fef2f2; color: #dc2626; border: 1.5px solid #fca5a5; }
+                    .ep-result-hold   { background: #fffbeb; color: #b45309;  border: 1.5px solid #fcd34d; }
+                    .ep-result-accept { background: #f0fdf4; color: #16a34a;  border: 1.5px solid #86efac; }
+                    .ep-result-none   { background: #f8fafc; color: #94a3b8;  border: 1.5px solid #e2e8f0; }
+                </style>
+
                 <div style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #8b5cf6; margin-bottom:16px;">
                     <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
                         <svg fill="none" viewBox="0 0 24 24" width="18" height="18">
@@ -184,8 +237,10 @@
                         </svg>
                         Push Out Force — SPC Parameters
                     </h3>
+
+                    <!-- Product Selector -->
                     <div style="margin-bottom:20px; padding:16px; background:rgba(139,92,246,0.05); border-radius:8px; border:1px solid rgba(139,92,246,0.2);">
-                        <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 0;">
+                        <div class="form-grid" style="grid-template-columns:auto 1fr; align-items:end; margin-bottom:0;">
                             <div class="form-group">
                                 <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก Product</label>
                                 <select id="gc-pof-product" class="form-select" onchange="loadGlobalPofConfig()" style="font-weight:600; min-width:250px;">
@@ -199,121 +254,198 @@
                                     <option value="dor10d">Dorado 10D</option>
                                     <option value="m11p">M11 P</option>
                                     <option value="mar10d">Marlin 10D</option>
+                                    <option value="ros1d">Rosewood 1D</option>
+                                    <option value="ros2d">Rosewood 2D</option>
+                                    <option value="sky1d">Skybolt 1D</option>
+                                    <option value="sky2d">Skybolt 2D</option>
+                                    <option value="sky3d">Skybolt 3D</option>
+                                    <option value="sky4d">Skybolt 4D</option>
+                                    <option value="sum10d">Summit 10D</option>
+                                    <option value="v111d">V11 1D</option>
+                                    <option value="v112d">V11 2D</option>
+                                    <option value="v114d">V11 4D</option>
+                                    <option value="v15">V15 CMR 4D</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                            <div class="form-group" style="justify-content:flex-end; flex-direction:row; align-items:flex-end; gap:12px;">
                                 <button class="btn btn-danger" onclick="resetGlobalPofConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
                             </div>
                         </div>
                     </div>
 
+                    <!-- POF Form (shown after product selected) -->
                     <div id="gc-pof-form" style="display:none; margin-top:16px;">
-                        <div style="margin-bottom:12px;">
-                            <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">Unit</label>
-                            <select id="gc-pof-unit" style="max-width:150px;padding:9px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);box-sizing:border-box;">
-                                <option value="kg">kg</option>
-                                <option value="g">g</option>
-                                <option value="N">N</option>
-                                <option value="lbs">lbs</option>
-                                <option value="kgf">kgf</option>
-                                <option value="lbf">lbf</option>
-                            </select>
+
+                        <!-- Unit + Frequency row -->
+                        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; padding:14px 16px; background:rgba(139,92,246,0.04); border-radius:8px; border:1px solid rgba(139,92,246,0.15);">
+                            <div style="display:none;">
+                                <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">Unit</label>
+                                <select id="gc-pof-unit" style="padding:9px; border-radius:6px; border:1.5px solid var(--border2); background:var(--bg); color:var(--text); min-width:120px; box-sizing:border-box;">
+                                    <option value="Lbs">Lbs</option>
+                                    <option value="Kgf">Kgf</option>
+                                    <option value="N">N</option>
+                                    <option value="kg">kg</option>
+                                    <option value="g">g</option>
+                                    <option value="lbf">lbf</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">📦 Frequency — Buy Off</label>
+                                <input type="number" id="gc-pof-freq-buyoff" min="1" step="1" placeholder="เช่น 5" class="form-input" style="width:160px; font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">📦 Frequency — Roving</label>
+                                <input type="number" id="gc-pof-freq-roving" min="1" step="1" placeholder="เช่น 3" class="form-input" style="width:160px; font-size:13px;">
+                            </div>
                         </div>
 
-                        <!-- 🔴 BUY OFF SECTION -->
-                        <h4 style="margin:0 0 12px 0; font-size:14px; color:var(--fail); border-bottom:1px solid #eee; padding-bottom:8px;">🔴 Buy Off</h4>
-                        <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
-                            <table style="margin: 0; width: 100%;">
-                                <thead style="background: #f8fafc;">
+                        <!-- ════════════════════ BUY OFF ════════════════════ -->
+                        <div class="pof-section-hdr" style="color:var(--fail);">
+                            🔴 Buy Off — SPC Limits
+                        </div>
+
+                        <div class="tbl-wrap" style="border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; margin-bottom:28px;">
+                            <table class="pof-cfg-table" style="margin:0; width:100%; border-collapse:collapse;">
+                                <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
                                     <tr>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Parameter</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Spec (Min)</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Trigger</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">UCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">CL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range UCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range CL</th>
+                                        <th style="text-align:left; padding:10px 14px;">Parameter</th>
+                                        <th style="color:var(--fail);">LSL<br><span style="font-weight:400; font-size:10px;">(Spec Min)</span></th>
+                                        <th style="color:#f59e0b;">LCL</th>
+                                        <th style="color:#16a34a;">CL</th>
+                                        <th style="color:#f59e0b;">UCL<br><span style="font-weight:400; font-size:10px;">(Trigger)</span></th>
+                                        <th style="color:var(--fail);">USL</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                                        <td style="padding: 8px 16px; font-weight:600; color:#0ea5e9;">Main POF (SL)</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-spec" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-trig" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-ucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-cl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-lcl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-rucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-sl-rcl" class="form-input"></td>
+                                    <!-- Long Fantail -->
+                                    <tr class="pof-separator-row"><td colspan="6">🔵 Long Fantail</td></tr>
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#0ea5e9;">Long Fantail</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-long-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-long-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-long-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-long-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-long-usl" class="form-input"></td>
                                     </tr>
-                                    <tr id="gc-pof-bobbin-wrap-buyoff" style="border-bottom: 1px solid #f1f5f9; display:none;">
-                                        <td style="padding: 8px 16px; font-weight:600; color:#8b5cf6;">Bobbin POF</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-spec" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-trig" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-ucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-cl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-lcl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-rucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-rcl" class="form-input"></td>
+
+                                    <!-- Short Fantail -->
+                                    <tr class="pof-separator-row"><td colspan="6">🟠 Short Fantail</td></tr>
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#ea580c;">Short Fantail</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-short-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-short-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-short-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-short-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-short-usl" class="form-input"></td>
                                     </tr>
-                                    <tr>
-                                        <td style="padding: 8px 16px; font-weight:600; color:#10b981;">Epoxy Coverage (%)</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-buyoff-epoxy-spec" class="form-input" placeholder="e.g. 50"></td>
-                                        <td colspan="6" style="padding: 8px; text-align:center; color:var(--text-muted); font-size:12px;">(เฉพาะ Spec Min)</td>
+
+                                    <!-- Bobbin (hidden by default) -->
+                                    <tr class="pof-separator-row" id="gc-pof-bobbin-sep-buyoff" style="display:none;"><td colspan="6">🟣 Bobbin</td></tr>
+                                    <tr id="gc-pof-bobbin-wrap-buyoff" style="display:none; border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#8b5cf6;">Bobbin POF</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-usl" class="form-input"></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- 🔵 ROVING AUDIT SECTION -->
-                        <h4 style="margin:0 0 12px 0; font-size:14px; color:var(--blue); border-bottom:1px solid #eee; padding-bottom:8px;">🔵 Roving Audit</h4>
-                        <div class="tbl-wrap" style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
-                            <table style="margin: 0; width: 100%;">
-                                <thead style="background: #f8fafc;">
+                        <!-- ════════════════════ ROVING AUDIT ════════════════════ -->
+                        <div class="pof-section-hdr" style="color:#2563eb;">
+                            🔵 Roving Audit — SPC Limits
+                        </div>
+
+                        <div class="tbl-wrap" style="border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; margin-bottom:28px;">
+                            <table class="pof-cfg-table" style="margin:0; width:100%; border-collapse:collapse;">
+                                <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
                                     <tr>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">Parameter</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Spec (Min)</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Trigger</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">UCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">CL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range UCL</th>
-                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">Range CL</th>
+                                        <th style="text-align:left; padding:10px 14px;">Parameter</th>
+                                        <th style="color:var(--fail);">LSL<br><span style="font-weight:400; font-size:10px;">(Spec Min)</span></th>
+                                        <th style="color:#f59e0b;">LCL</th>
+                                        <th style="color:#16a34a;">CL</th>
+                                        <th style="color:#f59e0b;">UCL<br><span style="font-weight:400; font-size:10px;">(Trigger)</span></th>
+                                        <th style="color:var(--fail);">USL</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                                        <td style="padding: 8px 16px; font-weight:600; color:#0ea5e9;">Main POF (SL)</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-spec" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-trig" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-ucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-cl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-lcl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-rucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-sl-rcl" class="form-input"></td>
+                                    <!-- Long Fantail -->
+                                    <tr class="pof-separator-row"><td colspan="6">🔵 Long Fantail</td></tr>
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#0ea5e9;">Long Fantail</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-long-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-long-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-long-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-long-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-long-usl" class="form-input"></td>
                                     </tr>
-                                    <tr id="gc-pof-bobbin-wrap-roving" style="border-bottom: 1px solid #f1f5f9; display:none;">
-                                        <td style="padding: 8px 16px; font-weight:600; color:#8b5cf6;">Bobbin POF</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-spec" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-trig" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-ucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-cl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-lcl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-rucl" class="form-input"></td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-bobbin-rcl" class="form-input"></td>
+
+                                    <!-- Short Fantail -->
+                                    <tr class="pof-separator-row"><td colspan="6">🟠 Short Fantail</td></tr>
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#ea580c;">Short Fantail</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-short-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-short-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-short-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-short-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-short-usl" class="form-input"></td>
                                     </tr>
-                                    <tr>
-                                        <td style="padding: 8px 16px; font-weight:600; color:#10b981;">Epoxy Coverage (%)</td>
-                                        <td style="padding: 8px;"><input type="number" step="0.01" id="gc-pof-roving-epoxy-spec" class="form-input" placeholder="e.g. 50"></td>
-                                        <td colspan="6" style="padding: 8px; text-align:center; color:var(--text-muted); font-size:12px;">(เฉพาะ Spec Min)</td>
+
+                                    <!-- Bobbin (hidden by default) -->
+                                    <tr class="pof-separator-row" id="gc-pof-bobbin-sep-roving" style="display:none;"><td colspan="6">🟣 Bobbin</td></tr>
+                                    <tr id="gc-pof-bobbin-wrap-roving" style="display:none; border-bottom:1px solid #f1f5f9;">
+                                        <td style="color:#8b5cf6;">Bobbin POF</td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-lsl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-lcl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-cl"  class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-ucl" class="form-input"></td>
+                                        <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-usl" class="form-input"></td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- The table ends here -->
-                    </div>
+                        <!-- ════════════════════ EPOXY COVERAGE ════════════════════ -->
+                        <div class="pof-section-hdr" style="color:#16a34a;">
+                            🟢 Epoxy Coverage — เกณฑ์ตัดสิน (%)
+                        </div>
+                        <div style="background:rgba(22,163,74,0.04); border:1px solid rgba(22,163,74,0.18); border-radius:8px; padding:18px 20px; margin-bottom:12px;">
+                            <p style="font-size:12px; color:var(--text3); margin:0 0 16px 0;">
+                                กดเลือกค่า % ที่ต้องการสำหรับแต่ละ Zone — ระบบจะคำนวณ Pass/Hold/Reject อัตโนมัติ
+                            </p>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:20px;">
+                                <!-- Reject threshold -->
+                                <div>
+                                    <div style="font-size:11px; font-weight:800; color:#dc2626; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">🔴 Reject — ถ้า &lt; ค่านี้</div>
+                                    <div class="ep-pct-picker" id="ep-picker-reject"></div>
+                                    <input type="hidden" id="gc-pof-epoxy-reject" value="10">
+                                    <div style="margin-top:8px; font-size:12px; color:var(--text3);">ค่าที่เลือก: <span id="ep-label-reject" class="ep-result-badge ep-result-reject">10 %</span></div>
+                                </div>
+                                <!-- Hold threshold -->
+                                <div>
+                                    <div style="font-size:11px; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">🟡 Hold — ถ้า &lt; ค่านี้</div>
+                                    <div class="ep-pct-picker" id="ep-picker-hold"></div>
+                                    <input type="hidden" id="gc-pof-epoxy-hold" value="30">
+                                    <div style="margin-top:8px; font-size:12px; color:var(--text3);">ค่าที่เลือก: <span id="ep-label-hold" class="ep-result-badge ep-result-hold">30 %</span></div>
+                                </div>
+                                <!-- Accept threshold -->
+                                <div>
+                                    <div style="font-size:11px; font-weight:800; color:#16a34a; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">🟢 Accept — ถ้า ≥ ค่านี้</div>
+                                    <div class="ep-pct-picker" id="ep-picker-accept"></div>
+                                    <input type="hidden" id="gc-pof-epoxy-accept" value="30">
+                                    <div style="margin-top:8px; font-size:12px; color:var(--text3);">ค่าที่เลือก: <span id="ep-label-accept" class="ep-result-badge ep-result-accept">30 %</span></div>
+                                </div>
+                            </div>
+                            <!-- Preview -->
+                            <div style="margin-top:16px; padding:12px 14px; background:#fff; border-radius:6px; border:1px solid #e2e8f0; font-size:12px; color:var(--text3);">
+                                <b>📋 สรุปเกณฑ์ปัจจุบัน:</b>
+                                <span id="ep-summary-text" style="margin-left:8px;">0% → Reject &nbsp;|&nbsp; 10%–29% → Hold &nbsp;|&nbsp; ≥30% → Accept</span>
+                            </div>
+                        </div>
+
+                    </div><!-- /gc-pof-form -->
                 </div>
             </div>
 
@@ -329,7 +461,7 @@
                     <div class="card-body">
                         <!-- Short Damper -->
                         <div style="margin-bottom:20px; padding:16px; background:rgba(236,72,153,0.05); border-radius:8px; border:1px solid rgba(236,72,153,0.2);">
-                            <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 0;">
+                            <div class="form-grid" style="grid-template-columns:auto 1fr; align-items: end; margin-bottom: 16px;">
                                 <div class="form-group">
                                     <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Select Product (เลือกเพื่อตั้งค่าเฉพาะรุ่น)</label>
                                     <select id="gc-dmp-product" class="form-select" onchange="loadGlobalDamperConfig()" style="font-weight:600; min-width:250px;">
@@ -338,6 +470,21 @@
                                 </div>
                                 <div class="form-group" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
                                     <button class="btn btn-danger" onclick="resetGlobalDamperConfig()" style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺ Reset to Default</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Frequency row -->
+                            <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; padding:14px 16px; background:#fff; border-radius:8px; border:1px solid rgba(236,72,153,0.15);">
+                                <div style="display:none;">
+                                    <select id="gc-dmp-unit" style="display:none;"></select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">📦 Frequency — Buy Off</label>
+                                    <input type="number" id="gc-dmp-freq-buyoff" min="1" step="1" placeholder="เช่น 5" class="form-input" style="width:160px; font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text3); font-weight:700; margin-bottom:4px;">📦 Frequency — Roving</label>
+                                    <input type="number" id="gc-dmp-freq-roving" min="1" step="1" placeholder="เช่น 3" class="form-input" style="width:160px; font-size:13px;">
                                 </div>
                             </div>
                         </div>
@@ -456,9 +603,10 @@
         let data = localStorage.getItem(lsKey);
         currentSysCfg = {};
 
+        let parsed = {};
         if (data) {
             try {
-                let parsed = JSON.parse(data);
+                parsed = JSON.parse(data);
                 // Handle dispensing merged DB vs raw config objects
                 if (mod === 'dispensing') {
                     currentSysCfg = parsed.configs || {};
@@ -704,10 +852,264 @@
         reader.readAsText(input.files[0]);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // ═══════════════════════════════════════════════════════════
+    //  POF Config — Epoxy Picker Init
+    // ═══════════════════════════════════════════════════════════
+    function initEpoxyPickers() {
+        const zones = [
+            { id: 'reject', cls: 'active-reject', hidden: 'gc-pof-epoxy-reject', label: 'ep-label-reject', badge: 'ep-result-reject', def: 10 },
+            { id: 'hold',   cls: 'active-hold',   hidden: 'gc-pof-epoxy-hold',   label: 'ep-label-hold',   badge: 'ep-result-hold',   def: 30 },
+            { id: 'accept', cls: 'active-accept',  hidden: 'gc-pof-epoxy-accept', label: 'ep-label-accept', badge: 'ep-result-accept',  def: 30 },
+        ];
+        zones.forEach(zone => {
+            const picker = document.getElementById('ep-picker-' + zone.id);
+            if (!picker) return;
+            picker.innerHTML = '';
+            for (let v = 10; v <= 100; v += 10) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'ep-pct-btn';
+                btn.textContent = v + '%';
+                btn.dataset.val = v;
+                btn.onclick = () => setEpoxyPicker(zone, v);
+                picker.appendChild(btn);
+            }
+            // Set default
+            const saved = parseInt(document.getElementById(zone.hidden)?.value) || zone.def;
+            setEpoxyPicker(zone, saved);
+        });
+        updateEpoxySummary();
+    }
+
+    function setEpoxyPicker(zone, val) {
+        const hidden = document.getElementById(zone.hidden);
+        if (hidden) hidden.value = val;
+        const picker = document.getElementById('ep-picker-' + zone.id);
+        if (picker) {
+            picker.querySelectorAll('.ep-pct-btn').forEach(b => {
+                b.classList.remove('active-reject', 'active-hold', 'active-accept');
+                if (parseInt(b.dataset.val) === val) b.classList.add(zone.cls);
+            });
+        }
+        const labelEl = document.getElementById(zone.label);
+        if (labelEl) labelEl.textContent = val + ' %';
+        updateEpoxySummary();
+    }
+
+    function updateEpoxySummary() {
+        const reject = parseInt(document.getElementById('gc-pof-epoxy-reject')?.value) || 10;
+        const hold   = parseInt(document.getElementById('gc-pof-epoxy-hold')?.value)   || 30;
+        const el = document.getElementById('ep-summary-text');
+        if (el) {
+            el.innerHTML = `0%–${reject - 1}% → <b style="color:#dc2626">Reject</b> &nbsp;|&nbsp; ${reject}%–${hold - 1}% → <b style="color:#b45309">Hold</b> &nbsp;|&nbsp; ≥${hold}% → <b style="color:#16a34a">Accept</b>`;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  POF Config — Load / Save / Reset
+    // ═══════════════════════════════════════════════════════════
+    function loadGlobalPofConfig() {
+        const prodKey = document.getElementById('gc-pof-product')?.value;
+        const formEl  = document.getElementById('gc-pof-form');
+        if (!formEl) return;
+
+        if (!prodKey) {
+            formEl.style.display = 'none';
+            return;
+        }
+        formEl.style.display = 'block';
+
+        // Load saved config
+        let saved = {};
+        try { saved = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch {}
+        const cfg = (saved[prodKey] || {});
+
+        // Detect if product has bobbin
+        const hasBobbin = ['cim4d','cim5d','dor5dbb','dor10d','mar10d','ros2d','sum10d'].includes(prodKey);
+        const showBobbin = (id) => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = hasBobbin ? '' : 'none';
+        };
+        showBobbin('gc-pof-bobbin-wrap-buyoff');
+        showBobbin('gc-pof-bobbin-sep-buyoff');
+        showBobbin('gc-pof-bobbin-wrap-roving');
+        showBobbin('gc-pof-bobbin-sep-roving');
+
+        // Unit + Frequency
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+        setVal('gc-pof-unit',        cfg.unit        || 'Lbs');
+        setVal('gc-pof-freq-buyoff', cfg.freq_buyoff || '');
+        setVal('gc-pof-freq-roving', cfg.freq_roving || '');
+
+        // Buy Off — Long Fantail
+        const bo = cfg.buyoff || {};
+        setVal('gc-pof-buyoff-long-lsl',    bo.long_lsl  ?? '');
+        setVal('gc-pof-buyoff-long-lcl',    bo.long_lcl  ?? '');
+        setVal('gc-pof-buyoff-long-cl',     bo.long_cl   ?? '');
+        setVal('gc-pof-buyoff-long-ucl',    bo.long_ucl  ?? '');
+        setVal('gc-pof-buyoff-long-usl',    bo.long_usl  ?? '');
+        // Buy Off — Short Fantail
+        setVal('gc-pof-buyoff-short-lsl',   bo.short_lsl ?? '');
+        setVal('gc-pof-buyoff-short-lcl',   bo.short_lcl ?? '');
+        setVal('gc-pof-buyoff-short-cl',    bo.short_cl  ?? '');
+        setVal('gc-pof-buyoff-short-ucl',   bo.short_ucl ?? '');
+        setVal('gc-pof-buyoff-short-usl',   bo.short_usl ?? '');
+        // Buy Off — Bobbin
+        setVal('gc-pof-buyoff-bobbin-lsl',  bo.bobbin_lsl ?? '');
+        setVal('gc-pof-buyoff-bobbin-lcl',  bo.bobbin_lcl ?? '');
+        setVal('gc-pof-buyoff-bobbin-cl',   bo.bobbin_cl  ?? '');
+        setVal('gc-pof-buyoff-bobbin-ucl',  bo.bobbin_ucl ?? '');
+        setVal('gc-pof-buyoff-bobbin-usl',  bo.bobbin_usl ?? '');
+
+        // Roving — Long Fantail
+        const ro = cfg.roving || {};
+        setVal('gc-pof-roving-long-lsl',    ro.long_lsl  ?? '');
+        setVal('gc-pof-roving-long-lcl',    ro.long_lcl  ?? '');
+        setVal('gc-pof-roving-long-cl',     ro.long_cl   ?? '');
+        setVal('gc-pof-roving-long-ucl',    ro.long_ucl  ?? '');
+        setVal('gc-pof-roving-long-usl',    ro.long_usl  ?? '');
+        // Roving — Short Fantail
+        setVal('gc-pof-roving-short-lsl',   ro.short_lsl ?? '');
+        setVal('gc-pof-roving-short-lcl',   ro.short_lcl ?? '');
+        setVal('gc-pof-roving-short-cl',    ro.short_cl  ?? '');
+        setVal('gc-pof-roving-short-ucl',   ro.short_ucl ?? '');
+        setVal('gc-pof-roving-short-usl',   ro.short_usl ?? '');
+        // Roving — Bobbin
+        setVal('gc-pof-roving-bobbin-lsl',  ro.bobbin_lsl ?? '');
+        setVal('gc-pof-roving-bobbin-lcl',  ro.bobbin_lcl ?? '');
+        setVal('gc-pof-roving-bobbin-cl',   ro.bobbin_cl  ?? '');
+        setVal('gc-pof-roving-bobbin-ucl',  ro.bobbin_ucl ?? '');
+        setVal('gc-pof-roving-bobbin-usl',  ro.bobbin_usl ?? '');
+
+        // Epoxy pickers
+        const epoxy = cfg.epoxy || {};
+        const hiddenReject = document.getElementById('gc-pof-epoxy-reject');
+        const hiddenHold   = document.getElementById('gc-pof-epoxy-hold');
+        const hiddenAccept = document.getElementById('gc-pof-epoxy-accept');
+        if (hiddenReject) hiddenReject.value = epoxy.reject ?? 10;
+        if (hiddenHold)   hiddenHold.value   = epoxy.hold   ?? 30;
+        if (hiddenAccept) hiddenAccept.value  = epoxy.accept ?? 30;
+        initEpoxyPickers();
+    }
+
+    function saveGlobalPofConfig() {
+        const prodKey = document.getElementById('gc-pof-product')?.value;
+        if (!prodKey) { alert('กรุณาเลือก Product'); return; }
+
+        const getN = (id) => {
+            const el = document.getElementById(id);
+            if (!el || el.value === '') return null;
+            return parseFloat(el.value);
+        };
+        const getInt = (id) => {
+            const el = document.getElementById(id);
+            if (!el || el.value === '') return null;
+            return parseInt(el.value);
+        };
+        const getStr = (id) => document.getElementById(id)?.value || '';
+
+        const cfg = {
+            unit:        getStr('gc-pof-unit'),
+            freq_buyoff: getInt('gc-pof-freq-buyoff'),
+            freq_roving: getInt('gc-pof-freq-roving'),
+            buyoff: {
+                long_lsl:   getN('gc-pof-buyoff-long-lsl'),
+                long_lcl:   getN('gc-pof-buyoff-long-lcl'),
+                long_cl:    getN('gc-pof-buyoff-long-cl'),
+                long_ucl:   getN('gc-pof-buyoff-long-ucl'),
+                long_usl:   getN('gc-pof-buyoff-long-usl'),
+                short_lsl:  getN('gc-pof-buyoff-short-lsl'),
+                short_lcl:  getN('gc-pof-buyoff-short-lcl'),
+                short_cl:   getN('gc-pof-buyoff-short-cl'),
+                short_ucl:  getN('gc-pof-buyoff-short-ucl'),
+                short_usl:  getN('gc-pof-buyoff-short-usl'),
+                bobbin_lsl: getN('gc-pof-buyoff-bobbin-lsl'),
+                bobbin_lcl: getN('gc-pof-buyoff-bobbin-lcl'),
+                bobbin_cl:  getN('gc-pof-buyoff-bobbin-cl'),
+                bobbin_ucl: getN('gc-pof-buyoff-bobbin-ucl'),
+                bobbin_usl: getN('gc-pof-buyoff-bobbin-usl'),
+            },
+            roving: {
+                long_lsl:   getN('gc-pof-roving-long-lsl'),
+                long_lcl:   getN('gc-pof-roving-long-lcl'),
+                long_cl:    getN('gc-pof-roving-long-cl'),
+                long_ucl:   getN('gc-pof-roving-long-ucl'),
+                long_usl:   getN('gc-pof-roving-long-usl'),
+                short_lsl:  getN('gc-pof-roving-short-lsl'),
+                short_lcl:  getN('gc-pof-roving-short-lcl'),
+                short_cl:   getN('gc-pof-roving-short-cl'),
+                short_ucl:  getN('gc-pof-roving-short-ucl'),
+                short_usl:  getN('gc-pof-roving-short-usl'),
+                bobbin_lsl: getN('gc-pof-roving-bobbin-lsl'),
+                bobbin_lcl: getN('gc-pof-roving-bobbin-lcl'),
+                bobbin_cl:  getN('gc-pof-roving-bobbin-cl'),
+                bobbin_ucl: getN('gc-pof-roving-bobbin-ucl'),
+                bobbin_usl: getN('gc-pof-roving-bobbin-usl'),
+            },
+            epoxy: {
+                reject: parseInt(document.getElementById('gc-pof-epoxy-reject')?.value) || 10,
+                hold:   parseInt(document.getElementById('gc-pof-epoxy-hold')?.value)   || 30,
+                accept: parseInt(document.getElementById('gc-pof-epoxy-accept')?.value)  || 30,
+            }
+        };
+
+        let existing = {};
+        try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch {}
+        existing[prodKey] = cfg;
+        localStorage.setItem('belton_pof_config_v1', JSON.stringify(existing));
+
+        // Show toast if available, else alert
+        if (typeof showToast === 'function') {
+            showToast(`✅ บันทึก POF Config สำหรับ "${prodKey}" สำเร็จ`, 'success');
+        } else {
+            alert('✅ บันทึก POF Config สำเร็จ');
+        }
+    }
+
+    function resetGlobalPofConfig() {
+        const prodKey = document.getElementById('gc-pof-product')?.value;
+        if (!prodKey) { alert('กรุณาเลือก Product'); return; }
+        if (!confirm(`ล้างค่าทั้งหมดของ "${prodKey}" และ Reset เป็นค่าเริ่มต้น?`)) return;
+
+        let existing = {};
+        try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch {}
+        delete existing[prodKey];
+        localStorage.setItem('belton_pof_config_v1', JSON.stringify(existing));
+        loadGlobalPofConfig();
+
+        if (typeof showToast === 'function') {
+            showToast('ล้างค่า POF Config เรียบร้อย', 'warn');
+        } else {
+            alert('ล้างค่า POF Config เรียบร้อย');
+        }
+    }
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            // Fetch products dynamically instead of relying solely on shared_products.js
+            const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/products');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.products) {
+                    window.PRODUCTS = {};
+                    data.products.forEach(p => {
+                        let dims = [];
+                        try { dims = typeof p.dims === 'string' ? JSON.parse(p.dims) : p.dims; } catch(e){}
+                        window.PRODUCTS[p.product_key] = {
+                            label: p.product_name,
+                            dims: dims || []
+                        };
+                    });
+                }
+            }
+        } catch(e) {
+            console.error('Failed to load dynamic products:', e);
+        }
+
         if (typeof sysConfigModuleChange === 'function') {
             sysConfigModuleChange();
         }
+        // Init epoxy pickers with defaults
+        initEpoxyPickers();
     });
   </script>
 </body>

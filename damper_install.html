@@ -3,8 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
     <title>BELTON IPQC — Damper Install</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -397,14 +396,12 @@
 
         <!-- ═══ NAV ═══ -->
         <div class="nav-bar">
-            <button class="nav-btn active" data-tab="manual" onclick="switchTab('manual',this)">Manual Input</button>
+            <button class="nav-btn active" data-tab="manual" onclick="switchTab('manual',this)">Stage 1: Manual Input</button>
+            <button class="nav-btn" data-tab="stage2" onclick="switchTab('stage2',this)">Stage 2: Bulk Merge</button>
             <button class="nav-btn" data-tab="records" onclick="switchTab('records',this)">
                 About Data <span class="badge" id="badge-records">0</span>
             </button>
             <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization</button>
-            <button class="nav-btn" data-tab="alerts" onclick="switchTab('alerts',this)">
-                Alert Log <span class="badge" id="badge-alerts" style="background:var(--fail)">0</span>
-            </button>
         </div>
 
         <div class="content">
@@ -434,91 +431,103 @@
                         <div class="sec-label">📋 Batch Information</div>
                         <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
 
+                            <!-- Inspection Mode -->
                             <div class="form-group">
-                                <label style="color:var(--accent)">Inspection Mode <span
-                                        style="color:var(--fail)">*</span></label>
-                                <select id="m-mode" class="form-select"
-                                    style="border-color:var(--accent);font-weight:600" onchange="onModeChange()">
-                                    <option value="buyoff">🔴 Buy Off</option>
+                                <label style="color:var(--accent)">Inspection Mode <span style="color:var(--fail)">*</span></label>
+                                <select id="m-mode" class="form-select" style="border-color:var(--accent);font-weight:600" onchange="onModeChange()">
+                                    <option value="buyoff" selected>🔴 Buy Off</option>
                                     <option value="roving">🔵 Roving Audit</option>
                                 </select>
                             </div>
 
+                            <!-- 1. product -->
                             <div class="form-group">
-                                <label style="color:var(--accent)">Product <span
-                                        style="color:var(--fail)">*</span></label>
+                                <label style="color:var(--accent)">1. product <span style="color:var(--fail)">*</span></label>
                                 <select id="m-product" class="form-select"
                                     style="border-color:var(--accent);font-weight:600" onchange="onProductChange()">
                                     <option value="">— เลือก Product —</option>
                                 </select>
                             </div>
 
+                            <!-- 2. Frequency -->
+                            <div class="form-group" id="grp-qty">
+                                <label>Frequency <span style="font-size:10px;color:var(--text3)">(ดูดค่าจาก System Config)</span></label>
+                                <input type="text" id="m-qty" class="form-input" placeholder="-" readonly style="background-color: var(--bg2); border-color: var(--border2); color: var(--text2); cursor: not-allowed; font-weight: bold;">
+                            </div>
+
+                            <!-- 3. Part number -->
                             <div class="form-group">
-                                <label>Part Number</label>
+                                <label>3. Part number</label>
                                 <input type="text" id="m-partno" class="form-input" readonly placeholder="Auto-fill"
                                     style="background:var(--bg2);color:var(--text3);cursor:not-allowed">
                             </div>
 
+                            <!-- 4. PT no. -->
                             <div class="form-group">
-                                <label>Machine # (M/C)</label>
+                                <label>4. PT no.</label>
+                                <input type="text" id="m-ptno" class="form-input" placeholder="e.g. PT260426334">
+                            </div>
+
+                            <!-- 5. M/c no. -->
+                            <div class="form-group">
+                                <label>5. M/c no.</label>
                                 <input type="text" id="m-mc" class="form-input" placeholder="e.g. 48"
                                     style="letter-spacing:1px">
                             </div>
 
+                            <!-- 6. date -->
                             <div class="form-group">
-                                <label>Date <span style="color:var(--fail)">*</span></label>
+                                <label>6. date <span style="color:var(--fail)">*</span></label>
                                 <input type="date" id="m-date" class="form-input">
                             </div>
 
+                            <!-- 7. sending time -->
                             <div class="form-group">
-                                <label>Sending Time</label>
+                                <label>7. sending time</label>
                                 <input type="time" id="m-send-time" class="form-input">
                             </div>
 
+                            <!-- 8. receive time -->
                             <div class="form-group">
-                                <label>Receive Time</label>
+                                <label>8. receive time</label>
                                 <input type="time" id="m-recv-time" class="form-input">
                             </div>
 
+                            <!-- 9. En. -->
                             <div class="form-group">
-                                <label>Attribute</label>
+                                <label>9. En. <span style="color:var(--fail)">*</span></label>
+                                <input type="text" id="m-en" class="form-input" placeholder="e.g. 36928"
+                                    style="letter-spacing:1px">
+                            </div>
+
+                            <!-- 10. part no. -->
+                            <div class="form-group">
+                                <label>10. part no.</label>
+                                <input type="text" id="m-partno2" class="form-input" placeholder="">
+                            </div>
+
+                            <!-- 11. Attibute -->
+                            <div class="form-group">
+                                <label>11. Attibute</label>
                                 <select id="m-attribute" class="form-select">
                                     <option value="Normal">Normal</option>
                                     <option value="Re-submit">Re-submit</option>
                                 </select>
                             </div>
 
-                            <div class="form-group">
-                                <label>Traveler No.</label>
-                                <input type="text" id="m-traveler" class="form-input" placeholder="e.g. PT260426334_N">
+                            <!-- Extra (Keep for system compatibility) -->
+                            <div class="form-group" style="display:none;">
+                                <input type="text" id="m-traveler" class="form-input">
                             </div>
-
-                            <div class="form-group">
-                                <label>QC EN # <span style="color:var(--fail)">*</span></label>
-                                <input type="text" id="m-qc-en" class="form-input" placeholder="e.g. 36928"
-                                    style="letter-spacing:1px">
+                            <div class="form-group" style="display:none;">
+                                <input type="text" id="m-qc-en" class="form-input">
                             </div>
-
-                            <div class="form-group">
-                                <label>ME EN #</label>
-                                <input type="text" id="m-me-en" class="form-input" placeholder="e.g. 28739"
-                                    style="letter-spacing:1px">
+                            <div class="form-group" style="display:none;">
+                                <input type="text" id="m-me-en" class="form-input">
                             </div>
-
-                            <div class="form-group">
-                                <label>Shift / Team</label>
-                                <select id="m-team" class="form-select">
-                                    <option value="">— Select —</option>
-                                    <option>A/Day</option>
-                                    <option>A/Night</option>
-                                    <option>B/Day</option>
-                                    <option>B/Night</option>
-                                </select>
-                            </div>
-
-
-
-                        </div><!-- /form-grid -->
+                            <div class="form-group" style="display:none;">
+                                <select id="m-team" class="form-select"></select>
+                            </div>                        </div><!-- /form-grid -->
 
                         <!-- ── VMI Disposition ── -->
                         <div id="vmi-section" style="display:none">
@@ -583,7 +592,61 @@
                     </div>
 
                 </div><!-- /card -->
-            </div><!-- /panel-manual -->
+        </div><!-- end card -->
+
+        <!-- PENDING DRAFTS SECTION -->
+        <div id="panel-manual-pending" style="margin-top:16px;padding-top:0;">
+          <div class="card" style="border-top:3px solid var(--primary);">
+            <div class="card-hdr" style="background:rgba(108,92,231,0.04);">
+              <h3 style="color:var(--primary);">PENDING RECORDS <span style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Stage 2)</span>
+                <span class="badge" id="badge-pending" style="background:var(--primary);margin-left:8px;">0</span>
+              </h3>
+              <div class="btn-row">
+                <button class="btn btn-outline btn-sm" onclick="renderPendingTable()">Refresh</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllDrafts()">Clear All Waiting</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding-bottom:0">
+              <div id="pending-table-wrap">
+                <div class="empty" style="padding:20px">
+                  <p>ยังไม่มี Pending Records - กด "Save" เพื่อเริ่มต้น</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end panel-manual -->
+
+      <!-- ========================================== -->
+      <!-- TAB: STAGE 2 BULK MERGE                    -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-stage2">
+        <div class="card" style="border-top:3px solid var(--blue);margin-top:0;">
+          <div class="card-hdr" style="background:rgba(9,132,227,0.04);">
+            <h3 style="color:var(--blue);">STAGE 2 — BULK TEXT DATA MERGE</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+              <div class="form-group">
+                <label>Top Data (วางข้อมูลสำหรับ Long - Top)</label>
+                <textarea id="m-top-data" class="form-input" rows="6" placeholder="วางข้อมูลจาก Excel/Machine"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Bottom Data (วางข้อมูลสำหรับ Long - Bot)</label>
+                <textarea id="m-bot-data" class="form-input" rows="6" placeholder="วางข้อมูลจาก Excel/Machine"></textarea>
+              </div>
+            </div>
+            
+            <div style="margin-top:10px" class="btn-row">
+              <button class="btn btn-outline" onclick="parseStage2Data()">Preview & Extract</button>
+              <button class="btn btn-primary" id="btn-merge-damper" onclick="commitStage2Damper()" disabled>Merge to Target Record</button>
+            </div>
+            
+            <div id="merge-preview-area" style="margin-top:14px"></div>
+          </div>
+        </div>
+      </div>
 
             <!-- ═══════════════════════════════════════════
      TAB 2 : ABOUT DATA
@@ -712,63 +775,6 @@
                         </div>
                         <div class="card-body">
                             <div class="chart-holder" style="height:200px"><canvas id="chart-vmi"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ═══════════════════════════════════════════
-     TAB 4 : ALERT LOG
-═══════════════════════════════════════════ -->
-            <div class="tab-panel" id="panel-alerts">
-                <div class="split-2">
-                    <div class="card" style="margin-bottom:0">
-                        <div class="card-hdr">
-                            <div>
-                                <h3>🚨 Alert Log — Damper Install</h3>
-                                <div class="card-sub">VMI NG / Dimension Out of Spec</div>
-                            </div>
-                            <div class="btn-row">
-                                <button class="btn btn-outline btn-sm" onclick="renderAlerts()">🔄 Refresh</button>
-                                <button class="btn btn-danger btn-sm" onclick="clearAlerts()">🗑️ Clear</button>
-                            </div>
-                        </div>
-                        <div id="alerts-body"
-                            style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto;padding:14px">
-                            <div class="empty" style="padding:30px;text-align:center">
-                                <div style="font-size:32px">✅</div>
-                                <p>ไม่มี Alert Log</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card" style="margin-bottom:0">
-                        <div class="card-hdr">
-                            <div>
-                                <h3>📧 Outlook Dispatcher</h3>
-                                <div class="card-sub">ส่งออกรายงาน .eml</div>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-group" style="margin-bottom:12px">
-                                <label style="font-weight:700">Recipients</label>
-                                <input type="email" id="outlook-to" class="form-input" value="supanatt04@gmail.com"
-                                    style="margin-top:6px">
-                            </div>
-                            <div class="btn-row" style="margin-bottom:14px">
-                                <button class="btn btn-primary" onclick="generateOutlookDraft()">Step 1: Generate
-                                    EML</button>
-                            </div>
-                            <div id="export-actions"
-                                style="display:none;border-top:1px solid var(--border);padding-top:14px">
-                                <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:10px">
-                                    Step 2: Download แล้วเปิดใน Outlook
-                                </div>
-                                <button class="btn btn-blue" onclick="downloadOutlookEml()">📧 Download .eml</button>
-                                <div class="ol-preview" id="ol-preview" style="display:none">
-                                    <div class="ol-subject" id="ol-subject">Subject</div>
-                                    <div class="ol-body" id="ol-body"></div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>

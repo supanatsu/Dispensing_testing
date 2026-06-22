@@ -1,52 +1,165 @@
 /* =============================================================
-   tablet_patch.css  — Galaxy Tab A11 / 800×1340 responsive patch
-   Include AFTER main.css in every HTML page.
-   Also compatible with Tab A11+ (1200×1920 / 11-inch).
+   tablet_patch.css  v3.0  — BELTON IPQC Universal Responsive
+   =============================================================
+   STRATEGY: ไม่เปลี่ยน template / layout — ใช้ scale-based approach
+   • ฟอนต์ใหญ่ขึ้นทุก breakpoint ผ่าน clamp() + rem scaling
+   • ปุ่ม nav-btn ไม่เลื่อน — ใช้ nowrap + overflow-x scroll แบบ invisible
+   • Layout เหมือนเดิมทุก device — แค่ขนาดใหญ่/เล็กตาม viewport
+   • รองรับ: Phone 400px → Tablet → iPad → Laptop → Desktop
+   • min-width รองรับ 400px
    ============================================================= */
 
-/* ── Prevent horizontal overflow globally ── */
-html,
+/* ──────────────────────────────────────────────────────────────
+   0. BASE RESET — ป้องกัน overflow และ text scaling จาก browser
+   ────────────────────────────────────────────────────────────── */
+html {
+  overflow-x: hidden;
+  /* ให้ browser ไม่ auto-scale text บน mobile */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Base font size: ใหญ่กว่าเดิม ~10% */
+  font-size: 15px;
+}
+
 body {
   overflow-x: hidden;
-  -webkit-text-size-adjust: 100%;
+  min-width: 400px;
 }
 
-/* ══════════════════════════════════════════════════════
-   NAV-BTN ACTIVE HIGHLIGHT
-   Applied globally (all screen sizes, all pages).
-   Ensures push_out_force & damper_install match
-   dispensing & laser exactly.
-   ══════════════════════════════════════════════════════ */
+/* ──────────────────────────────────────────────────────────────
+   1. GLOBAL FONT SCALE — ใหญ่ขึ้นสม่ำเสมอทุก device
+      clamp(min, preferred, max)
+   ────────────────────────────────────────────────────────────── */
+
+/* Topbar title — ใหญ่ขึ้นชัดเจน */
+.topbar-title {
+  font-size: clamp(15px, 1.8vw, 20px) !important;
+  font-weight: 700;
+}
+
+/* Topbar right text */
+.topbar-date,
+.topbar-right span {
+  font-size: clamp(11px, 1.2vw, 14px);
+}
+
+/* Nav buttons — ขนาดคงที่ ไม่หด */
+.nav-btn {
+  font-size: clamp(13px, 1.3vw, 15px) !important;
+  padding: clamp(8px, 1vh, 12px) clamp(14px, 1.4vw, 22px) !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Card headers */
+.card-hdr h3,
+.card-hdr .card-title {
+  font-size: clamp(13px, 1.3vw, 15px);
+}
+
+/* Form labels */
+label,
+.form-label {
+  font-size: clamp(12px, 1.1vw, 14px) !important;
+}
+
+/* Form inputs & selects */
+.form-input,
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  font-size: clamp(13px, 1.3vw, 15px) !important;
+}
+
+/* Buttons */
+.btn {
+  font-size: clamp(12px, 1.2vw, 14px) !important;
+}
+
+/* Table cells */
+th {
+  font-size: clamp(11px, 1.1vw, 13px) !important;
+}
+td {
+  font-size: clamp(12px, 1.2vw, 14px) !important;
+}
+
+/* KPI values */
+.kpi-val {
+  font-size: clamp(20px, 2.5vw, 30px) !important;
+}
+
+.kpi-lbl {
+  font-size: clamp(10px, 1vw, 12px) !important;
+}
+
+/* Status badges */
+.badge,
+.status-badge {
+  font-size: clamp(10px, 1vw, 12px) !important;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   2. NAV-BTN SYSTEM — ปุ่มไม่เลื่อน, ไม่ขยับ เมื่อสลับ tab
+      ใช้ active indicator แบบ pseudo-element แทนการขยาย element
+   ────────────────────────────────────────────────────────────── */
+.nav-bar {
+  display: flex;
+  flex-wrap: nowrap;           /* บังคับ 1 แถว ไม่ wrap */
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;       /* Firefox: hide scrollbar */
+  -ms-overflow-style: none;    /* IE: hide scrollbar */
+  gap: 2px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  position: relative;
+  flex-shrink: 0;              /* nav-bar ตัวเองไม่หด */
+}
+
+/* Hide scrollbar Chrome/Safari */
+.nav-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Nav button base — ขนาดคงที่ กดแล้วไม่ขยับ */
 .nav-btn {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: transparent;
-  color: var(--text2);
+  color: var(--text2, #64748b);
   font-weight: 600;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
   border-radius: 8px 8px 0 0;
+  transition: color 0.15s, background 0.15s;
+  /* สำคัญ: ขนาดปุ่มไม่เปลี่ยนเมื่อ active */
+  height: 40px;
+  box-sizing: border-box;
+  /* ป้องกัน layout shift เมื่อ border เปลี่ยน */
+  border-bottom: 2.5px solid transparent;
 }
 
-/* Active state — accent underline + tinted background */
+/* Active: สีเปลี่ยน + underline — ขนาดเหมือนเดิมทุกอย่าง */
 .nav-btn.active {
   color: var(--accent, #CC1033);
-  background: rgba(204, 16, 51, 0.06);
+  background: rgba(204, 16, 51, 0.05);
+  border-bottom-color: var(--accent, #CC1033);
 }
 
-/* Accent bottom-border indicator */
+/* ยกเลิก ::after pseudo ของเก่า เพราะใช้ border-bottom แทน */
 .nav-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2.5px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent, #CC1033);
+  content: none !important;
 }
 
-/* Hover state for non-active buttons */
 .nav-btn:not(.active):hover {
   color: var(--text, #1a1a2e);
   background: var(--bg2, rgba(0, 0, 0, 0.04));
@@ -61,205 +174,304 @@ body {
   height: 18px;
   padding: 0 5px;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 10px !important;
   font-weight: 700;
-  margin-left: 5px;
+  margin-left: 4px;
   vertical-align: middle;
+  flex-shrink: 0;
 }
 
-/* ── Topbar: tighter padding on tablet ── */
-@media (max-width: 900px) {
+/* ──────────────────────────────────────────────────────────────
+   3. TABLE WRAPPER — scroll แทน reflow
+   ────────────────────────────────────────────────────────────── */
+.tbl-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   4. MODAL — responsive แต่ไม่เปลี่ยน template
+   ────────────────────────────────────────────────────────────── */
+.modal {
+  max-width: min(600px, calc(100vw - 32px)) !important;
+  width: 100% !important;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.modal-overlay {
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   5. CONTENT AREA — padding scale
+   ────────────────────────────────────────────────────────────── */
+.content {
+  padding: clamp(10px, 2vw, 24px) clamp(12px, 2.5vw, 32px);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   6. PHONE ONLY (≤ 600px) — compact mode
+      เน้น legibility ไม่เปลี่ยน template
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+
+  /* Topbar: compact */
   .topbar {
-    padding: 0 12px 0 12px;
-    height: 52px;
-    min-height: 52px;
+    padding: 0 10px !important;
+    min-height: 50px;
+    height: auto !important;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .topbar-title {
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 14px !important;
   }
 
-  .topbar-right {
-    gap: 8px;
-  }
-
-  .topbar-date {
-    font-size: 11px;
-  }
-
-  /* Hide secondary topbar text on small tablet */
-  .topbar-right>span[style*="font-size:13px"] {
+  /* ซ่อน text ที่ไม่จำเป็นใน topbar */
+  .topbar-right > span {
     display: none;
   }
 
   .avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 11px;
-  }
-
-  /* ── KPI Strip: 3-per-row on tablet portrait ── */
-  .kpi-strip {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    padding: 10px 12px;
-  }
-
-  .kpi-card {
-    padding: 10px 10px;
-    gap: 8px;
-  }
-
-  .kpi-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-  }
-
-  .kpi-icon svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .kpi-val {
-    font-size: 18px;
-  }
-
-  .kpi-lbl {
-    font-size: 9px;
-  }
-
-  /* ── Nav bar: smaller tabs ── */
-  .nav-bar {
-    padding: 6px 12px 0;
-    gap: 4px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .nav-bar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-btn {
-    font-size: 12px;
-    padding: 6px 12px;
-    white-space: nowrap;
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 11px !important;
     flex-shrink: 0;
   }
 
-  /* ── Content area ── */
+  /* Nav bar: scroll แต่ปุ่มไม่เลื่อน */
+  .nav-bar {
+    padding: 6px 10px 0;
+    gap: 2px;
+  }
+
+  .nav-btn {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    height: 36px;
+  }
+
+  /* Content: คับขึ้นนิด */
   .content {
+    padding: 10px 10px !important;
+  }
+
+  /* Card: ลด padding */
+  .card-hdr {
     padding: 10px 12px;
   }
 
-  /* ── Cards ── */
-  .card {
-    margin-bottom: 12px;
-  }
-
-  .card-hdr {
-    padding: 10px 14px;
-  }
-
-  .card-hdr h3 {
-    font-size: 13px;
-  }
-
   .card-body {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
-  /* ── Form grid: 2-column on tablet ── */
+  /* Form grid: 1 col บน phone แคบ */
   .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* Table: ย่อ padding */
+  th, td {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* KPI Strip: 2 col บน phone */
+  .kpi-strip {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px;
+    gap: 8px !important;
+    padding: 8px 10px !important;
   }
 
-  .form-input,
-  .form-select {
-    font-size: 13px;
-    padding: 7px 10px;
-  }
-
-  label {
-    font-size: 11px;
-  }
-
-  /* ── Tables: scrollable wrapper ── */
-  .tbl-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  table {
-    min-width: 520px;
-  }
-
-  th,
-  td {
-    padding: 8px 10px;
-    font-size: 11px;
-  }
-
-  /* ── Buttons ── */
-  .btn {
-    font-size: 12px;
-    padding: 7px 12px;
-  }
-
+  /* Buttons: full width บาง context */
   .btn-row {
     flex-wrap: wrap;
     gap: 6px;
   }
 
-  /* ── Modals: full-screen friendly ── */
+  /* Modal: เต็มหน้าจอ */
   .modal {
-    max-width: calc(100vw - 24px) !important;
-    margin: 12px;
+    max-width: calc(100vw - 20px) !important;
+    margin: 10px !important;
   }
 
-  .modal-overlay {
-    align-items: flex-start;
-    padding-top: 40px;
-  }
-
-  /* ── Chart wrappers ── */
+  /* Chart: ลดความสูง */
   .chart-wrap {
-    height: 200px !important;
+    height: 220px !important;
   }
 
-  /* ── Section labels ── */
-  .sec-label {
-    font-size: 11px;
-  }
-
-  /* ── Alert panel / toast ── */
+  /* Alert / Toast */
   .alert-panel {
-    bottom: 12px;
-    right: 12px;
-    max-width: calc(100vw - 24px);
+    bottom: 10px !important;
+    right: 10px !important;
+    left: 10px !important;
+    max-width: none !important;
   }
 }
 
-/* ── Tab A11 LANDSCAPE mode (1340×800) ──
-   Wider: can show more columns                */
-@media (max-width: 1340px) and (min-width: 901px) {
-  .kpi-strip {
-    grid-template-columns: repeat(4, 1fr);
+/* ──────────────────────────────────────────────────────────────
+   7. SMALL TABLET / iPad mini (601–900px)
+      Layout คงเดิม แค่ scale ขนาดขึ้นนิด
+   ────────────────────────────────────────────────────────────── */
+@media (min-width: 601px) and (max-width: 900px) {
+
+  .topbar {
+    padding: 0 14px !important;
   }
 
+  .nav-bar {
+    padding: 8px 14px 0;
+  }
+
+  .content {
+    padding: 14px 16px !important;
+  }
+
+  /* KPI Strip: 3 col */
+  .kpi-strip {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px;
+  }
+
+  /* Form grid: 2 col */
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Chart: ความสูงพอดี */
+  .chart-wrap {
+    height: 260px !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   8. TABLET / Galaxy Tab A11 portrait (901–1200px)
+      Layout เหมือนเดิม ขนาดโตขึ้น
+   ────────────────────────────────────────────────────────────── */
+@media (min-width: 901px) and (max-width: 1200px) {
+
+  .content {
+    padding: 16px 20px !important;
+  }
+
+  /* KPI Strip: 4 col */
+  .kpi-strip {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  /* Form grid: 3 col */
   .form-grid {
     grid-template-columns: repeat(3, 1fr) !important;
   }
 }
 
-/* ── Tab A11+ (1200×1920 / 11-inch portrait) ── */
-@media (min-width: 1101px) and (max-width: 1200px) {
+/* ──────────────────────────────────────────────────────────────
+   9. LARGE TABLET / Laptop (1201–1400px)
+   ────────────────────────────────────────────────────────────── */
+@media (min-width: 1201px) and (max-width: 1400px) {
+
+  /* KPI Strip: 4–5 col */
   .kpi-strip {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   10. DESKTOP (> 1400px) — ไม่ต้องทำอะไร, ใช้ main.css
+   ────────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────────
+   11. TOPBAR — ป้องกัน layout shift ทุก size
+   ────────────────────────────────────────────────────────────── */
+.topbar {
+  flex-wrap: nowrap;           /* ไม่ให้ wrap ลงบรรทัด 2 */
+  align-items: center;
+  overflow: hidden;
+}
+
+.topbar-right {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   12. CARD & CONTENT — prevent overflow
+   ────────────────────────────────────────────────────────────── */
+.card,
+.card-body,
+.card-hdr {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Prevent absolute-positioned children from causing scroll */
+.main > * {
+  min-width: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   13. BUTTON ROW — ไม่ล้น ไม่หล่น
+   ────────────────────────────────────────────────────────────── */
+.btn-row {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   14. INPUT TOUCH TARGET — ใหญ่พอสำหรับนิ้ว
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .form-input,
+  .form-select,
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  select {
+    min-height: 40px;
+    padding: 8px 12px !important;
+    border-radius: 6px;
+  }
+
+  .btn {
+    min-height: 38px;
+    padding: 8px 16px !important;
+  }
+
+  /* Checkbox / radio ใหญ่ขึ้นสำหรับนิ้ว */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   15. PRINT — ซ่อน sidebar เมื่อ print
+   ────────────────────────────────────────────────────────────── */
+@media print {
+  .sidebar,
+  .topbar,
+  .nav-bar,
+  .sidebar-hamburger,
+  .alert-panel {
+    display: none !important;
+  }
+
+  .main {
+    margin-left: 0 !important;
+    width: 100% !important;
   }
 }

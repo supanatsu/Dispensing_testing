@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS dispensing_records;
 DROP TABLE IF EXISTS dispensing_product;
 DROP TABLE IF EXISTS dispensing_configs;
 DROP TABLE IF EXISTS dispensing_config;
-DROP TABLE IF EXISTS dispensing_alert_recipients;
+DROP TABLE IF EXISTS alert_recipients;
 
 DROP TABLE IF EXISTS laser_alerts;
 DROP TABLE IF EXISTS laser_records;
@@ -31,6 +31,7 @@ DROP TABLE IF EXISTS damper_config;
 
 DROP TABLE IF EXISTS spc_config_limits;
 DROP TABLE IF EXISTS system_config;
+DROP TABLE IF EXISTS system_alert;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS spc_config_limits (
     cl DECIMAL(10,4),
     ucl DECIMAL(10,4),
     usl DECIMAL(10,4),
+    frequency INT,
     laser_qty INT,
     laser_fixture INT,
     laser_shift INT,
@@ -72,6 +74,7 @@ CREATE TABLE IF NOT EXISTS dispensing_records (
     op           VARCHAR(50),
     data_type    VARCHAR(50),
     status       VARCHAR(20) DEFAULT 'ACCEPT',
+    config_id    INT,
     
     -- Specific Dispensing Dimensions --
     x1 DECIMAL(10,4),
@@ -129,25 +132,7 @@ CREATE TABLE IF NOT EXISTS dispensing_records (
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS dispensing_alerts (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    alert_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    level       VARCHAR(20),
-    product     VARCHAR(100),
-    fixture     VARCHAR(50),
-    oven        VARCHAR(50),
-    param       VARCHAR(100),
-    value_val   DECIMAL(10,4),
-    spec_str    VARCHAR(255),
-    msg         TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS dispensing_config (
-    config_key   VARCHAR(100) PRIMARY KEY,
-    config_value TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS dispensing_alert_recipients (
+CREATE TABLE IF NOT EXISTS alert_recipients (
     id      INT AUTO_INCREMENT PRIMARY KEY,
     email   VARCHAR(255) UNIQUE,
     name    VARCHAR(255),
@@ -159,14 +144,10 @@ CREATE TABLE IF NOT EXISTS dispensing_alert_recipients (
 -- 3. LASER ENGRAVING MODULE
 -- ==============================================================================
 
-CREATE TABLE IF NOT EXISTS laser_config (
-    product_key VARCHAR(100) PRIMARY KEY,
-    eblock_qty INT,
-    bobbin_qty INT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS laser_records (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     record_id      INT,
+    config_id      INT,
     mode           VARCHAR(50),
     product_type   VARCHAR(50),
     product        VARCHAR(100),
@@ -228,20 +209,6 @@ CREATE TABLE IF NOT EXISTS laser_records (
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS laser_alerts (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    record_id   INT,
-    alert_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    traveler    VARCHAR(100),
-    level       VARCHAR(50),
-    msg         TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS laser_config_global (
-    config_key   VARCHAR(100) PRIMARY KEY,
-    config_value TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- ==============================================================================
 -- 4. PUSH OUT FORCE (POF) MODULE
 -- ==============================================================================
@@ -257,7 +224,8 @@ CREATE TABLE IF NOT EXISTS pof_records (
     op             VARCHAR(50),
     data_type      VARCHAR(50),
     category       VARCHAR(50),
-    status         VARCHAR(50),
+    status         VARCHAR(50) DEFAULT 'waiting',
+    config_id      INT,
     mode           VARCHAR(50),
     coil_type      VARCHAR(50),
     product_label  VARCHAR(100),
@@ -285,9 +253,15 @@ CREATE TABLE IF NOT EXISTS pof_records (
     short_fantail_trigger_pass VARCHAR(50),
     bobbin_spec_pass VARCHAR(50),
     bobbin_trigger_pass VARCHAR(50),
-    epoxy_coverage_eblock_long DECIMAL(10,4),
-    epoxy_coverage_eblock_short DECIMAL(10,4),
-    epoxy_coverage_bobbin DECIMAL(10,4),
+    eblock_long    DECIMAL(10,4),
+    eblock_short   DECIMAL(10,4),
+    eblock_avg     DECIMAL(10,4),
+    coil_short     DECIMAL(10,4),
+    coil_center    DECIMAL(10,4),
+    coil_long      DECIMAL(10,4),
+    bobbin_short   DECIMAL(10,4),
+    bobbin_center  DECIMAL(10,4),
+    bobbin_long    DECIMAL(10,4),
 
     spec_result    VARCHAR(50),
     trigger_val    VARCHAR(50),
@@ -299,21 +273,13 @@ CREATE TABLE IF NOT EXISTS pof_records (
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS pof_alerts (
-    id           INT AUTO_INCREMENT PRIMARY KEY,
-    record_no    INT,
-    alert_time   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    spec_result  VARCHAR(50),
-    trigger_val  VARCHAR(50),
-    remark       TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- ==============================================================================
 -- 5. DAMPER INSTALL MODULE
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS damper_records (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     record_no      INT,
+    config_id      INT,
     mode           VARCHAR(50),
     test_date      DATE,
     send_time      VARCHAR(20),
@@ -348,28 +314,47 @@ CREATE TABLE IF NOT EXISTS damper_records (
     op             VARCHAR(50),
     data_type      VARCHAR(50),
     category       VARCHAR(50),
-    status         VARCHAR(50),
+    status         VARCHAR(50) DEFAULT 'waiting',
     values_json    JSON,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS damper_alerts (
-    id           INT AUTO_INCREMENT PRIMARY KEY,
-    record_no    INT,
-    alert_time   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    traveler     VARCHAR(100),
-    attribute    VARCHAR(50),
-    reason       TEXT,
-    short_result VARCHAR(50),
-    long_result  VARCHAR(50)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- ==============================================================================
--- 6. SYSTEM CONFIG
+-- 6. SYSTEM CONFIG AND ALERT MASTERS
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS system_config (
-    config_key   VARCHAR(100) PRIMARY KEY,
-    config_value TEXT
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    process_type VARCHAR(50),
+    product_id VARCHAR(100),
+    qty_pcs INT,
+    qty_shift INT,
+    qty_oven INT,
+    usl DECIMAL(10,4),
+    ucl DECIMAL(10,4),
+    cl DECIMAL(10,4),
+    lcl DECIMAL(10,4),
+    lsl DECIMAL(10,4),
+    config_key VARCHAR(100),
+    config_value TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_alert (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    process_type VARCHAR(50),
+    record_id INT,
+    alert_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    level VARCHAR(50),
+    product VARCHAR(100),
+    fixture VARCHAR(50),
+    oven VARCHAR(50),
+    traveler VARCHAR(100),
+    param VARCHAR(100),
+    value_val DECIMAL(10,4),
+    spec_str VARCHAR(255),
+    msg TEXT,
+    details JSON
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ==============================================================================
@@ -1081,163 +1066,159 @@ INSERT INTO spc_config_limits (process_mode, product_key, dimension_name, lsl, l
 -- =========================================================================
 -- INITIAL DATA: SPC CONFIGURATION LIMITS (Laser, POF, Damper)
 -- =========================================================================
-INSERT IGNORE INTO spc_config_limits (process_mode, product_key, dimension_name) VALUES
-('laser', 'E-block Cimarron BP 3D', 'laser_config'),
-('laser', 'Bobbin Cimarron BP 3D', 'laser_config'),
-('laser', 'E-block Cimarron BP 4D', 'laser_config'),
-('laser', 'Bobbin Cimarron BP 4D', 'laser_config'),
-('laser', 'E-block Cimarron BP 5D', 'laser_config'),
-('laser', 'Bobbin Cimarron BP 5D', 'laser_config'),
-('laser', 'E-block Dorado 5D', 'laser_config'),
-('laser', 'Bobbin Dorado 5D', 'laser_config'),
-('laser', 'E-block Dorado 5D AL BB', 'laser_config'),
-('laser', 'Bobbin Dorado 5D AL BB', 'laser_config'),
-('laser', 'E-block Dorado 10D', 'laser_config'),
-('laser', 'Bobbin Dorado 10D', 'laser_config'),
-('laser', 'E-block Marlin 10D', 'laser_config'),
-('laser', 'Bobbin Marlin 10D', 'laser_config'),
-('laser', 'E-block Skybolt 1D', 'laser_config'),
-('laser', 'Bobbin Skybolt 1D', 'laser_config'),
-('laser', 'E-block Skybolt 2D', 'laser_config'),
-('laser', 'Bobbin Skybolt 2D', 'laser_config'),
-('laser', 'E-block Skybolt 3D', 'laser_config'),
-('laser', 'Bobbin Skybolt 3D', 'laser_config'),
-('laser', 'E-block Skybolt 4D', 'laser_config'),
-('laser', 'Bobbin Skybolt 4D', 'laser_config'),
-('laser', 'E-block Summit 10D', 'laser_config'),
-('laser', 'Bobbin Summit 10D', 'laser_config'),
-('laser', 'E-block V11 4D', 'laser_config'),
-('laser', 'Bobbin V11 4D', 'laser_config'),
-('laser', 'E-block V15 CMR 4D', 'laser_config'),
-('laser', 'Bobbin V15 CMR 4D', 'laser_config'),
-('laser', 'Dorado 5D AL BB', 'laser_config'),
-('laser', 'Bobbin MR 10D', 'laser_config'),
-('pof', 'Cimarron BP 3D', 'long'),
-('pof', 'Cimarron BP 3D', 'short'),
-('pof', 'Cimarron BP 4D', 'long'),
-('pof', 'Cimarron BP 4D', 'short'),
-('pof', 'Cimarron BP 4D', 'bobbin'),
-('pof', 'Cimarron BP 5D', 'long'),
-('pof', 'Cimarron BP 5D', 'short'),
-('pof', 'Cimarron BP 5D', 'bobbin'),
-('pof', 'Cimarron BP 3D', 'long'),
-('pof', 'Cimarron BP 3D', 'short'),
-('pof', 'Cimarron BP 4D', 'long'),
-('pof', 'Cimarron BP 4D', 'short'),
-('pof', 'Cimarron BP 4D', 'bobbin'),
-('pof', 'Cimarron BP 5D', 'long'),
-('pof', 'Cimarron BP 5D', 'short'),
-('pof', 'Cimarron BP 5D', 'bobbin'),
-('pof', 'ComET', 'long'),
-('pof', 'ComET', 'short'),
-('pof', 'Dorado 5D', 'long'),
-('pof', 'Dorado 5D', 'short'),
-('pof', 'Dorado 5D AL BB', 'long'),
-('pof', 'Dorado 5D AL BB', 'short'),
-('pof', 'Dorado 5D AL BB', 'bobbin'),
-('pof', 'Dorado 5D NOAR', 'long'),
-('pof', 'Dorado 5D NOAR', 'short'),
-('pof', 'Dorado 10D', 'long'),
-('pof', 'Dorado 10D', 'short'),
-('pof', 'Dorado 10D', 'bobbin'),
-('pof', 'Dorado 10D_NOAR', 'long'),
-('pof', 'Dorado 10D_NOAR', 'short'),
-('pof', 'Dorado 10D_NOAR', 'bobbin'),
-('pof', 'DR 10D', 'long'),
-('pof', 'DR 10D', 'short'),
-('pof', 'DR 10D', 'bobbin'),
-('pof', 'DR 10D NOAR', 'long'),
-('pof', 'DR 10D NOAR', 'short'),
-('pof', 'DR 10D NOAR', 'bobbin'),
-('pof', 'DR 10D NOAR-AAD', 'long'),
-('pof', 'DR 10D NOAR-AAD', 'short'),
-('pof', 'DR 10D NOAR-AAD', 'bobbin'),
-('pof', 'M11 P', 'long'),
-('pof', 'M11 P', 'short'),
-('pof', 'Marlin 10D', 'long'),
-('pof', 'Marlin 10D', 'short'),
-('pof', 'Marlin 10D', 'bobbin'),
-('pof', 'Rosewood 1D', 'long'),
-('pof', 'Rosewood 1D', 'short'),
-('pof', 'Rosewood 2D', 'long'),
-('pof', 'Rosewood 2D', 'short'),
-('pof', 'Rosewood 2D', 'bobbin'),
-('pof', 'Skybolt 1D', 'long'),
-('pof', 'Skybolt 1D', 'short'),
-('pof', 'Skybolt 2D', 'long'),
-('pof', 'Skybolt 2D', 'short'),
-('pof', 'Skybolt 3D', 'long'),
-('pof', 'Skybolt 3D', 'short'),
-('pof', 'Skybolt 4D', 'long'),
-('pof', 'Skybolt 4D', 'short'),
-('pof', 'Summit 10D', 'long'),
-('pof', 'Summit 10D', 'short'),
-('pof', 'Summit 10D', 'bobbin'),
-('pof', 'V11 1D', 'long'),
-('pof', 'V11 1D', 'short'),
-('pof', 'V11 2D', 'long'),
-('pof', 'V11 2D', 'short'),
-('pof', 'V11 4D', 'long'),
-('pof', 'V11 4D', 'short'),
-('pof', 'V15 CMR 4D', 'long'),
-('pof', 'V15 CMR 4D', 'short'),
-('damper', 'Cimarron BP 3D', 'bottom'),
-('damper', 'Cimarron BP 3D', 'top'),
-('damper', 'Cimarron BP 4D', 'bottom'),
-('damper', 'Cimarron BP 4D', 'top'),
-('damper', 'Cimarron BP 5D', 'bottom'),
-('damper', 'Cimarron BP 5D', 'top'),
-('damper', 'Cimarron BP 3D', 'bottom'),
-('damper', 'Cimarron BP 3D', 'top'),
-('damper', 'Cimarron BP 4D', 'bottom'),
-('damper', 'Cimarron BP 4D', 'top'),
-('damper', 'Cimarron BP 5D', 'bottom'),
-('damper', 'Cimarron BP 5D', 'top'),
-('damper', 'Dorado 5D', 'bottom'),
-('damper', 'Dorado 5D', 'top'),
-('damper', 'Dorado 5D AL BB', 'bottom'),
-('damper', 'Dorado 5D AL BB', 'top'),
-('damper', 'Dorado 5D NOAR', 'bottom'),
-('damper', 'Dorado 5D NOAR', 'top'),
-('damper', 'Dorado 10D', 'bottom'),
-('damper', 'Dorado 10D', 'top'),
-('damper', 'Dorado 10D_NOAR', 'bottom'),
-('damper', 'Dorado 10D_NOAR', 'top'),
-('damper', 'DR 10D', 'bottom'),
-('damper', 'DR 10D', 'top'),
-('damper', 'DR 10D NOAR', 'bottom'),
-('damper', 'DR 10D NOAR', 'top'),
-('damper', 'DR 10D NOAR-AAD', 'bottom'),
-('damper', 'DR 10D NOAR-AAD', 'top'),
-('damper', 'Marlin 10D', 'bottom'),
-('damper', 'Marlin 10D', 'top'),
-('damper', 'Skybolt 1D', 'bottom'),
-('damper', 'Skybolt 1D', 'top'),
-('damper', 'Skybolt 2D', 'bottom'),
-('damper', 'Skybolt 2D', 'top'),
-('damper', 'Skybolt 3D', 'bottom'),
-('damper', 'Skybolt 3D', 'top'),
-('damper', 'Skybolt 4D', 'bottom'),
-('damper', 'Skybolt 4D', 'top'),
-('damper', 'Summit 10D', 'bottom'),
-('damper', 'Summit 10D', 'top'),
-('damper', 'V11 4D', 'bottom'),
-('damper', 'V11 4D', 'top'),
-('damper', 'V15 CMR 4D', 'bottom'),
-('damper', 'V15 CMR 4D', 'top'),
-('damper', 'Cimarron BR 3D', 'bottom'),
-('damper', 'Cimarron BR 3D', 'top');
+INSERT IGNORE INTO spc_config_limits (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl, frequency) VALUES
+('laser', 'E-block Cimarron BP 3D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Cimarron BP 3D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Cimarron BP 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Cimarron BP 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Cimarron BP 5D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Cimarron BP 5D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Dorado 5D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Dorado 5D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Dorado 5D AL BB', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Dorado 5D AL BB', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Dorado 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Dorado 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Marlin 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Marlin 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Skybolt 1D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Skybolt 1D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Skybolt 2D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Skybolt 2D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Skybolt 3D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Skybolt 3D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Skybolt 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Skybolt 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block Summit 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin Summit 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block V11 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin V11 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'E-block V15 CMR 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin V15 CMR 4D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Dorado 5D AL BB', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('laser', 'Bobbin MR 10D', 'laser_config', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 3D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 3D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 3D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 3D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 4D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Cimarron BP 5D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'ComET', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'ComET', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D AL BB', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D AL BB', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D AL BB', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D NOAR', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 5D NOAR', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D_NOAR', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D_NOAR', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Dorado 10D_NOAR', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR-AAD', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR-AAD', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'DR 10D NOAR-AAD', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'M11 P', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'M11 P', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Marlin 10D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Marlin 10D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Marlin 10D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Rosewood 1D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Rosewood 1D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Rosewood 2D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Rosewood 2D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Rosewood 2D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 1D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 1D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 2D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 2D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 3D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 3D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 4D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Skybolt 4D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Summit 10D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Summit 10D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'Summit 10D', 'bobbin', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 1D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 1D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 2D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 2D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 4D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V11 4D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V15 CMR 4D', 'long', NULL, NULL, NULL, NULL, NULL, 1),
+('pof', 'V15 CMR 4D', 'short', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 3D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 3D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 4D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 4D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 5D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 5D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 3D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 3D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 4D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 4D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 5D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BP 5D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D AL BB', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D AL BB', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D NOAR', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 5D NOAR', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 10D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 10D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 10D_NOAR', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Dorado 10D_NOAR', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D NOAR', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D NOAR', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D NOAR-AAD', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'DR 10D NOAR-AAD', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Marlin 10D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Marlin 10D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 1D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 1D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 2D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 2D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 3D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 3D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 4D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Skybolt 4D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Summit 10D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Summit 10D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'V11 4D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'V11 4D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'V15 CMR 4D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'V15 CMR 4D', 'top', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BR 3D', 'bottom', NULL, NULL, NULL, NULL, NULL, 1),
+('damper', 'Cimarron BR 3D', 'top', NULL, NULL, NULL, NULL, NULL, 1);
 
 -- =========================================================================
 -- INITIAL DATA: SYSTEM CONFIGS
 -- =========================================================================
-INSERT IGNORE INTO system_config (config_key, config_value) VALUES
-('SENDER_EMAIL', 'test@belton.com'),
-('SENDER_PASS', 'password123');
-
-INSERT IGNORE INTO laser_config_global (config_key, config_value) VALUES
-('laser_config_settings', '{}');
-
-INSERT IGNORE INTO dispensing_config (config_key, config_value) VALUES
-('dispensing_config_settings', '{}');
+INSERT IGNORE INTO system_config (process_type, config_key, config_value) VALUES
+('system', 'SENDER_EMAIL', 'test@belton.com'),
+('system', 'SENDER_PASS', 'password123'),
+('laser', 'laser_config_settings', '{}'),
+('dispensing', 'dispensing_config_settings', '{}');
 

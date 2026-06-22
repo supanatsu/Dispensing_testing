@@ -353,6 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   startClock();
 
+  // Init epoxy pickers with defaults
+  if (typeof initEpoxyPickers === 'function') initEpoxyPickers();
+
   //  Live API
   checkBackendConnection().then(() => {
     refreshDataFromServer();
@@ -657,12 +660,44 @@ function onProductChange() {
   }
 
   if (p && spc) {
-    if (specLabel) specLabel.textContent =
-      `${p.label} [${MODES[modeKey]?.label || modeKey}] · Spec ${spc.spec} ${p.unit} Min | UCL: ${spc.ucl}  CL: ${spc.cl}  LCL: ${spc.lcl}`;
+    // ── Load separate Long/Short SPC specs from localStorage (new config schema) ──
+    let longSpc = { ...spc };
+    let shortSpc = { ...spc };
+    try {
+      const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
+      const pCfg = allCfg[prodKey];
+      const grp = MODES[modeKey]?.spcKey || 'buyoff';
+      if (pCfg && pCfg[grp]) {
+        const bc = pCfg[grp];
+        // Long Fantail overrides
+        if (bc.long_lsl != null) longSpc.spec = bc.long_lsl;
+        if (bc.long_ucl != null) longSpc.trigger = bc.long_ucl;
+        if (bc.long_ucl != null) longSpc.ucl = bc.long_ucl;
+        if (bc.long_cl != null) longSpc.cl = bc.long_cl;
+        if (bc.long_lcl != null) longSpc.lcl = bc.long_lcl;
+        if (bc.long_usl != null) longSpc.usl = bc.long_usl;
+        // Short Fantail overrides
+        if (bc.short_lsl != null) shortSpc.spec = bc.short_lsl;
+        if (bc.short_ucl != null) shortSpc.trigger = bc.short_ucl;
+        if (bc.short_ucl != null) shortSpc.ucl = bc.short_ucl;
+        if (bc.short_cl != null) shortSpc.cl = bc.short_cl;
+        if (bc.short_lcl != null) shortSpc.lcl = bc.short_lcl;
+        if (bc.short_usl != null) shortSpc.usl = bc.short_usl;
+      }
+    } catch { }
+
+    // Store separate specs for use in calcResult
+    window._pofSpcLong = longSpc;
+    window._pofSpcShort = shortSpc;
+
+    if (specLabel) {
+      specLabel.textContent =
+        `${p.label} [${MODES[modeKey]?.label || modeKey}] · Long LSL: ${longSpc.spec} | Short LSL: ${shortSpc.spec} ${p.unit} | UCL: ${longSpc.ucl}`;
+    }
     if (measSec) measSec.style.display = '';
     if (noMsg) noMsg.style.display = 'none';
 
-    document.getElementById('meas-spec-tag').textContent = `(Spec  ${spc.spec} ${p.unit})`;
+    document.getElementById('meas-spec-tag').textContent = `(LSL Long ${longSpc.spec} / Short ${shortSpc.spec} ${p.unit})`;
 
     const mb1 = document.getElementById('m-bobbin1');
     const mb2 = document.getElementById('m-bobbin2');
@@ -671,19 +706,21 @@ function onProductChange() {
 
     const l1 = document.getElementById('label-long1');
     const s2 = document.getElementById('label-short2');
-    if (l1) l1.textContent = `Long (${p.unit})`;
-    if (s2) s2.textContent = `Short (${p.unit})`;
+    if (l1) l1.textContent = `Long Fantail (${p.unit})`;
+    if (s2) s2.textContent = `Short Fantail (${p.unit})`;
 
-    // Gauge ticks
+    // Gauge ticks (use long spc for display)
     const tl = document.getElementById('t-lcl');
     const tc = document.getElementById('t-cl');
     const tu = document.getElementById('t-ucl');
-    if (tl) tl.textContent = spc.lcl;
-    if (tc) tc.textContent = spc.cl;
-    if (tu) tu.textContent = spc.ucl;
+    if (tl) tl.textContent = longSpc.lcl;
+    if (tc) tc.textContent = longSpc.cl;
+    if (tu) tu.textContent = longSpc.ucl;
 
     document.getElementById('page-sub').textContent = `Push Out Force  ${p.label}  v4.0`;
   } else {
+    window._pofSpcLong = null;
+    window._pofSpcShort = null;
     if (specLabel) specLabel.textContent = 'เลือก Product และ Mode เพื่อดู SPC Spec';
     if (measSec) measSec.style.display = 'none';
     if (noMsg) noMsg.style.display = '';
@@ -696,13 +733,40 @@ function onProductChange() {
 
   if (grpOven) grpOven.style.display = (modeKey === 'oba') ? 'none' : '';
   if (grpLot) grpLot.style.display = (modeKey === 'roving' || modeKey === 'new_roving' || modeKey === 'special') ? 'none' : '';
-  if (grpQty) grpQty.style.display = (modeKey === 'roving' || modeKey === 'new_roving' || modeKey === 'special') ? 'none' : '';
+  if (grpQty) grpQty.style.display = ''; // Always show Frequency now
+
+  // Load Frequency from system config
+  const qtyInput = document.getElementById('m-qty');
+  if (qtyInput && prodKey) {
+    try {
+      const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
+      const pCfg = allCfg[prodKey];
+      if (pCfg) {
+        if (modeKey === 'buyoff' || modeKey === 'oba') {
+          qtyInput.value = pCfg.freq_buyoff ? `${pCfg.freq_buyoff}/Shift/Oven` : '';
+        } else if (modeKey.includes('roving')) {
+          qtyInput.value = pCfg.freq_roving ? `${pCfg.freq_roving}/Shift/Oven` : '';
+        } else {
+          qtyInput.value = '';
+        }
+      } else {
+        qtyInput.value = '';
+      }
+    } catch (e) {
+      qtyInput.value = '';
+    }
+  } else if (qtyInput) {
+    qtyInput.value = '';
+  }
+
+  // Re-init epoxy pickers with product-specific thresholds
+  if (typeof initEpoxyPickers === 'function') initEpoxyPickers();
 
   calcResult();
 }
 
 // 
-//  Live Calculation
+//  Live Calculation  (Long / Short Fantail use separate SPC specs)
 // 
 function calcResult() {
   const l1 = parseFloat(document.getElementById('m-long1')?.value);
@@ -712,6 +776,10 @@ function calcResult() {
   const typeKey = 'sl';
   const spc = (prodKey && modeKey) ? getSPC(prodKey, modeKey, typeKey) : null;
   const p = prodKey ? PRODUCTS[prodKey] : null;
+
+  // Use separate Long/Short specs if available (from new config), else fall back to shared spc
+  const longSpc = window._pofSpcLong || spc;
+  const shortSpc = window._pofSpcShort || spc;
 
   const vals = [];
   if (!isNaN(l1)) vals.push(l1);
@@ -734,8 +802,14 @@ function calcResult() {
   document.getElementById('r-max').textContent = fmt(max);
   document.getElementById('r-min').textContent = fmt(min);
 
-  const specMin = spc ? spc.spec : 25;
-  const inSpec = min >= specMin;
+  // Separate spec check for Long and Short
+  const longSpecMin = longSpc ? longSpc.spec : 25;
+  const shortSpecMin = shortSpc ? shortSpc.spec : 25;
+
+  const longOk = !isNaN(l1) ? (l1 >= longSpecMin) : true;
+  const shortOk = !isNaN(s2) ? (s2 >= shortSpecMin) : true;
+  const inSpec = longOk && shortOk;
+
   const resEl = document.getElementById('r-result');
   if (resEl) {
     resEl.textContent = inSpec ? 'IN' : 'OUT';
@@ -745,12 +819,13 @@ function calcResult() {
   const sel = document.getElementById('m-out-spec');
   if (sel && sel.value === '') sel.value = inSpec ? 'IN' : 'OUT';
 
-  colorInput('m-long1', l1, specMin);
-  colorInput('m-short2', s2, specMin);
-  colorInput('m-bobbin1', b1, specMin);
-  colorInput('m-bobbin2', b2, specMin);
+  colorInput('m-long1', l1, longSpecMin);
+  colorInput('m-short2', s2, shortSpecMin);
+  colorInput('m-bobbin1', b1, spc?.spec ?? 25);
+  colorInput('m-bobbin2', b2, spc?.spec ?? 25);
 
-  if (spc) updateGauge(avg, spc);
+  // Gauge uses long spc for display
+  if (longSpc) updateGauge(avg, longSpc);
 }
 
 function colorInput(id, val, specMin) {
@@ -815,6 +890,10 @@ async function saveRecord() {
   const spc = getSPC(prodKey, modeKey, typeKey);
   if (!spc) { showToast('ไม่พบ SPC config สำหรับ product/mode/type นี้', 'error'); return; }
 
+  // Use separate Long/Short specs from new config if available
+  const longSpc = window._pofSpcLong || spc;
+  const shortSpc = window._pofSpcShort || spc;
+
   const vals = [l1, s2];
   if (hasBobbin) { vals.push(b1, b2); }
 
@@ -823,124 +902,164 @@ async function saveRecord() {
   const min = Math.min(...vals);
   const range = max - min;
 
-  const inSpec = min >= spc.spec;
-  const inTrigger = avg >= spc.trigger;
+  // Evaluate Long and Short separately
+  const longOk = l1 >= longSpc.spec;
+  const shortOk = s2 >= shortSpc.spec;
+  const inSpec = longOk && shortOk;
+  const inTrigger = avg >= (longSpc.trigger ?? longSpc.ucl ?? spc.trigger);
   const inCL = avg >= spc.lcl && avg <= spc.ucl;
 
-  const no = _recordsCache.length + 1;
+  const qtyInput = document.getElementById('m-qty')?.value || '';
+  const parsedQty = parseInt(qtyInput, 10);
+  const copies = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+
   const outSpec = document.getElementById('m-out-spec')?.value || (inSpec ? 'IN' : 'OUT');
   const overall = document.getElementById('m-overall')?.value || (inSpec ? 'Pass' : 'Fail');
 
-  const rec = {
-    id: Date.now(),
-    no,
-    date: document.getElementById('m-date')?.value || todayISO(),
-    mode: modeKey,
-    modeLabel: MODES[modeKey]?.label || modeKey,
-    coilType: typeKey,
-    product: prodKey,
-    productLabel: p.label,
-    unit: p.unit,
-    condition: document.getElementById('m-condition')?.value || 'NTC',
-    oven: document.getElementById('m-oven')?.value.trim() || '',
-    team: document.getElementById('m-team')?.value || '',
-    en: document.getElementById('m-en')?.value.trim() || '',
-    traveler: document.getElementById('m-traveler')?.value.trim() || '',
-    lot: document.getElementById('m-lot')?.value.trim() || '',
-    qty: document.getElementById('m-qty')?.value || '',
-    remark: document.getElementById('m-remark')?.value.trim() || '',
-    long1: l1, short2: s2, bobbin1: b1, bobbin2: b2, avg, max, min, range,
-    spc_ucl: spc.ucl,
-    spc_cl: spc.cl,
-    spc_lcl: spc.lcl,
-    spc_trig: spc.trigger,
-    spc_spec: spc.spec,
-    spec_result: outSpec,
-    epoxy_coverage_eblock_long: document.getElementById('m-epoxy-long')?.value ? parseFloat(document.getElementById('m-epoxy-long').value) : null,
-    epoxy_coverage_eblock_short: document.getElementById('m-epoxy-short')?.value ? parseFloat(document.getElementById('m-epoxy-short').value) : null,
-    epoxy_coverage_bobbin: hasBobbin && document.getElementById('m-epoxy-bobbin')?.value ? parseFloat(document.getElementById('m-epoxy-bobbin').value) : null,
-    trigger: inTrigger ? 'IN' : 'OUT',
-    out_cl: inCL ? 'IN' : 'OUT',
-    trend: 'IN',
-    nine_pt: 'IN',
-    overall,
-    savedAt: new Date().toISOString(),
-  };
+  const newRecords = [];
+  const mysqlRecords = [];
 
-  _recordsCache.push(rec);
+  for (let i = 0; i < copies; i++) {
+    const no = _recordsCache.length + 1 + i;
+    const recId = Date.now() + i;
+
+    const rec = {
+      id: recId,
+      no,
+      date: document.getElementById('m-date')?.value || todayISO(),
+      mode: modeKey,
+      modeLabel: MODES[modeKey]?.label || modeKey,
+      coilType: typeKey,
+      product: prodKey,
+      productLabel: p.label,
+      unit: p.unit,
+      condition: document.getElementById('m-condition')?.value || 'NTC',
+      oven: document.getElementById('m-oven')?.value.trim() || '',
+      team: document.getElementById('m-team')?.value || '',
+      en: document.getElementById('m-en')?.value.trim() || '',
+      traveler: document.getElementById('m-ptno')?.value.trim() || '',
+      ptno: document.getElementById('m-ptno')?.value.trim() || '',
+      time: document.getElementById('m-time')?.value.trim() || '',
+      sample_date: document.getElementById('m-sample-date')?.value.trim() || '',
+      lot: document.getElementById('m-lot')?.value.trim() || '',
+      qty: qtyInput,
+      remark: document.getElementById('m-remark')?.value.trim() || '',
+      long1: l1, short2: s2, bobbin1: b1, bobbin2: b2, avg, max, min, range,
+      spc_ucl: spc.ucl,
+      spc_cl: spc.cl,
+      spc_lcl: spc.lcl,
+      spc_trig: spc.trigger,
+      spc_spec: spc.spec,
+      spec_result: outSpec,
+      eblock_long: EP_VALS.ebl_long || null,
+      eblock_short: EP_VALS.ebs_long || null,
+      eblock_avg: document.getElementById('m-eblock-avg')?.value ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
+      ebl_long: EP_VALS.ebl_long, ebl_center: EP_VALS.ebl_center, ebl_short: EP_VALS.ebl_short,
+      ebs_long: EP_VALS.ebs_long, ebs_center: EP_VALS.ebs_center, ebs_short: EP_VALS.ebs_short,
+      coil_short: document.getElementById('m-coil-short')?.value ? parseFloat(document.getElementById('m-coil-short').value) : null,
+      coil_center: document.getElementById('m-coil-center')?.value ? parseFloat(document.getElementById('m-coil-center').value) : null,
+      coil_long: document.getElementById('m-coil-long')?.value ? parseFloat(document.getElementById('m-coil-long').value) : null,
+      bobbin_short: document.getElementById('m-bobbin-short')?.value ? parseFloat(document.getElementById('m-bobbin-short').value) : null,
+      bobbin_center: document.getElementById('m-bobbin-center')?.value ? parseFloat(document.getElementById('m-bobbin-center').value) : null,
+      bobbin_long: document.getElementById('m-bobbin-long')?.value ? parseFloat(document.getElementById('m-bobbin-long').value) : null,
+      trigger: inTrigger ? 'IN' : 'OUT',
+      out_cl: inCL ? 'IN' : 'OUT',
+      trend: 'IN',
+      nine_pt: 'IN',
+      overall,
+      savedAt: new Date().toISOString(),
+    };
+
+    newRecords.push(rec);
+
+    mysqlRecords.push({
+      no: rec.no,
+      mode: rec.mode,
+      coil_type: rec.coilType,
+      product: rec.product,
+      product_label: rec.productLabel,
+      unit: rec.unit,
+      condition: rec.condition || 'NTC',
+      date: rec.date,
+      oven: rec.oven,
+      team: rec.team,
+      en: rec.en,
+      traveler: rec.traveler,
+      ptno: rec.ptno,
+      test_time: rec.time,
+      sample_build_date: rec.sample_date,
+      lot: rec.lot,
+      qty: rec.qty,
+      remark: rec.remark || '',
+      long1: rec.long1,
+      short2: rec.short2,
+      bobbin1: rec.bobbin1,
+      bobbin2: rec.bobbin2,
+      avg: rec.avg,
+      max: rec.max,
+      min: rec.min,
+      range: rec.range,
+      spec_result: rec.spec_result,
+      trigger: rec.trigger,
+      out_cl: rec.out_cl,
+      trend: rec.trend,
+      nine_pt: rec.nine_pt,
+      overall: rec.overall,
+      spc_ucl: rec.spc_ucl,
+      spc_cl: rec.spc_cl,
+      spc_lcl: rec.spc_lcl,
+      spc_trig: rec.spc_trig,
+      spc_spec: rec.spc_spec,
+      eblock_long: rec.eblock_long,
+      eblock_short: rec.eblock_short,
+      eblock_avg: rec.eblock_avg,
+      coil_short: rec.coil_short,
+      coil_center: rec.coil_center,
+      coil_long: rec.coil_long,
+      bobbin_short: rec.bobbin_short,
+      bobbin_center: rec.bobbin_center,
+      bobbin_long: rec.bobbin_long,
+      savedAt: rec.savedAt,
+    });
+  }
+
+  _recordsCache.push(...newRecords);
   localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
 
-  // Alert logic
-  const isAlert = !inSpec || rec.trigger === 'OUT';
+  // Only generate 1 alert even if there are N records, using the first record's data
+  const isAlert = !inSpec || newRecords[0].trigger === 'OUT';
   if (isAlert) {
+    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${newRecords[0].en || '-'}`);
+    
     const alertObj = {
-      id: rec.id,
-      ts: rec.savedAt,
+      id: newRecords[0].id,
+      ts: newRecords[0].savedAt,
       level: inSpec ? 'warn' : 'ng',
       product: p.label,
       mode: modeKey,
-      modeLabel: rec.modeLabel,
+      modeLabel: newRecords[0].modeLabel,
       coilType: typeKey,
-      en: rec.en,
-      traveler: rec.traveler,
-      oven: rec.oven,
+      en: newRecords[0].en,
+      traveler: newRecords[0].traveler,
+      oven: newRecords[0].oven,
       avg: avg.toFixed(2),
       min: min.toFixed(2),
       spec_result: outSpec,
-      trigger: rec.trigger,
+      trigger: newRecords[0].trigger,
       msg: !inSpec
         ? `Out of Spec: Min = ${min.toFixed(2)} ${p.unit} (Spec  ${spc.spec})`
         : `Out of Trigger: Avg = ${avg.toFixed(2)} ${p.unit} (Trigger  ${spc.trigger})`,
     };
     _alertsCache.unshift(alertObj);
     localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(_alertsCache));
-    triggerAutoEml(rec, spc);
+    triggerAutoEml(newRecords[0], spc);
   }
 
   //   MySQL 
   if (isServerOnline) {
     try {
       const body = {
-        records: [{
-          no: rec.no,
-          mode: rec.mode,
-          coil_type: rec.coilType,
-          product: rec.product,
-          product_label: rec.productLabel,
-          unit: rec.unit,
-          condition: rec.condition || 'NTC',
-          date: rec.date,
-          oven: rec.oven,
-          team: rec.team,
-          en: rec.en,
-          traveler: rec.traveler,
-          lot: rec.lot,
-          qty: rec.qty,
-          remark: rec.remark || '',
-          long1: rec.long1,
-          short2: rec.short2,
-          bobbin1: rec.bobbin1,
-          bobbin2: rec.bobbin2,
-          avg: rec.avg,
-          max: rec.max,
-          min: rec.min,
-          range: rec.range,
-          spec_result: rec.spec_result,
-          trigger: rec.trigger,
-          out_cl: rec.out_cl,
-          trend: rec.trend,
-          nine_pt: rec.nine_pt,
-          overall: rec.overall,
-          spc_ucl: rec.spc_ucl,
-          spc_cl: rec.spc_cl,
-          spc_lcl: rec.spc_lcl,
-          spc_trig: rec.spc_trig,
-          spc_spec: rec.spc_spec,
-          epoxy_coverage_eblock_long: rec.epoxy_coverage_eblock_long,
-          epoxy_coverage_eblock_short: rec.epoxy_coverage_eblock_short,
-          epoxy_coverage_bobbin: rec.epoxy_coverage_bobbin,
-          savedAt: rec.savedAt,
-        }],
+        records: mysqlRecords,
         alerts: _alertsCache,
       };
 
@@ -975,10 +1094,14 @@ function setOverallPF(val) {
 }
 
 function clearForm() {
-  ['m-oven', 'm-en', 'm-traveler', 'm-lot', 'm-qty', 'm-long1', 'm-short2', 'm-remark'].forEach(id => {
+  ['m-oven', 'm-en', 'm-traveler', 'm-lot', 'm-qty', 'm-long1', 'm-short2', 'm-remark',
+    'm-coil-short', 'm-coil-center', 'm-coil-long',
+    'm-bobbin-short', 'm-bobbin-center', 'm-bobbin-long'
+  ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  resetEpoxySteppers();
   ['m-out-spec', 'm-out-trigger', 'm-out-cl', 'm-trend', 'm-9pt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.selectedIndex = 0;
@@ -990,6 +1113,167 @@ function clearForm() {
   ['m-long1', 'm-short2'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('input-ok', 'input-warn', 'input-error');
+  });
+}
+
+// ─── Epoxy Coverage Picker ────────────────────────────────────────────────
+const EP_VALS = {
+  ebl_long: 0,
+  ebl_center: 0,
+  ebl_short: 0,
+  ebs_long: 0,
+  ebs_center: 0,
+  ebs_short: 0,
+};
+
+// Threshold config — loaded from POF config (belton_pof_config_v1) or defaults
+const EP_CFG = { rejectBelow: 10, holdBelow: 30, passMin: 30 };
+
+function loadEpoxyCfgFromStorage() {
+  try {
+    const prodKey = document.getElementById('m-product')?.value;
+    if (!prodKey) return;
+    const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
+    const epoxy = allCfg[prodKey]?.epoxy;
+    if (epoxy) {
+      EP_CFG.rejectBelow = epoxy.reject ?? 10;
+      EP_CFG.holdBelow = epoxy.hold ?? 30;
+      EP_CFG.passMin = epoxy.accept ?? 30;
+    } else {
+      // defaults: 0 = reject, <30 = hold, ≥30 = accept
+      EP_CFG.rejectBelow = 10;
+      EP_CFG.holdBelow = 30;
+      EP_CFG.passMin = 30;
+    }
+  } catch { }
+}
+
+function buildEpoxyPicker(pickerId, key) {
+  const container = document.getElementById(pickerId);
+  if (!container) return;
+  container.innerHTML = '';
+  for (let v = 10; v <= 100; v += 10) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ep-pick-btn';
+    btn.textContent = v + '%';
+    btn.dataset.val = v;
+    btn.dataset.key = key;
+    btn.onclick = () => selectEpoxyPick(key, v);
+    container.appendChild(btn);
+  }
+  // Reflect current value
+  highlightEpoxyPick(pickerId, EP_VALS[key]);
+}
+
+function selectEpoxyPick(key, val) {
+  EP_VALS[key] = val;
+
+  const pickerId = 'ep-picker-' + key;
+  highlightEpoxyPick(pickerId, val);
+
+  // Update individual display box
+  const elBox = document.getElementById('epavg-' + key);
+  if (elBox) elBox.textContent = val;
+
+  // Update hidden display spans
+  const elHidden = document.getElementById('epv-' + key);
+  if (elHidden) elHidden.textContent = val;
+
+  calcEpoxyAvg();
+}
+
+function highlightEpoxyPick(pickerId, val) {
+  const container = document.getElementById(pickerId);
+  if (!container) return;
+  container.querySelectorAll('.ep-pick-btn').forEach(btn => {
+    btn.classList.remove('ep-sel-reject', 'ep-sel-hold', 'ep-sel-accept');
+    const bv = parseInt(btn.dataset.val);
+    if (bv === val) {
+      if (val < EP_CFG.rejectBelow) btn.classList.add('ep-sel-reject');
+      else if (val < EP_CFG.holdBelow) btn.classList.add('ep-sel-hold');
+      else btn.classList.add('ep-sel-accept');
+    }
+  });
+}
+
+function initEpoxyPickers() {
+  loadEpoxyCfgFromStorage();
+  buildEpoxyPicker('ep-picker-ebl_long', 'ebl_long');
+  buildEpoxyPicker('ep-picker-ebl_center', 'ebl_center');
+  buildEpoxyPicker('ep-picker-ebl_short', 'ebl_short');
+  buildEpoxyPicker('ep-picker-ebs_long', 'ebs_long');
+  buildEpoxyPicker('ep-picker-ebs_center', 'ebs_center');
+  buildEpoxyPicker('ep-picker-ebs_short', 'ebs_short');
+}
+
+function epStep(key, delta) {
+  // Legacy fallback (called from old HTML — no-op if picker UI is used)
+  EP_VALS[key] = Math.min(100, Math.max(0, (EP_VALS[key] || 0) + delta));
+  calcEpoxyAvg();
+}
+
+function calcEpoxyAvg() {
+  const avgEbl = Math.round((EP_VALS.ebl_long + EP_VALS.ebl_center + EP_VALS.ebl_short) / 3);
+  const avgEbs = Math.round((EP_VALS.ebs_long + EP_VALS.ebs_center + EP_VALS.ebs_short) / 3);
+
+  const elEbl = document.getElementById('epavg-ebl');
+  const elEbs = document.getElementById('epavg-ebs');
+  if (elEbl) elEbl.textContent = avgEbl;
+  if (elEbs) elEbs.textContent = avgEbs;
+
+  // sync hidden inputs for saveRecord()
+  const setHidden = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setHidden('m-eblock-long', avgEbl);
+  setHidden('m-eblock-short', avgEbs);
+  const overallAvg = Math.round((avgEbl + avgEbs) / 2);
+  setHidden('m-eblock-avg', overallAvg);
+
+  // Determine result using config thresholds
+  let result = overallAvg >= EP_CFG.passMin ? 'pass'
+    : overallAvg >= EP_CFG.rejectBelow ? 'hold' : 'fail';
+
+  ['pass', 'hold', 'fail'].forEach(r => {
+    const btn = document.getElementById('ep-btn-' + r);
+    if (btn) btn.className = 'ep-pill' + (result === r ? ' ep-' + r : '');
+  });
+
+  // auto-set Overall Result toggle to match
+  if (result === 'pass') setOverallPF('Pass');
+  else if (result === 'hold') setOverallPF('Hold');
+  else setOverallPF('Fail');
+
+  // Re-highlight pickers to reflect thresholds
+  highlightEpoxyPick('ep-picker-ebl_long', EP_VALS.ebl_long);
+  highlightEpoxyPick('ep-picker-ebl_center', EP_VALS.ebl_center);
+  highlightEpoxyPick('ep-picker-ebl_short', EP_VALS.ebl_short);
+  highlightEpoxyPick('ep-picker-ebs_long', EP_VALS.ebs_long);
+  highlightEpoxyPick('ep-picker-ebs_center', EP_VALS.ebs_center);
+  highlightEpoxyPick('ep-picker-ebs_short', EP_VALS.ebs_short);
+}
+
+function resetEpoxySteppers() {
+  Object.keys(EP_VALS).forEach(k => { EP_VALS[k] = 0; });
+  ['ep-picker-ebl_long', 'ep-picker-ebl_center', 'ep-picker-ebl_short', 'ep-picker-ebs_long', 'ep-picker-ebs_center', 'ep-picker-ebs_short'].forEach(pid => {
+    const el = document.getElementById(pid);
+    if (el) el.querySelectorAll('.ep-pick-btn').forEach(b =>
+      b.classList.remove('ep-sel-reject', 'ep-sel-hold', 'ep-sel-accept'));
+  });
+  ['epavg-ebl_long', 'epavg-ebl_center', 'epavg-ebl_short', 'epavg-ebs_long', 'epavg-ebs_center', 'epavg-ebs_short', 'epavg-ebl', 'epavg-ebs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '0';
+  });
+  ['ep-btn-pass', 'ep-btn-hold', 'ep-btn-fail'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'ep-pill';
+  });
+  ['m-eblock-long', 'm-eblock-short', 'm-eblock-avg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['ebl_long', 'ebl_center', 'ebl_short', 'ebs_long', 'ebs_center', 'ebs_short'].forEach(k => {
+    const el = document.getElementById('epv-' + k);
+    if (el) el.textContent = '0';
   });
 }
 
@@ -1015,20 +1299,12 @@ function updateKPIs() {
   setEl('kpi-trigger', outTrg);
   setEl('kpi-yield', yld !== null ? yld + '%' : '%');
   setEl('kpi-avg', ovgAvg !== null ? fmt(ovgAvg) : '');
-  setEl('kpi-alerts', loadAlerts().length);
 }
 
 function updateBadges() {
   const recs = loadRecords();
-  const alerts = loadAlerts();
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setEl('badge-records', recs.length);
-  setEl('badge-alerts', alerts.length);
-  const notif = document.getElementById('notif-count');
-  if (notif) {
-    notif.textContent = alerts.length;
-    notif.style.display = alerts.length > 0 ? 'flex' : 'none';
-  }
 }
 
 // 
@@ -1489,69 +1765,7 @@ function buildProductChart(canvasId) {
 // 
 //  Alert Log
 // 
-async function renderAlerts() {
-  const body = document.getElementById('alerts-body');
-  if (!body) return;
-  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">...</div>';
 
-  let alerts = [];
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/pof/alerts`);
-    const data = await res.json();
-    if (data.success) {
-      alerts = data.records || [];
-      saveAlerts(alerts); // temporarily save to use in sendSingleAlertEml if needed
-    }
-  } catch (e) {
-    console.error('Fetch alerts error:', e);
-    alerts = loadAlerts(); // fallback to local
-  }
-
-  if (!alerts.length) {
-    body.innerHTML = `<div class="empty" style="padding:30px;text-align:center">
-      <div style="font-size:32px">📭</div><p>ไม่พบข้อมูล Alert Log</p></div>`;
-    return;
-  }
-  body.innerHTML = alerts.map(a => {
-    const isNG = a.level === 'ng';
-    const typeLabel = { sl: 'Short/Long', bobbin: 'Bobbin' }[a.coilType || a.coil_type || 'sl'] || '';
-    return `
-    <div style="border:1.5px solid ${isNG ? 'var(--fail)' : 'var(--warn)'};border-radius:10px;
-                padding:12px 16px;background:${isNG ? 'rgba(220,38,38,.04)' : 'rgba(234,179,8,.04)'}">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:800;color:${isNG ? 'var(--fail)' : 'var(--warn)'}">
-          ${isNG ? ' OUT OF SPEC' : ' OUT OF TRIGGER'}
-        </span>
-        <span style="font-size:11px;color:var(--text3)">${new Date(a.ts).toLocaleString('th-TH')}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;font-size:12px;margin-bottom:8px">
-        <div><span style="color:var(--text3)">Product:</span> <strong>${a.product}</strong></div>
-        <div><span style="color:var(--text3)">Mode:</span> ${a.modeLabel || a.mode}</div>
-        <div><span style="color:var(--text3)">Type:</span> ${typeLabel}</div>
-        <div><span style="color:var(--text3)">EN#:</span> ${a.en || ''}</div>
-        <div><span style="color:var(--text3)">Avg:</span> <strong>${a.avg}</strong></div>
-        <div><span style="color:var(--text3)">Min:</span> ${a.min}</div>
-        <div><span style="color:var(--text3)">Spec:</span>
-          <span class="${(a.spec || a.spec_result) === 'IN' ? 'badge-in' : 'badge-out'}">${a.spec || a.spec_result || ''}</span>
-        </div>
-      </div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px"> ${a.remark || a.trigger || a.msg || ''}</div>
-      <button class="btn btn-outline btn-sm" style="font-size:11px"
-              onclick="sendSingleAlertEml('${a.id}')"> ส่งเข้า Outlook</button>
-    </div>`;
-  }).join('');
-}
-
-function clearAlerts() {
-  showConfirm('ล้าง Alert Log', 'ต้องการล้าง Alert Log ทั้งหมดใช่หรือไม่?', async () => {
-    if (isServerOnline) {
-      try { await fetch(`${BACKEND_URL}/api/pof/alerts`, { method: 'DELETE' }); } catch { }
-    }
-    saveAlerts([]);
-    await refreshDataFromServer();
-    showToast('ล้างข้อมูล Alert Log แล้ว', 'info');
-  });
-}
 
 // 
 //  EML / Outlook
@@ -2775,7 +2989,16 @@ async function importExportedCSV(event) {
   } else { showToast('ไม่พบข้อมูลที่จะนำเข้า (ไฟล์ว่าง)', 'warn'); }
 }
 
-
-
-
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+    e.preventDefault();
+    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const index = focusable.indexOf(e.target);
+    if (index > -1 && index < focusable.length - 1) {
+      focusable[index + 1].focus();
+    }
+  }
+});
 

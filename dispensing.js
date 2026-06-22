@@ -1455,424 +1455,30 @@ function showToast(msg, type = 'info', duration = 4000) {
 }
 
 function updateNotifBadge() {
-    const critCount = ALERT_LOG.filter(l => l.level === 'critical' || l.level === 'incomplete').length; const badge = document.getElementById('notif-count'); const alertBadge = document.getElementById('badge-alerts');
-    if (badge) { if (critCount > 0) { badge.style.display = ''; badge.textContent = critCount > 99 ? '99+' : critCount; } else { badge.style.display = 'none'; } }
-    if (alertBadge) alertBadge.textContent = ALERT_LOG.length;
+    // Alert logic has been centralized
 }
 
-function clearAlertLog() { if (!confirm('ล้าง Alert Log ทั้งหมด?')) return; ALERT_LOG = []; saveAlertLog(); renderAlertLog(); updateNotifBadge(); showToast('Alert Log ถูกล้างแล้ว', 'info'); }
-
-async function renderAlertLog() {
-    const body = document.getElementById('alert-log-body'); const lvf = document.getElementById('log-level-filter').value; const mf = document.getElementById('log-model-filter').value;
-
-    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">กำลังโหลดข้อมูล...</div>';
-    try {
-        const res = await fetch('/api/dispensing/alerts');
-        const data = await res.json();
-        if (data.success) {
-            ALERT_LOG = data.alerts || []; // update global ALERT_LOG for other functions
-        }
-    } catch (e) {
-        console.error('Fetch alerts error:', e);
-    }
-
-    let logs = ALERT_LOG.filter(l => { if (lvf && l.level !== lvf) return false; if (mf && l.model !== mf) return false; return true; });
-    if (!logs.length) { body.innerHTML = '<div class="empty" style="padding:30px"><div class="ei" style="font-size:30px">✅</div><p>ไม่มี Alert Log</p></div>'; return; }
-    const lvIcon = { critical: '🔴', warn: '🟡', info: '🔵', incomplete: '❓' };
-    body.innerHTML = logs.slice(0, 100).map(l => {
-        const modelLabel = typeof PRODUCTS !== 'undefined' && PRODUCTS[l.model] ? PRODUCTS[l.model].label : l.model;
-        return `<div class="log-entry log-${l.level}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;padding:12px;border-radius:6px;border-left:4px solid var(--border-color, var(--accent));">
-    <div style="flex:1;">
-        <div class="log-time" style="font-size:11px;color:var(--text3);margin-bottom:4px;">${new Date(l.ts).toLocaleString('th-TH')} &nbsp;|&nbsp; ${modelLabel} &nbsp;|&nbsp; Fix: ${l.fixture} &nbsp;|&nbsp; Oven: ${l.oven || '—'}${l.suppressed ? '&nbsp;<span style="font-size:9px;background:rgba(39,174,96,0.15);color:var(--pass);border-radius:3px;padding:1px 5px;font-weight:700">ℹ️ Suppressed</span>' : ''}</div>
-        <div class="log-msg" style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px;">${lvIcon[l.level] || ''} ${l.msg}</div>
-        <div class="log-detail" style="font-size:11px;color:var(--text2);">Param: <b>${(l.param || '').replace(/_/g, ' ')}</b> &nbsp;·&nbsp; Value: <span style="font-family:monospace;font-weight:700;color:var(--fail);">${typeof l.value === 'number' ? l.value.toFixed(4) : (l.value || '—')}</span> &nbsp;·&nbsp; Spec: <span style="font-family:monospace;">${l.specStr || ''}</span></div>
-    </div>
-    ${(l.level === 'critical' || l.level === 'warn') ? `
-    <div>
-        <button class="btn btn-outline btn-sm" onclick="sendIndividualAlertToOutlook('${l.id}')" style="white-space:nowrap;padding:4px 10px;font-size:11px;font-weight:700;color:var(--blue);border-color:var(--blue);border-radius:4px;">📧 Send Outlook</button>
-    </div>
-    ` : ''}
-</div>`;
-    }).join('');
-}
-
-// 📧 REAL-TIME INDIVIDUAL ALERT TO OUTLOOK WITH COMPLETE GRAPH ENGINE
-async function triggerOutlookAlertForRecord(rec, param, val, level, cfg) {
-    if (!rec) return;
-    const mk = rec.model;
-    const modelLabel = PRODUCTS[mk] ? PRODUCTS[mk].label : mk;
-
-    // 1. Get recent records for SPC Trend line (last 20 records)
-    let spcRows = DB.records.filter(r => r.model === mk && r.values && r.values[param] != null)
-        .sort((a, b) => {
-            const da = `${a.date || ''} ${a.buytime || '00:00'}`;
-            const db = `${b.date || ''} ${b.buytime || '00:00'}`;
-            return da.localeCompare(db);
-        });
-    spcRows = spcRows.slice(-20);
-
-    // 2. Render an offscreen canvas to generate the PERFECT complete SPC graph image!
-    const canvas = document.createElement('canvas');
-    canvas.width = 750;
-    canvas.height = 320;
-    canvas.style.display = 'none';
-    document.body.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
-
-    let chartImg = '';
-    try {
-        const labels = spcRows.map(r => `${r.date} ${r.buytime}`);
-        const dataPoints = spcRows.map(r => r.values[param]);
-        const datasets = [{
-            label: param.replace(/_/g, ' '),
-            data: dataPoints,
-            borderColor: level === 'critical' ? '#E74C3C' : '#F39C12',
-            backgroundColor: 'rgba(231, 76, 60, 0.03)',
-            borderWidth: 3,
-            pointBackgroundColor: '#fff',
-            pointBorderColor: level === 'critical' ? '#E74C3C' : '#F39C12',
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            fill: false,
-            tension: 0.15
-        }];
-
-        if (cfg) {
-            if (cfg.usl != null && cfg.usl !== '') {
-                datasets.push({
-                    label: 'USL Limit',
-                    data: Array(spcRows.length).fill(parseFloat(cfg.usl)),
-                    borderColor: '#C0392B',
-                    borderWidth: 1.5,
-                    borderDash: [5, 5],
-                    pointRadius: 0,
-                    fill: false
-                });
-            }
-            if (cfg.lsl != null && cfg.lsl !== '') {
-                datasets.push({
-                    label: 'LSL Limit',
-                    data: Array(spcRows.length).fill(parseFloat(cfg.lsl)),
-                    borderColor: '#C0392B',
-                    borderWidth: 1.5,
-                    borderDash: [5, 5],
-                    pointRadius: 0,
-                    fill: false
-                });
-            }
-            if (cfg.ucl != null && cfg.ucl !== '') {
-                datasets.push({
-                    label: 'UCL Limit',
-                    data: Array(spcRows.length).fill(parseFloat(cfg.ucl)),
-                    borderColor: '#D35400',
-                    borderWidth: 1,
-                    borderDash: [3, 3],
-                    pointRadius: 0,
-                    fill: false
-                });
-            }
-            if (cfg.lcl != null && cfg.lcl !== '') {
-                datasets.push({
-                    label: 'LCL Limit',
-                    data: Array(spcRows.length).fill(parseFloat(cfg.lcl)),
-                    borderColor: '#D35400',
-                    borderWidth: 1,
-                    borderDash: [3, 3],
-                    pointRadius: 0,
-                    fill: false
-                });
-            }
-            if (cfg.cl != null && cfg.cl !== '') {
-                datasets.push({
-                    label: 'CL (Target)',
-                    data: Array(spcRows.length).fill(parseFloat(cfg.cl)),
-                    borderColor: '#27AE60',
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    fill: false
-                });
-            }
-        }
-
-        const tempChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels.map((lbl, i) => i + 1),
-                datasets: datasets
-            },
-            options: {
-                responsive: false,
-                animation: false,
-                plugins: {
-                    legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { family: 'Calibri' } } },
-                    title: { display: true, text: `SPC Trend Chart: ${param.replace(/_/g, ' ')} (${modelLabel})`, font: { size: 14, weight: 'bold' } }
-                },
-                scales: {
-                    y: { ticks: { font: { family: 'Calibri' } } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-
-        chartImg = canvas.toDataURL('image/png');
-        tempChart.destroy();
-    } catch (e) {
-        console.error('Failed to draw temp SPC chart:', e);
-    } finally {
-        document.body.removeChild(canvas);
-    }
-
-    const levelLabel = level === 'critical' ? '🔴 CRITICAL NG (Out of Spec)' : '🟡 WARNING ALERT (Out of Control)';
-    const headerBg = level === 'critical' ? '#E74C3C' : '#F39C12';
-    const emailTo = (document.getElementById('outlook-to') || {}).value || 'supanatt04@gmail.com';
-    const subject = `[BELTON IPQC DISPENSING ALERT] ${level.toUpperCase()}: ${modelLabel} - Fix: ${rec.fixture} (${param.replace(/_/g, ' ')})`;
-
-    const htmlContent = `
-    <div style="font-family:'Calibri','Candara','Segoe UI',sans-serif; color: #333; max-width: 700px; margin: 0 auto; border: 1.5px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <div style="background-color: ${headerBg}; padding: 18px 24px; color: white;">
-            <h2 style="margin: 0; font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${levelLabel}</h2>
-            <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 13px;">Belton Automated Real-time Quality Alert System</p>
-        </div>
-        
-        <div style="padding: 24px;">
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563; width: 35%;">Product Model</td>
-                    <td style="padding: 8px 0; color: #1f2937;"><b>${modelLabel}</b></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Fixture Number</td>
-                    <td style="padding: 8px 0; color: #1f2937;"><b>${rec.fixture}</b></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Oven ID</td>
-                    <td style="padding: 8px 0; color: #1f2937;">${rec.oven || '—'}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Parameter Affected</td>
-                    <td style="padding: 8px 0; color: #e74c3c; font-weight: bold;">${param.replace(/_/g, ' ')}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Measured Value</td>
-                    <td style="padding: 8px 0; color: ${headerBg}; font-size: 16px; font-weight: 700;">${val.toFixed(4)}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Active Specifications</td>
-                    <td style="padding: 8px 0; color: #4b5563; font-family: monospace;">LSL: ${cfg.lsl ?? '—'} | LCL: ${cfg.lcl ?? '—'} | UCL: ${cfg.ucl ?? '—'} | USL: ${cfg.usl ?? '—'}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Datetime Registered</td>
-                    <td style="padding: 8px 0; color: #4b5563;">${new Date(rec.createdAt || Date.now()).toLocaleString('th-TH')}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 8px 0; font-weight: 700; color: #4b5563;">Operator</td>
-                    <td style="padding: 8px 0; color: #4b5563;">${rec.operator || 'ADMIN'}</td>
-                </tr>
-            </table>
-            
-            ${chartImg ? `
-            <div style="margin: 24px 0; text-align: center;">
-                <h3 style="margin: 0 0 10px 0; color: #2D9CDB; font-size: 15px; text-align: left; font-weight: 600;">📉 Trend SPC Chart (ล่าสุด 20 รายการ)</h3>
-                <img src="${chartImg}" style="max-width: 100%; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);" alt="SPC Chart"/>
-            </div>
-            ` : ''}
-            
-            <div style="background-color: #f9fafb; border-left: 4px solid ${headerBg}; padding: 12px; border-radius: 0 4px 4px 0; margin-top: 15px;">
-                <p style="margin: 0; font-size: 13px; color: #374151; font-weight: 600;">⚠️ ข้อเสนอแนะเชิงป้องกัน (Preventive Action Advice):</p>
-                <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563; line-height: 1.5;">โปรดระงับการผลิตชั่วคราวและทำการสุ่มตรวจสอบกระบวนการหยอดกาว (Dispensing Machine Calibration / Nozzle Inspection) ทันที รวมถึงเช็คปริมาณของกาวที่ไหล และค่าความดันแก๊สของหัวฉีด</p>
-            </div>
-        </div>
-        
-        <div style="background-color: #f3f4f6; text-align: center; padding: 12px; font-size: 11px; color: #6b7280; border-top: 1px dashed #d1d5db;">
-            ข้อความตอบกลับอัตโนมัติจาก BELTON IPQC Master System · กรุณาอย่าตอบกลับอีเมลนี้โดยตรง
-        </div>
-    </div>
-    `;
-
-    window._outlookBody = `[${levelLabel}] ${modelLabel} | Fix: ${rec.fixture} | Param: ${param} = ${val.toFixed(4)} (Spec: ${cfg.lsl ?? '—'} to ${cfg.usl ?? '—'})`;
-    window._outlookSubject = subject;
-
-    const encodedSubject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
-    const emlContent = `To: ${emailTo}\nSubject: ${encodedSubject}\nX-Unsent: 1\nContent-Type: text/html; charset=utf-8\n\n${htmlContent}`;
-
-    const blob = new Blob([emlContent], { type: 'message/rfc822' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Realtime_SPC_ALERT_${modelLabel.replace(/\s+/g, '_')}_${param}_${Date.now()}.eml`;
-    a.click();
-    showToast(`📧 สร้างแจ้งเตือน Outlook สำเร็จสำหรับ ${param.replace(/_/g, ' ')}!`, 'success', 8000);
-}
-
-async function sendIndividualAlertToOutlook(alertId) {
-    const alert = ALERT_LOG.find(l => l.id.toString() === alertId.toString());
-    if (!alert) {
-        showToast('ไม่พบข้อมูล Alert Log นี้', 'error');
-        return;
-    }
-    const rec = DB.records.find(r => r.model === alert.model && r.fixture === alert.fixture && r.values && r.values[alert.param] != null);
-    const cfg = DB.configs[alert.model] && DB.configs[alert.model][alert.param];
-
-    if (!rec) {
-        const mockRec = {
-            model: alert.model,
-            fixture: alert.fixture,
-            oven: alert.oven,
-            values: { [alert.param]: alert.value },
-            operator: alert.operator || 'QC',
-            createdAt: alert.ts
-        };
-        triggerOutlookAlertForRecord(mockRec, alert.param, alert.value, alert.level, cfg || {});
-    } else {
-        triggerOutlookAlertForRecord(rec, alert.param, alert.value, alert.level, cfg || {});
-    }
-}
-
+function renderAlertLog() {}
+function generateOutlookDraft() {}
+function sendAutoAlertViaPython() {}
 function checkRealtimeAlertAndNotify(rec) {
-    if (!rec || !rec.values) return;
-    const mk = rec.model;
-    if (!PRODUCTS[mk]) return;
-
-    let failedValues = [];
-    let allValues = [];
-    let worstLevel = 'ACCEPT';
-
-    PRODUCTS[mk].dims.forEach(d => {
-        const param = getDimId(d);
-        const val = rec.values[param];
-        if (typeof val !== 'number') return;
-
-        const cfg = DB.configs[mk] && DB.configs[mk][param];
-        const level = checkValAgainstSpec(val, cfg);
-
-        allValues.push({ dim: param, value: val, lsl: cfg?.lsl, usl: cfg?.usl, lcl: cfg?.lcl, ucl: cfg?.ucl });
-
-        if (level === 'critical' || level === 'warn') {
-            if (level === 'critical') worstLevel = 'REJECT';
-            else if (worstLevel !== 'REJECT') worstLevel = 'ALERT';
-
-            failedValues.push({
-                dim: param,
-                value: val.toFixed(4),
-                lsl: cfg?.lsl,
-                usl: cfg?.usl,
-                lcl: cfg?.lcl,
-                ucl: cfg?.ucl
-            });
-        }
-    });
-
-    if (failedValues.length > 0) {
-        // Generate trend chart image if canvas is available
-        const spcCanvas = document.getElementById('spcChartCanvas');
-        const imageBase64 = spcCanvas ? spcCanvas.toDataURL('image/png') : '';
-
-        const payload = {
-            product: PRODUCTS[mk].label,
-            pt: rec.pt || 'N/A',
-            fixture: rec.fixture || 'N/A',
-            oven: rec.oven || 'N/A',
-            time: rec.buytime || 'N/A',
-            date: rec.date || 'N/A',
-            failedValues,
-            allValues,
-            imageBase64,
-            status: worstLevel
-        };
-
-        fetch(`${API_BASE}/api/dispensing/send-alert`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`📧 ส่งแจ้งเตือน Outlook สำเร็จ (พบ ${failedValues.length} จุดผิดปกติ)!`, 'success', 5000);
-                }
-            })
-            .catch(err => console.error('Error sending alert:', err));
+    if (rec && (rec.status === 'REJECT' || rec.status === 'FAIL' || rec.status === 'NG')) {
+        alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (REJECT/Fail)! \nโปรดตรวจสอบ Product: ${rec.product || rec.model || '-'} Fixture: ${rec.fixture || '-'}`);
     }
 }
 
-// ─── RECIPIENT MANAGEMENT ─────────────────────────────────────
-let alertRecipients = [];
-
-async function loadRecipients() {
-    try {
-        const res = await fetch(`${API_BASE}/api/dispensing/alert-recipients`);
-        if (res.ok) {
-            alertRecipients = await res.json();
-            renderRecipientList();
-        }
-    } catch (e) {
-        console.error('Failed to load recipients', e);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+    e.preventDefault();
+    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const index = focusable.indexOf(e.target);
+    if (index > -1 && index < focusable.length - 1) {
+      focusable[index + 1].focus();
     }
-}
-
-function renderRecipientList() {
-    const box = document.getElementById('recipient-list');
-    if (!box) return;
-    const active = alertRecipients.filter(r => r.active);
-    if (active.length === 0) {
-        box.innerHTML = '<span style="color:var(--warn-dark)">⚠️ ยังไม่ได้ตั้งค่าอีเมลผู้รับ (กรุณาตั้งค่าที่หน้า Dashboard หลัก)</span>';
-        return;
-    }
-    box.innerHTML = active.map(r => `<span class="df-chip" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">📧 ${r.email}</span>`).join(' ');
-}
-
-function generateOutlookDraft() {
-    const threshold = document.getElementById('outlook-threshold').value; let logs = ALERT_LOG.filter(l => { if (threshold === 'critical') return l.level === 'critical'; if (threshold === 'warn') return l.level === 'critical' || l.level === 'warn'; return true; });
-    if (!logs.length) { showToast('ไม่มี Alert ที่ตรงเงื่อนไข', 'info'); return; } logs = logs.slice(0, 50);
-    const now = new Date().toLocaleString('th-TH'); const ngCount = logs.filter(l => l.level === 'critical').length; const warnCount = logs.filter(l => l.level === 'warn').length; const incCount = logs.filter(l => l.level === 'incomplete').length;
-    const subject = `[BELTON IPQC ALERT] ${ngCount} NG / ${warnCount} Warning / ${incCount} Missing Data — ${TODAY}`;
-    const body = `BELTON IPQC MASTER SYSTEM — Automated Alert Report\nGenerated: ${now}\n═══════════════════════════════════════════\nSUMMARY\n───────────────────────────────────────────\n🔴 Critical (NG / Out of Spec): ${ngCount} items\n🟡 Warning (Alert / Out of Control): ${warnCount} items\n❓ Incomplete (Missing Data): ${incCount} items\n\nDETAIL LOG (Latest ${logs.length} records)\n───────────────────────────────────────────\n${logs.map((l, i) => `${i + 1}. [${l.level.toUpperCase()}] ${l.modelLabel} | Fix: ${l.fixture} | Oven: ${l.oven || '—'} | ${l.param} = ${typeof l.value === 'number' ? l.value.toFixed(4) : l.value}\n   Spec: ${l.specStr}\n   Time: ${new Date(l.ts).toLocaleString('th-TH')}`).join('\n\n')}\n\n═══════════════════════════════════════════\nThis is an automated message from BELTON IPQC Master System v12.0`;
-    document.getElementById('ol-subject').textContent = subject; document.getElementById('ol-meta').textContent = `To: ${document.getElementById('outlook-to').value || '—'} | ${now}`; document.getElementById('ol-body').textContent = body;
-    document.getElementById('outlook-draft-area').style.display = 'block'; document.getElementById('export-actions').style.display = 'block';
-    window._outlookBody = body; window._outlookSubject = subject;
-}
-
-function getRichHtmlContent() {
-    const subject = window._outlookSubject; const textBody = window._outlookBody; const spcCanvas = document.getElementById('spc-chart') || document.getElementById('spc-chart-buy'); const histCanvas = document.getElementById('hist-chart');
-    let spcImg = '', histImg = ''; if (spcCanvas && window_spcCharts.length > 0) spcImg = spcCanvas.toDataURL('image/png'); if (histCanvas && histChart) histImg = histCanvas.toDataURL('image/png');
-    return `<div style="font-family:'Calibri','Candara','Segoe UI',sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;"><h2 style="color: #E8333A; border-bottom: 2px solid #E8333A; padding-bottom: 10px; margin-top: 0;">${subject}</h2><pre style="font-family:'Calibri','Candara','Segoe UI',sans-serif; background: #f8f9fa; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; border: 1px solid #e5e7eb;">${textBody}</pre>${spcImg ? `<h3 style="margin-top: 25px; color: #2D9CDB; font-size: 16px;">📉 SPC Trend Chart</h3><img src="${spcImg}" style="max-width: 100%; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" alt="SPC Chart"/>` : ''}${histImg ? `<h3 style="margin-top: 25px; color: #2D9CDB; font-size: 16px;">📊 Histogram (Distribution)</h3><img src="${histImg}" style="max-width: 100%; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" alt="Histogram"/>` : ''}<p style="font-size: 11px; color: #6b7280; margin-top: 30px; text-align: center; border-top: 1px dashed #e5e7eb; padding-top: 10px;">Generated by BELTON IPQC MASTER SYSTEM</p></div>`;
-}
-
-async function writeRichReportToClipboard() {
-    const htmlContent = getRichHtmlContent(); const textBody = window._outlookBody;
-    try {
-        const blobHtml = new Blob([htmlContent], { type: 'text/html' }); const blobText = new Blob([textBody], { type: 'text/plain' }); const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]; await navigator.clipboard.write(data); return true;
-    } catch (err) { const tempDiv = document.createElement('div'); tempDiv.innerHTML = htmlContent; tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px'; document.body.appendChild(tempDiv); const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(tempDiv); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); document.body.removeChild(tempDiv); return true; }
-}
-
-function downloadOutlookEml() {
-    if (!window._outlookBody) return; const to = document.getElementById('outlook-to').value || ''; const subject = window._outlookSubject; const htmlContent = getRichHtmlContent();
-    const encodedSubject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`; const emlContent = `To: ${to}\nSubject: ${encodedSubject}\nX-Unsent: 1\nContent-Type: text/html; charset=utf-8\n\n${htmlContent}`;
-    const blob = new Blob([emlContent], { type: 'message/rfc822' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `SPC_Alert_Report_${new Date().getTime()}.eml`; a.click(); showToast('✅ สร้างไฟล์สำหรับ Outlook สำเร็จ! เปิดไฟล์เพื่อส่งอีเมลได้เลย', 'success', 6000);
-}
-
-async function sendAutoAlertViaPython() {
-    if (!window._outlookBody) return;
-    const subject = window._outlookSubject || `[BELTON IPQC ALERT] ตรวจพบความผิดปกติ - ${TODAY}`;
-    const bodyText = window._outlookBody || "พบค่า Out of spec";
-    const spcCanvas = document.getElementById('spc-chart') || document.getElementById('spc-chart-buy');
-    const histCanvas = document.getElementById('hist-chart');
-    const spcImg = (spcCanvas && window_spcCharts.length > 0) ? spcCanvas.toDataURL('image/png') : '';
-    const histImg = (histCanvas && typeof histChart !== 'undefined' && histChart !== null) ? histCanvas.toDataURL('image/png') : '';
-
-    const payload = { subject: subject, body: bodyText, spc_img: spcImg, hist_img: histImg };
-
-    try {
-        showToast('🔄 กำลังส่งอีเมลแจ้งเตือนอัตโนมัติผ่าน Local Server...', 'info', 3000);
-        const url = (typeof ALERT_WEBHOOK_URL !== 'undefined') ? ALERT_WEBHOOK_URL + '/send-alert' : 'http://127.0.0.1:8080/send-alert';
-        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (response.ok) { showToast('✅ ส่งอีเมลแจ้งเตือนผู้บริหารสำเร็จแล้ว!', 'success', 8000); } else { showToast('❌ ส่งอีเมลล้มเหลว (ตรวจสอบรหัสผ่านใน Python)', 'error', 6000); }
-    } catch (error) {
-        console.error("Python Server is not running:", error);
-        showToast('⚠️ ตู้ไปรษณีย์ (Python Server) ไม่ได้เปิดใช้งานอยู่! กำลังสลับไปโหลดไฟล์ .eml แทน...', 'warn', 6000);
-        setTimeout(downloadOutlookEml, 2000);
-    }
-}
-
+  }
+});
 window.addEventListener('DOMContentLoaded', () => {
     migrateOldData();
     initConfigs();
@@ -3462,7 +3068,20 @@ function saveEdit() {
         });
     }
     rec.status = getInternalStatus(rec.values, rec.model, rec.dataType);
-    saveDB(); syncDataConsistency(true); showToast('✅ แก้ไขข้อมูลเรียบร้อย', 'success'); closeModal('edit-modal');
+    saveDB(); syncDataConsistency(true); 
+    
+    // Sync to backend immediately
+    if (typeof isBackendOnline !== 'undefined' && isBackendOnline) {
+        try {
+            fetch(`${API_BASE}/api/dispensing/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ db_data: { records: [rec] } })
+            });
+        } catch (e) { console.error('Sync Edit Error:', e); }
+    }
+
+    showToast('✅ แก้ไขข้อมูลเรียบร้อย', 'success'); closeModal('edit-modal');
     checkRealtimeAlertAndNotify(rec); // 📢 Trigger automatic real-time Outlook email with complete graph
     renderAboutTable();
 }
@@ -5258,7 +4877,7 @@ function refreshMergePreview() {
         (ovFilter === '' || r.oven === ovFilter)
     ).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const targetCount = Math.min(parsedRows.length, candidates.length, batch);
+    const targetCount = Math.min(parsedRows.length, batch);
 
     mergeBtn.disabled = targetCount === 0;
     mergeBtn.textContent = `⚡ Merge Text Data (${targetCount} records)`;
@@ -5280,10 +4899,12 @@ function refreshMergePreview() {
         return;
     }
 
+    const baseDraft = candidates[0]; // Auto-clone the latest draft
+
     // ── Build 1-to-1 preview table ──────────────────────────────────────────
     let html = `<div style="font-size:12px;margin-bottom:8px;color:var(--text2);">
       <b>📋 Preview — 1-to-1 Merge: Line → Record</b><br>
-      ${targetCount} records จะถูก Merge (${parsedRows.length} บรรทัด → ${candidates.length} Pending Drafts)<br>
+      ${targetCount} records จะถูก Merge (คัดลอกร่าง WAITING 1 ตัว กระจายให้ ${parsedRows.length} บรรทัด)<br>
       <span style="color:var(--blue);font-size:11px;">Column mapping: ${textDims.join(' → ')}</span>
     </div>
     <div class="tbl-wrap" style="max-height:260px;overflow:auto;">
@@ -5297,7 +4918,7 @@ function refreshMergePreview() {
         <tbody>`;
 
     for (let i = 0; i < targetCount; i++) {
-        const draft = candidates[i];
+        const draft = baseDraft;
         const lineVals = parsedRows[i];
         // Simulate merged status — same logic as bulkTextMerge (completeness gate first)
         const simVals = { ...draft.values };
@@ -5359,12 +4980,16 @@ function bulkTextMerge() {
         return;
     }
 
-    const targetCount = Math.min(parsedRows.length, candidates.length);
+    const targetCount = parsedRows.length;
     let updatedCount = 0;
     const mergedDraftIds = [];
+    const baseDraft = candidates[0]; // Auto-clone the latest draft
 
     for (let i = 0; i < targetCount; i++) {
-        const draftRec = candidates[i];
+        // Clone the base draft
+        const draftRec = JSON.parse(JSON.stringify(baseDraft));
+        draftRec.id = 'DRAFT_' + Date.now() + '_' + i;
+
         const lineVals = parsedRows[i];
 
         // 1. รวมข้อมูล (Merge Stage 1 Measurement + Stage 2 SM Flash)
@@ -5395,16 +5020,18 @@ function bulkTextMerge() {
         delete draftRec.createdAt; // ลบ field ที่ใช้เฉพาะ draft
 
         // ดึงขึ้นมาไว้หน้าสุด
-        const idx = DB.records.indexOf(draftRec);
-        if (idx > -1) {
-            DB.records.splice(idx, 1);
-            DB.records.unshift(draftRec);
-        }
+        DB.records.unshift(draftRec);
 
         updatedCount++;
 
         checkRealtimeAlertAndNotify(draftRec); // 📢 Trigger alert ถ้าค่าเกิน Spec
     }
+
+    // ลบ WAITING drafts เดิมออกให้หมดเพื่อไม่ให้เหลือค้าง
+    candidates.forEach(c => {
+        const idx = DB.records.indexOf(c);
+        if (idx > -1) DB.records.splice(idx, 1);
+    });
 
     // 6. บันทึก localStorage
     saveDB();

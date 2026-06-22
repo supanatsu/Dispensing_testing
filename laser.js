@@ -126,18 +126,18 @@ function getQtyByType(type) {
 function getProductQty(key, typeStr) {
   if (!key || !PRODUCTS[key]) return 0;
   const type = typeStr || PRODUCTS[key].type || 'Epoch';
-  
+
   // 1) per-product override (object mapping type to qty)
   if (CONFIG.productQty && CONFIG.productQty[key] !== undefined) {
     if (typeof CONFIG.productQty[key] === 'object') {
-       if (CONFIG.productQty[key][type] !== undefined && CONFIG.productQty[key][type] !== '') {
-          const n = parseInt(CONFIG.productQty[key][type], 10);
-          if (!isNaN(n) && n > 0) return n;
-       }
+      if (CONFIG.productQty[key][type] !== undefined && CONFIG.productQty[key][type] !== '') {
+        const n = parseInt(CONFIG.productQty[key][type], 10);
+        if (!isNaN(n) && n > 0) return n;
+      }
     } else if (CONFIG.productQty[key] !== '') {
-       // backward compat: single value override
-       const n = parseInt(CONFIG.productQty[key], 10);
-       if (!isNaN(n) && n > 0) return n;
+      // backward compat: single value override
+      const n = parseInt(CONFIG.productQty[key], 10);
+      if (!isNaN(n) && n > 0) return n;
     }
   }
   // 2) type-level override
@@ -316,6 +316,7 @@ function switchTab(tab, btn) {
 function onModeChange() {
   const el = document.getElementById('m-mode');
   if (el) _inputMode = el.value;
+  updateFormFieldsByType();
 }
 
 function setMode(mode, btn) {
@@ -405,11 +406,14 @@ function updateFormFieldsByType() {
   const container = document.getElementById('inspection-sections');
   if (!type) return;
 
-  // Keep qty display in sync whenever Type dropdown changes
+  // Keep qty display in sync whenever Type or Mode dropdown changes
   const qtyEl = document.getElementById('m-qty');
+  const modeVal = document.getElementById('m-mode')?.value || _inputMode;
+  const prodKey = document.getElementById('m-product')?.value;
   if (qtyEl) {
-    const q = getQtyByType(type);
-    qtyEl.textContent = q ? q + ' pcs / Fixture / Shift' : '—';
+    let qType = (modeVal === 'roving' || modeVal === 'new_roving') ? 'Bobbin' : 'E-block';
+    let q = prodKey ? getProductQty(prodKey, qType) : getQtyByType(qType);
+    qtyEl.textContent = q ? q + '/Shift/Oven' : '—';
   }
 
   let html = '';
@@ -509,10 +513,8 @@ function updateProductInfo() {
   if (key && PRODUCTS[key]) {
     partNoEl.value = PRODUCTS[key].part || '';
     typeEl.value = PRODUCTS[key].type || 'Epoch';
-    // ใช้ getProductQty เพื่อให้รับค่า per-product override ก่อน
-    const type = document.getElementById('m-type').value;
-    const qty = getProductQty(key, type);
-    qtyEl.textContent = qty ? qty + ' pcs / Fixture / Shift' : '—';
+    // Uses updateFormFieldsByType to set the correct qty label
+    qtyEl.textContent = '—';
 
     updateFormFieldsByType();
     if (inspectionSections) inspectionSections.style.display = 'grid';
@@ -676,24 +678,27 @@ function saveDraft() {
   }
 
   DRAFT_STATE.headerData = header;
-  DRAFT_STATE.drafts.push({
-    ...defects,
-    attr: header.attr,
-    ptno: header.ptno,
-    partno: header.partno,
-    remark: header.remark,
-    draftIndex: DRAFT_STATE.drafts.length + 1
-  });
+  
+  // User requested: for products with > 1 qty, all drafts should have identical data.
+  // Generate all remaining drafts at once using the current input.
+  const draftsToCreate = DRAFT_STATE.requiredQty - DRAFT_STATE.drafts.length;
+  for (let i = 0; i < draftsToCreate; i++) {
+    DRAFT_STATE.drafts.push({
+      ...defects,
+      attr: header.attr,
+      ptno: header.ptno,
+      partno: header.partno,
+      remark: header.remark,
+      draftIndex: DRAFT_STATE.drafts.length + 1
+    });
+  }
 
   const recvEl = document.getElementById('m-recvtime');
   if (recvEl) recvEl.value = new Date().toTimeString().slice(0, 5);
 
-  const saved = DRAFT_STATE.drafts.length;
-  const remaining = DRAFT_STATE.requiredQty - saved;
-
   showToast(
-    `Draft ${saved}/${DRAFT_STATE.requiredQty} บันทึกแล้ว — เหลืออีก ${remaining} ชิ้น`,
-    remaining > 0 ? 'info' : 'success'
+    `บันทึกรวดเดียวครบ ${DRAFT_STATE.requiredQty} ชิ้นเรียบร้อย กรุณากด Submit`,
+    'success'
   );
 
   clearDefectFieldsOnly();
@@ -701,12 +706,14 @@ function saveDraft() {
 }
 
 function submitDraft() {
-  const { drafts, headerData, requiredQty, productKey } = DRAFT_STATE;
-
-  if (drafts.length === 0) {
-    showToast('ยังไม่มี Draft — กรุณา Save Draft ก่อน', 'warn');
-    return;
+  // Auto-fill and save drafts if the user clicked Submit directly
+  if (DRAFT_STATE.drafts.length === 0) {
+    saveDraft();
+    // If saveDraft failed validation, it wouldn't have added drafts, so we stop here.
+    if (DRAFT_STATE.drafts.length === 0) return;
   }
+
+  const { drafts, headerData, requiredQty, productKey } = DRAFT_STATE;
 
   if (drafts.length < requiredQty) {
     showConfirm(
@@ -913,62 +920,9 @@ function getOverallResult(rec) {
 
 // ============================================================
 // ========================
-// ALERT LOGIC
-// ========================
-function checkAndAlert(rec, toast = false) {
-  const fails = DEFECT_FIELDS.filter(f => rec[f.id] === 'Fail');
-  let triggerNotification = false;
-
-  if (fails.length > 0) {
-    const entry = {
-      id: Date.now() + Math.random(),
-      ts: rec.ts || new Date().toISOString(),
-      level: 'ng',
-      mode: rec.mode || 'buyoff',
-      product: PRODUCTS[rec.product] ? PRODUCTS[rec.product].label : rec.product,
-      machine: rec.machine || '—',
-      defects: fails.map(f => f.label),
-      msg: `NG: พบ ${fails.length} จุดบกพร่อง — ${fails.map(f => f.label).join(', ')}`,
-    };
-    ALERT_LOG.unshift(entry);
-    if (toast) showToast(entry.msg, 'error');
-    triggerNotification = true;
-  } else if (rec.vmi === 'Hold') {
-    const entry = {
-      id: Date.now() + Math.random(),
-      ts: rec.ts || new Date().toISOString(),
-      level: 'warn',
-      mode: rec.mode || 'buyoff',
-      product: PRODUCTS[rec.product] ? PRODUCTS[rec.product].label : rec.product,
-      machine: rec.machine || '—',
-      defects: ['VMI Hold'],
-      msg: `HOLD: VMI Disposition = Hold`,
-    };
-    ALERT_LOG.unshift(entry);
-    if (toast) showToast(entry.msg, 'warn');
-    triggerNotification = true;
-  }
-
-  if (ALERT_LOG.length > 1000) ALERT_LOG = ALERT_LOG.slice(0, 1000);
-  saveAlertLog();
-  updateAlertBadge();
-
-  if (triggerNotification) {
-    checkRealtimeAlertAndNotify(rec);
-  }
-}
-
+// ALERT LOGIC REMOVED - centralized
 function updateAlertBadge() {
-  const ng = ALERT_LOG.filter(a => a.level === 'ng').length;
-  const badge = document.getElementById('notif-count');
-  const badgeAlert = document.getElementById('alert-badge');
-  if (ng > 0) {
-    if (badge) { badge.style.display = 'flex'; badge.textContent = ng > 99 ? '99+' : ng; }
-    if (badgeAlert) { badgeAlert.style.display = 'inline-block'; badgeAlert.textContent = ng; }
-  } else {
-    if (badge) badge.style.display = 'none';
-    if (badgeAlert) badgeAlert.style.display = 'none';
-  }
+  // Removed
 }
 
 // generateOutlookDraft() — see full EML implementation at the bottom of this file
@@ -1488,7 +1442,16 @@ function saveEdit() {
 }
 
 function deleteRecord(id) {
-  showConfirm('ยืนยันการลบ', 'คุณแน่ใจหรือไม่ที่จะลบข้อมูล Record นี้?', () => {
+  showConfirm('ยืนยันการลบ', 'คุณแน่ใจหรือไม่ที่จะลบข้อมูล Record นี้?', async () => {
+    if (typeof isBackendOnline !== 'undefined' && isBackendOnline) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/laser/records/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete on server');
+      } catch (err) {
+        console.error('Delete Record Error:', err);
+        showToast('ลบบน Server ไม่สำเร็จ', 'error');
+      }
+    }
     DB.records = DB.records.filter(r => r.id !== id);
     saveDB(); updateDashboard(); renderAboutTable();
     showToast('ลบข้อมูลสำเร็จ', 'info');
@@ -2944,7 +2907,6 @@ async function refreshDataFromServer() {
     // อัปเดต UI เสมอ ไม่ว่า fetch จะสำเร็จหรือไม่
     updateDashboard();
     renderAboutTable();
-    renderAlertLog();
     updateAlertBadge();
     _BL.hideIfSlow();
   }
@@ -2999,286 +2961,7 @@ async function syncWithServer() {
   }
 }
 
-// ============================================================
-//  📧 Outlook EML Alert Dispatcher (Laser Engraving Module)
-// ============================================================
 
-let _laserDraftContent = null;
-
-function checkRealtimeAlertAndNotify(rec) {
-  // Auto-download email alert draft for immediate NG/Hold
-  triggerLaserAlertForRecord(rec);
-}
-
-async function renderAlertLog() {
-  const container = document.getElementById('alerts-body');
-  if (container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">กำลังโหลดข้อมูล...</div>';
-
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/laser/alerts`);
-    const data = await res.json();
-    if (data.success) {
-      ALERT_LOG = data.records || data.alerts || [];
-    }
-  } catch (e) {
-    console.error('Fetch alerts error:', e);
-  }
-
-  const search = (document.getElementById('af-search') || {}).value?.toLowerCase() || '';
-  const filterLevel = (document.getElementById('af-level') || {}).value || '';
-
-  let logs = [...ALERT_LOG];
-  if (search) logs = logs.filter(a => (a.product || '').toLowerCase().includes(search) || (a.machine || '').includes(search) || (a.msg || '').toLowerCase().includes(search));
-  if (filterLevel) logs = logs.filter(a => a.level === filterLevel || (filterLevel === 'ng' && a.level === 'ng'));
-
-  // Render to card list in new alerts-body div
-  if (container) {
-    if (!logs.length) {
-      container.innerHTML = `<div class="empty" style="padding:30px; text-align:center;">
-        
-        <p style="color:var(--text3); margin-top:8px;">ไม่มี Alert Log ค้างอยู่ในระบบ</p>
-      </div>`;
-    } else {
-      container.innerHTML = logs.map((a, idx) => {
-        const isNG = a.level === 'ng';
-        const borderCl = isNG ? 'border-left: 4px solid var(--fail)' : 'border-left: 4px solid var(--warn)';
-        const bgCol = isNG ? 'rgba(231,76,60,0.05)' : 'rgba(243,156,18,0.05)';
-        const tag = isNG
-          ? '<span style="background:var(--fail-bg);color:var(--fail);font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;">NG (Fail)</span>'
-          : '<span style="background:var(--warn-bg);color:var(--warn);font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;">Hold/Warning</span>';
-        const timeStr = a.ts ? new Date(a.ts).toLocaleString('th-TH') : '—';
-        return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:8px;background:${bgCol};${borderCl};gap:12px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">${timeStr}</div>
-              <div style="font-weight:700;font-size:13px;color:var(--text);">${a.product || '—'} | ${a.machine || '—'} | Mode: ${a.mode || '—'}</div>
-              <div style="font-size:12px;color:var(--text2);margin-top:4px;">${a.msg}</div>
-              <div style="margin-top:6px;">${tag}</div>
-            </div>
-            <button class="btn btn-blue btn-sm" onclick="sendIndividualLaserAlert(${idx})">Outlook</button>
-          </div>`;
-      }).join('');
-    }
-  }
-
-  // Also keep legacy tbody in sync if it still exists
-  const tbody = document.getElementById('alert-tbody');
-  if (tbody) {
-    if (!logs.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">ไม่มี Alert</td></tr>';
-    } else {
-      tbody.innerHTML = logs.map(a => {
-        const timeStr = a.ts ? new Date(a.ts).toLocaleString('th-TH') : '—';
-        const lvlBadge = a.level === 'ng'
-          ? '<span style="color:var(--fail);font-weight:700;">NG</span>'
-          : a.level === 'warn'
-            ? '<span style="color:var(--warn);font-weight:700;">Warn</span>'
-            : '<span style="color:var(--blue);font-weight:700;">Info</span>';
-        return `<tr>
-          <td style="font-size:11px;white-space:nowrap">${timeStr}</td>
-          <td>${lvlBadge}</td>
-          <td>${a.mode || '—'}</td>
-          <td>${a.product || '—'}</td>
-          <td>${a.machine || '—'}</td>
-          <td style="font-size:11px;">${(a.defects || []).join(', ') || '—'}</td>
-          <td style="font-size:12px;color:var(--text2)">${a.msg || '—'}</td>
-        </tr>`;
-      }).join('');
-    }
-  }
-
-  const countEl = document.getElementById('alert-count');
-  if (countEl) countEl.textContent = `แสดง ${logs.length} รายการ จากทั้งหมด ${ALERT_LOG.length} รายการ`;
-}
-
-function sendIndividualLaserAlert(idx) {
-  const a = ALERT_LOG[idx];
-  if (!a) return;
-  const rec = DB.records.find(r => r.ts === a.ts) || { product: a.product, machine: a.machine, mode: a.mode, overall: 'Fail' };
-  triggerLaserAlertForRecord(rec);
-}
-
-function triggerLaserAlertForRecord(rec) {
-  const emailTo = (document.getElementById('outlook-to') || {}).value || 'supanatt04@gmail.com';
-  const productLabel = PRODUCTS[rec.product] ? PRODUCTS[rec.product].label : (rec.product || '—');
-  const fails = DEFECT_FIELDS.filter(f => rec[f.id] === 'Fail');
-  const subject = `[BELTON IPQC LASER] CRITICAL NG: ${productLabel} | Machine: ${rec.machine || '—'}`;
-
-  // Build offscreen Chart.js for recent trend
-  const recentRecs = DB.records.slice(-20);
-  const canvas = document.createElement('canvas');
-  canvas.width = 750; canvas.height = 300;
-  canvas.style.position = 'absolute'; canvas.style.left = '-9999px';
-  document.body.appendChild(canvas);
-
-  let chartImg = '';
-  try {
-    const labels = recentRecs.map(r => r.date ? r.date.substring(5) : '');
-    const failCounts = recentRecs.map(r => DEFECT_FIELDS.filter(f => r[f.id] === 'Fail').length);
-    const tempChart = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Defect Count per Record',
-          data: failCounts,
-          backgroundColor: failCounts.map(c => c > 0 ? 'rgba(231,76,60,0.7)' : 'rgba(39,174,96,0.5)'),
-          borderRadius: 4
-        }]
-      },
-      options: {
-        responsive: false, animation: false,
-        plugins: { title: { display: true, text: 'Laser Engraving Defect Trend (Last 20 Records)', font: { size: 13, weight: 'bold' } } },
-        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-      }
-    });
-    chartImg = canvas.toDataURL('image/png');
-    tempChart.destroy();
-  } catch (e) { console.error('Chart gen error:', e); }
-  finally { document.body.removeChild(canvas); }
-
-  const isNG = fails.length > 0 || rec.overall === 'Fail';
-  const headerBg = isNG ? '#E74C3C' : '#F39C12';
-
-  const htmlContent = `
-  <div style="font-family:'Calibri','Candara','Segoe UI',sans-serif;color:#333;max-width:700px;margin:0 auto;border:1.5px solid #d1d5db;border-radius:8px;overflow:hidden;">
-    <div style="background:${headerBg};padding:18px 24px;color:white;">
-      <h2 style="margin:0;font-size:20px;font-weight:700;">${isNG ? 'CRITICAL NG' : 'HOLD WARNING'} — Laser Engraving Buyoff</h2>
-      <p style="margin:4px 0 0;opacity:0.9;font-size:13px;">Belton Automated Real-time Quality Alert System</p>
-    </div>
-    <div style="padding:24px;">
-      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:14px;">
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563;width:35%">Product</td>
-          <td style="padding:8px 0;color:#1f2937"><b>${productLabel}</b></td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563">Machine / Fixture</td>
-          <td style="padding:8px 0;color:#1f2937">${rec.machine || '—'} / ${rec.fixture || '—'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563">Mode</td>
-          <td style="padding:8px 0">${rec.mode || 'buyoff'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563">VMI</td>
-          <td style="padding:8px 0;font-weight:bold;color:${rec.vmi === 'Fail' ? '#e74c3c' : rec.vmi === 'Hold' ? '#f39c12' : '#27ae60'}">${rec.vmi || 'Pass'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563">Overall</td>
-          <td style="padding:8px 0;font-weight:bold;color:${rec.overall === 'Fail' ? '#e74c3c' : rec.overall === 'Hold' ? '#f39c12' : '#27ae60'}">${rec.overall || '—'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px 0;font-weight:700;color:#4b5563">Defects Found</td>
-          <td style="padding:8px 0;color:#e74c3c;font-weight:bold">${fails.length > 0 ? fails.map(f => f.label).join(', ') : 'None (VMI Hold)'}</td>
-        </tr>
-      </table>
-      ${chartImg ? `
-      <div style="margin:24px 0;text-align:center;">
-        <p style="font-size:12px;color:#6b7280;margin-bottom:8px;font-weight:bold">Defect Trend Chart (Last 20 Records)</p>
-        <img src="${chartImg}" alt="Defect Trend" style="max-width:100%;border:1px solid #e5e7eb;border-radius:6px;">
-      </div>` : ''}
-      <div style="background:#f9fafb;border-left:4px solid ${headerBg};padding:12px 16px;margin-top:20px;font-size:13px;border-radius:0 4px 4px 0;">
-        <span style="font-weight:700;color:#374151">Action Required:</span> Laser engraving defects detected. Halt production and perform corrective action immediately!
-      </div>
-    </div>
-  </div>`;
-
-  downloadEmlBlob(emailTo, subject, htmlContent);
-}
-
-function generateOutlookDraft() {
-  if (!DB.records || !DB.records.length) {
-    showToast('ไม่มีข้อมูลออกรายงาน', 'warn');
-    return;
-  }
-  const emailTo = (document.getElementById('outlook-to') || {}).value || 'supanatt04@gmail.com';
-  const thresh = (document.getElementById('outlook-threshold') || {}).value || 'critical';
-
-  const failures = DB.records.filter(r => {
-    if (thresh === 'critical') return r.overall === 'Fail';
-    return r.overall === 'Fail' || r.overall === 'Hold';
-  });
-
-  const subject = `[QC REPORT - LASER ENGRAVING] Summary: ${failures.length} Outliers Found`;
-
-  const htmlContent = `
-  <div style="font-family:'Calibri','Candara','Segoe UI',sans-serif;color:#333;max-width:750px;margin:0 auto;border:1px solid #ccc;padding:20px;">
-    <h2 style="color:#1e3a8a;border-bottom:2px solid #1e3a8a;padding-bottom:8px">Laser Engraving QC Summary Report</h2>
-    <p>This report covers Laser Engraving records with ${thresh === 'critical' ? 'Fail' : 'Fail or Hold'} status.</p>
-    <table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:13px;">
-      <thead>
-        <tr style="background:#f3f4f6;border-bottom:1px solid #ccc;">
-          <th style="padding:8px;text-align:left">Date</th>
-          <th style="padding:8px;text-align:left">Product</th>
-          <th style="padding:8px;text-align:left">Machine</th>
-          <th style="padding:8px;text-align:left">Mode</th>
-          <th style="padding:8px;text-align:left">EN#</th>
-          <th style="padding:8px;text-align:center">VMI</th>
-          <th style="padding:8px;text-align:center">Overall</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${failures.map(r => `
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:8px">${r.date || '—'}</td>
-          <td style="padding:8px">${PRODUCTS[r.product] ? PRODUCTS[r.product].label : (r.product || '—')}</td>
-          <td style="padding:8px">${r.machine || '—'}</td>
-          <td style="padding:8px">${r.mode || '—'}</td>
-          <td style="padding:8px;font-family:monospace">${r.en || '—'}</td>
-          <td style="padding:8px;text-align:center;font-weight:bold;color:${r.vmi === 'Fail' ? '#e74c3c' : r.vmi === 'Hold' ? '#f39c12' : '#27ae60'}">${r.vmi || 'Pass'}</td>
-          <td style="padding:8px;text-align:center;font-weight:bold;color:${r.overall === 'Fail' ? '#e74c3c' : r.overall === 'Hold' ? '#f39c12' : '#27ae60'}">${r.overall || '—'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
-
-  _laserDraftContent = { to: emailTo, subject, body: htmlContent };
-
-  const exportActions = document.getElementById('export-actions');
-  if (exportActions) exportActions.style.display = 'block';
-  const olSubject = document.getElementById('ol-subject');
-  if (olSubject) olSubject.textContent = subject;
-  const olMeta = document.getElementById('ol-meta');
-  if (olMeta) olMeta.textContent = `To: ${emailTo}`;
-  const olBody = document.getElementById('ol-body');
-  if (olBody) olBody.textContent = `Summary covers ${failures.length} ${thresh === 'critical' ? 'Fail' : 'Fail+Hold'} records. Download EML to view full formatted report.`;
-
-  showToast('Report draft generated! Click Step 2 to download.', 'success');
-}
-
-function downloadOutlookEml() {
-  if (!_laserDraftContent) {
-    showToast('Please generate report first (Step 1).', 'warn');
-    return;
-  }
-  downloadEmlBlob(_laserDraftContent.to, _laserDraftContent.subject, _laserDraftContent.body);
-}
-
-function clearAlertLog() {
-  if (!confirm('ล้าง Alert Log ทั้งหมด?')) return;
-  ALERT_LOG = [];
-  saveAlertLog();
-  updateAlertBadge();
-  renderAlertLog();
-  showToast('ล้าง Alert Log เรียบร้อย', 'info');
-}
-
-function downloadEmlBlob(emailTo, subject, htmlContent) {
-  const emlContent = `To: ${emailTo}
-Subject: ${subject}
-X-Unsent: 1
-Content-Type: text/html; charset="utf-8"
-
-${htmlContent}`;
-
-  const blob = new Blob([emlContent], { type: 'message/rfc822' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `Laser_Alert_${Date.now()}.eml`;
-  link.click();
-  showToast('Outlook .eml draft downloaded!', 'success');
-}
 
 // ========================
 // NORMALIZATION HELPERS
@@ -3405,3 +3088,24 @@ async function importExportedExcel(event) {
     showToast(`นำเข้าข้อมูล ${importedCount} รายการ และบันทึกเข้าฐานข้อมูลเรียบร้อย`, 'success');
   } else { showToast('ไม่พบข้อมูลที่จะนำเข้า (รูปแบบไฟล์ไม่ถูกต้อง หรือไม่มีข้อมูล)', 'warn'); }
 }
+
+function renderAlertLog() {}
+
+function checkAndAlert(rec, showToastFlag) {
+  if (rec.overall === 'Fail') {
+    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail)! \nโปรดตรวจสอบ Part No: ${rec.partno || '-'} เครื่อง: ${rec.machine || '-'}`);
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+    e.preventDefault();
+    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const index = focusable.indexOf(e.target);
+    if (index > -1 && index < focusable.length - 1) {
+      focusable[index + 1].focus();
+    }
+  }
+});
