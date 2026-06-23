@@ -29,7 +29,7 @@ const pool = mysql.createPool({
   user: DB_USER,
   password: DB_PASSWORD,
   database: DB_NAME,
-  charset: 'utf8',
+  charset: 'utf8mb4',
 
   multipleStatements: true,
   waitForConnections: true,
@@ -62,7 +62,7 @@ pool.getConnection()
         const rootConn = await mysql.createConnection({
           host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD
         });
-        await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8 COLLATE utf8_general_ci`);
+        await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         await rootConn.end();
         console.log('✅ Database created! Please RESTART the server once to apply changes.');
         process.exit(0);

@@ -16,7 +16,7 @@ async function processAlerts(pool, moduleName, alerts) {
     // Limit chart generation to first 5 to avoid heavy DB load / API rate limits on bulk merge
     for (let i = 0; i < validAlerts.length; i++) {
         const a = validAlerts[i];
-        
+
         let chartUrl = null;
         if (i < 5) {
             chartUrl = await generateChartUrl(pool, moduleName, a.product, a.param || a.parameter || a.attribute);
@@ -50,21 +50,20 @@ async function generateChartUrl(pool, moduleName, product, param) {
     else return null;
 
     try {
-        const [rows] = await pool.query(`SELECT ${dateCol} as date, values_json, defects_json FROM ${table} WHERE product = ? ORDER BY ${dateCol} DESC LIMIT 20`, [product]);
-        
+        // Only laser_records has defects_json; use values_json for all modules
+        const [rows] = await pool.query(`SELECT ${dateCol} as date, values_json FROM ${table} WHERE product = ? ORDER BY ${dateCol} DESC LIMIT 20`, [product]);
+
         if (rows.length === 0) return null;
 
         const dataPoints = rows.reverse().map(r => {
             let valObj = {};
-            try { 
-                valObj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {}); 
-                const defObj = typeof r.defects_json === 'string' ? JSON.parse(r.defects_json) : (r.defects_json || {});
-                valObj = { ...valObj, ...defObj };
-            } catch(e) {}
-            
+            try {
+                valObj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {});
+            } catch (e) { }
+
             let v = valObj[param] !== undefined ? valObj[param] : valObj[param.toLowerCase()];
             if (v == null && param.includes(' ')) {
-                 v = valObj[param.replace(/ /g, '_').toLowerCase()];
+                v = valObj[param.replace(/ /g, '_').toLowerCase()];
             }
             return v != null ? parseFloat(v) : null;
         }).filter(v => v !== null && !isNaN(v));
@@ -81,7 +80,7 @@ async function generateChartUrl(pool, moduleName, product, param) {
         }
 
         const labels = dataPoints.map((_, i) => i + 1);
-        
+
         const chartConfig = {
             type: 'line',
             data: {

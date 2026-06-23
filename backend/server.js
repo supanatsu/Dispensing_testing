@@ -19,74 +19,78 @@ app.use((req, res, next) => {
 
 // Serve shared_products.js dynamically from DB
 app.get('/shared_products.js', async (req, res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    try {
-        let jsContent = 'window.PRODUCTS = {};\nwindow.SPEC_BUYOFF = {};\nwindow.SPEC_ROVING = {};\n\n';
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  try {
+    let jsContent = 'window.PRODUCTS = {};\nwindow.SPEC_BUYOFF = {};\nwindow.SPEC_ROVING = {};\n\n';
 
-        // 1. Fetch products from master_products
-        const [prodRows] = await pool.query('SELECT * FROM master_products');
-        let productsObj = {};
-        for (const row of prodRows) {
-            productsObj[row.product_key] = {
-                label: row.product_name,
-                dims: row.dims ? (typeof row.dims === 'string' ? JSON.parse(row.dims) : row.dims) : []
-            };
-        }
-        jsContent += `window.PRODUCTS = ${JSON.stringify(productsObj, null, 4)};\n\n`;
-
-        // 2. Fetch specs from spc_config_limits
-        const [specRows] = await pool.query('SELECT * FROM spc_config_limits');
-        let buyoffObj = {};
-        let rovingObj = {};
-
-        for (const row of specRows) {
-            const key = row.product_key;
-            const dim = row.dimension_name;
-            const mode = row.process_mode;
-            
-            const specData = {};
-            if (row.lsl !== null) specData.lsl = row.lsl;
-            if (row.lcl !== null) specData.lcl = row.lcl;
-            if (row.cl !== null) specData.cl = row.cl;
-            if (row.ucl !== null) specData.ucl = row.ucl;
-            if (row.usl !== null) specData.usl = row.usl;
-
-            if (mode === 'buyoff') {
-                if (!buyoffObj[key]) buyoffObj[key] = {};
-                buyoffObj[key][dim] = specData;
-            } else if (mode === 'roving') {
-                if (!rovingObj[key]) rovingObj[key] = {};
-                rovingObj[key][dim] = specData;
-            }
-        }
-
-        jsContent += `window.SPEC_BUYOFF = ${JSON.stringify(buyoffObj, null, 4)};\n\n`;
-        jsContent += `window.SPEC_ROVING = ${JSON.stringify(rovingObj, null, 4)};\n`;
-
-        // 3. Fetch laser configurations
-        const [laserRows] = await pool.query('SELECT * FROM laser_config');
-        let laserCfg = { typeQty: {}, productQty: {} };
-        for (const row of laserRows) {
-            if (row.product_key === 'DEFAULT') {
-                if (row.eblock_qty !== null) {
-                    laserCfg.typeQty['E-block'] = row.eblock_qty.toString();
-                    laserCfg.typeQty['Epoch'] = row.eblock_qty.toString(); // for backward compatibility
-                }
-                if (row.bobbin_qty !== null) laserCfg.typeQty['Bobbin'] = row.bobbin_qty.toString();
-            } else {
-                laserCfg.productQty[row.product_key] = {};
-                if (row.eblock_qty !== null) laserCfg.productQty[row.product_key]['E-block'] = row.eblock_qty.toString();
-                if (row.bobbin_qty !== null) laserCfg.productQty[row.product_key]['Bobbin'] = row.bobbin_qty.toString();
-            }
-        }
-        jsContent += `window.LASER_CONFIG = ${JSON.stringify(laserCfg, null, 4)};\n\n`;
-
-        res.type('application/javascript');
-        res.send(jsContent);
-    } catch (err) {
-        console.error('Error serving shared_products.js dynamically:', err);
-        res.status(500).send('// Error generating shared_products.js');
+    // 1. Fetch products from master_products
+    const [prodRows] = await pool.query('SELECT * FROM master_products');
+    let productsObj = {};
+    for (const row of prodRows) {
+      productsObj[row.product_key] = {
+        label: row.product_name,
+        dims: row.dims ? (typeof row.dims === 'string' ? JSON.parse(row.dims) : row.dims) : []
+      };
     }
+    jsContent += `window.PRODUCTS = ${JSON.stringify(productsObj, null, 4)};\n\n`;
+
+    // 2. Fetch specs from spc_config_limits
+    const [specRows] = await pool.query('SELECT * FROM spc_config_limits');
+    let buyoffObj = {};
+    let rovingObj = {};
+
+    for (const row of specRows) {
+      const key = row.product_key;
+      const dim = row.dimension_name;
+      const mode = row.process_mode;
+
+      const specData = {};
+      if (row.lsl !== null) specData.lsl = row.lsl;
+      if (row.lcl !== null) specData.lcl = row.lcl;
+      if (row.cl !== null) specData.cl = row.cl;
+      if (row.ucl !== null) specData.ucl = row.ucl;
+      if (row.usl !== null) specData.usl = row.usl;
+
+      if (mode === 'buyoff') {
+        if (!buyoffObj[key]) buyoffObj[key] = {};
+        buyoffObj[key][dim] = specData;
+      } else if (mode === 'roving') {
+        if (!rovingObj[key]) rovingObj[key] = {};
+        rovingObj[key][dim] = specData;
+      }
+    }
+
+    jsContent += `window.SPEC_BUYOFF = ${JSON.stringify(buyoffObj, null, 4)};\n\n`;
+    jsContent += `window.SPEC_ROVING = ${JSON.stringify(rovingObj, null, 4)};\n`;
+
+    // 3. Fetch laser configurations (separate try/catch — table may not exist yet)
+    let laserCfg = { typeQty: {}, productQty: {} };
+    try {
+      const [laserRows] = await pool.query('SELECT * FROM laser_config');
+      for (const row of laserRows) {
+        if (row.product_key === 'DEFAULT') {
+          if (row.eblock_qty !== null) {
+            laserCfg.typeQty['E-block'] = row.eblock_qty.toString();
+            laserCfg.typeQty['Epoch'] = row.eblock_qty.toString(); // for backward compatibility
+          }
+          if (row.bobbin_qty !== null) laserCfg.typeQty['Bobbin'] = row.bobbin_qty.toString();
+        } else {
+          laserCfg.productQty[row.product_key] = {};
+          if (row.eblock_qty !== null) laserCfg.productQty[row.product_key]['E-block'] = row.eblock_qty.toString();
+          if (row.bobbin_qty !== null) laserCfg.productQty[row.product_key]['Bobbin'] = row.bobbin_qty.toString();
+        }
+      }
+    } catch (laserErr) {
+      console.warn('laser_config table not found, skipping LASER_CONFIG:', laserErr.message);
+    }
+    jsContent += `window.LASER_CONFIG = ${JSON.stringify(laserCfg, null, 4)};\n\n`;
+
+    res.type('application/javascript');
+    res.send(jsContent);
+  } catch (err) {
+    console.error('Error serving shared_products.js dynamically:', err);
+    res.status(500).send('// Error generating shared_products.js');
+  }
 });
 
 // Serve static frontend files directly from root
@@ -101,10 +105,26 @@ process.on('uncaughtException', (error) => {
 });
 
 // อนุญาตให้รับ Payload ขนาดใหญ่ (สูงถึง 50MB) เนื่องจากโมดูล Dispensing และ Damper 
-
-// อาจส่งข้อมูลบันทึกประวัติแบบ Bulk Import จาก Excel มาทีเดียวจำนวนมาก
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// บันทึกการตั้งค่า Laser
+app.post('/api/laser_config', async (req, res) => {
+  const { product_key, eblock_qty, bobbin_qty } = req.body;
+  try {
+    const key = product_key || 'DEFAULT';
+    await pool.query(
+      `INSERT INTO laser_config (product_key, eblock_qty, bobbin_qty) 
+       VALUES (?, ?, ?) 
+       ON DUPLICATE KEY UPDATE eblock_qty = VALUES(eblock_qty), bobbin_qty = VALUES(bobbin_qty)`,
+      [key, eblock_qty, bobbin_qty]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving laser config:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // -------------------------------------------------------------------------
 // AUTO-SEEDING MECHANISM
@@ -317,7 +337,10 @@ app.get('/api/pof/config', async (req, res) => {
 app.get('/api/pof/records', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM pof_records ORDER BY record_no ASC');
-    const records = rows.map(r => ({
+    const records = rows.map(r => {
+      let vj = {};
+      try { vj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {}); } catch(e){}
+      return {
       no: r.record_no,
       date: r.test_date
         ? (r.test_date instanceof Date
@@ -356,8 +379,11 @@ app.get('/api/pof/records', async (req, res) => {
       trend: r.trend,
       nine_pt: r.nine_pt,
       savedAt: r.saved_at,
-      values_json: r.values_json
-    }));
+      values_json: r.values_json,
+      lot: (vj && vj.lot) ? vj.lot : '',
+      qty: (vj && vj.qty) ? vj.qty : ''
+    };
+    });
     res.json({ success: true, records });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -410,21 +436,21 @@ app.post('/api/pof/sync', async (req, res) => {
 
     for (const r of records) {
       const valuesJson = JSON.stringify(r);
-      
+
       let existingId = null;
       if (r.id) {
         const [rows] = await connection.query('SELECT id FROM pof_records WHERE id = ?', [r.id]);
         if (rows.length > 0) existingId = rows[0].id;
       }
       if (!existingId && r.no) {
-        const [rows] = await connection.query("SELECT id FROM pof_records WHERE values_json->>'$.no' = ?", [r.no]);
+        const [rows] = await connection.query("SELECT id FROM pof_records WHERE record_no = ?", [r.no]);
         if (rows.length > 0) existingId = rows[0].id;
       }
 
       let dataType = r.mode || 'Buy off';
-      if(dataType.toLowerCase().includes('roving')) dataType = 'Roving Audit';
-      else if(dataType.toLowerCase().includes('oba')) dataType = 'OBA';
-      else if(dataType.toLowerCase().includes('special')) dataType = 'Special';
+      if (dataType.toLowerCase().includes('roving')) dataType = 'Roving Audit';
+      else if (dataType.toLowerCase().includes('oba')) dataType = 'OBA';
+      else if (dataType.toLowerCase().includes('special')) dataType = 'Special';
       else dataType = 'Buy off';
 
       let status = r.overall || r.status || 'WAITING';
@@ -490,24 +516,24 @@ app.post('/api/pof/sync', async (req, res) => {
     const alerts = payload.alerts || db_data.alerts || [];
     if (alerts && alerts.length > 0) {
       for (const a of alerts) {
-         await connection.query(
-            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ['POF', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'POF', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
-         );
+        await connection.query(
+          "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          ['POF', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'POF', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+        );
       }
       require('./alert_service').processAlerts(pool, 'POF', alerts).catch(console.error);
     }
 
     await connection.commit();
     res.json({ success: true, message: 'POF synced' });
-  } catch(e) {
+  } catch (e) {
     await connection.rollback();
     res.status(500).json({ error: e.message });
   } finally {
-    if(connection) connection.release();
+    if (connection) connection.release();
   }
 });
-  app.delete('/api/pof/records/:no', async (req, res) => {
+app.delete('/api/pof/records/:no', async (req, res) => {
   const { no } = req.params;
   try {
     await pool.query('DELETE FROM pof_records WHERE record_no = ?', [no]);
@@ -632,21 +658,25 @@ app.post('/api/damper/sync', async (req, res) => {
 
     for (const r of records) {
       const valuesJson = JSON.stringify(r);
-      
+
       let existingId = null;
       if (r.id) {
         const [rows] = await connection.query('SELECT id FROM damper_records WHERE id = ?', [r.id]);
         if (rows.length > 0) existingId = rows[0].id;
       }
-      
+      if (!existingId && r.no) {
+        const [rows] = await connection.query('SELECT id FROM damper_records WHERE record_no = ?', [r.no]);
+        if (rows.length > 0) existingId = rows[0].id;
+      }
+
       let dataType = r.mode || 'Buy off';
-      if(dataType.toLowerCase().includes('roving')) dataType = 'Roving Audit';
+      if (dataType.toLowerCase().includes('roving')) dataType = 'Roving Audit';
       else dataType = 'Buy off';
 
       let status = r.overall || r.status || 'waiting';
       if (status === 'Pass' || status === 'pass') status = 'ACCEPT';
       if (status === 'Fail' || status === 'fail') status = 'REJECT';
-      
+
       const config_id = r.config_id || null;
 
       // Parse explicit Damper measurement fields
@@ -660,32 +690,41 @@ app.post('/api/damper/sync', async (req, res) => {
       const team = r.team || '';
       const vmi_results = r.vmi ? JSON.stringify(r.vmi) : (r.vmi_results || null);
       const vmi_pass = r.vmiNG !== undefined ? !r.vmiNG : (r.vmiPass !== undefined ? (r.vmiPass ? 1 : 0) : (r.vmi_pass !== undefined ? r.vmi_pass : 1));
-      const short_vals = r.short?.vals ? r.short.vals.join(',') : (r.shortAvg != null ? '' : (r.short_vals || ''));
-      const short_avg = r.short?.avg != null ? parseFloat(r.short.avg) : (r.shortAvg != null ? parseFloat(r.shortAvg) : null);
-      const short_max = r.short?.max != null ? parseFloat(r.short.max) : (r.shortMax != null ? parseFloat(r.shortMax) : null);
-      const short_min = r.short?.min != null ? parseFloat(r.short.min) : (r.shortMin != null ? parseFloat(r.shortMin) : null);
-      const short_in_spec = r.short?.inSpec !== undefined ? (r.short.inSpec ? 1 : 0) : (r.shortResult === 'Pass' ? 1 : (r.shortResult === 'Fail' ? 0 : (r.short_in_spec !== undefined ? r.short_in_spec : 1)));
-      const long_vals = r.long?.vals ? r.long.vals.join(',') : (r.longAvg != null ? '' : (r.long_vals || ''));
-      const long_avg = r.long?.avg != null ? parseFloat(r.long.avg) : (r.longAvg != null ? parseFloat(r.longAvg) : null);
-      const long_max = r.long?.max != null ? parseFloat(r.long.max) : (r.longMax != null ? parseFloat(r.longMax) : null);
-      const long_min = r.long?.min != null ? parseFloat(r.long.min) : (r.longMin != null ? parseFloat(r.longMin) : null);
-      const long_in_spec = r.long?.inSpec !== undefined ? (r.long.inSpec ? 1 : 0) : (r.longResult === 'Pass' ? 1 : (r.longResult === 'Fail' ? 0 : (r.long_in_spec !== undefined ? r.long_in_spec : 1)));
+      
+      const shortObj = r.dimData ? r.dimData['short_p1'] : r.short;
+      const longObj = r.dimData ? r.dimData['long_top'] : r.long;
+
+      const short_vals = shortObj?.vals ? shortObj.vals.join(',') : (r.shortAvg != null ? '' : (r.short_vals || ''));
+      const short_avg = shortObj?.avg != null ? parseFloat(shortObj.avg) : (r.shortAvg != null ? parseFloat(r.shortAvg) : null);
+      const short_max = shortObj?.max != null ? parseFloat(shortObj.max) : (r.shortMax != null ? parseFloat(r.shortMax) : null);
+      const short_min = shortObj?.min != null ? parseFloat(shortObj.min) : (r.shortMin != null ? parseFloat(r.shortMin) : null);
+      const short_in_spec = shortObj?.result ? (shortObj.result === 'Pass' ? 1 : 0) : (shortObj?.inSpec !== undefined ? (shortObj.inSpec ? 1 : 0) : (r.shortResult === 'Pass' ? 1 : (r.shortResult === 'Fail' ? 0 : 1)));
+      
+      const long_vals = longObj?.vals ? longObj.vals.join(',') : (r.longAvg != null ? '' : (r.long_vals || ''));
+      const long_avg = longObj?.avg != null ? parseFloat(longObj.avg) : (r.longAvg != null ? parseFloat(r.longAvg) : null);
+      const long_max = longObj?.max != null ? parseFloat(longObj.max) : (r.longMax != null ? parseFloat(r.longMax) : null);
+      const long_min = longObj?.min != null ? parseFloat(longObj.min) : (r.longMin != null ? parseFloat(r.longMin) : null);
+      const long_in_spec = longObj?.result ? (longObj.result === 'Pass' ? 1 : 0) : (longObj?.inSpec !== undefined ? (longObj.inSpec ? 1 : 0) : (r.longResult === 'Pass' ? 1 : (r.longResult === 'Fail' ? 0 : 1)));
+      
       const overall_pass = r.overall === 'Pass' ? 1 : (r.overallPass ? 1 : (r.overall_pass !== undefined ? r.overall_pass : 0));
+
+      const actualProduct = r.productKey || r.product || '';
+      const actualFixture = r.mc || r.fixture || '';
 
       if (existingId) {
         await connection.query(
           `UPDATE damper_records SET product=?, fixture=?, pt_number=?, test_date=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, send_time=?, recv_time=?, attribute=?, traveler=?, qc_en=?, me_en=?, team=?, vmi_results=?, vmi_pass=?, short_vals=?, short_avg=?, short_max=?, short_min=?, short_in_spec=?, long_vals=?, long_avg=?, long_max=?, long_min=?, long_in_spec=?, overall_pass=?, values_json=? WHERE id=?`,
           [
-            r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
+            actualProduct, actualFixture, r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
             dataType, r.category || 'TC', status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, valuesJson, existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO damper_records (id, product, fixture, pt_number, test_date, op, data_type, category, status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO damper_records (id, record_no, product, fixture, pt_number, test_date, op, data_type, category, status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, values_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            null, r.product || '', r.fixture || '', r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
+            null, r.no, actualProduct, actualFixture, r.ptno || r.partno || '', r.date || new Date(), r.op || r.qcEn || r.en || '',
             dataType, r.category || 'TC', status, config_id, mode, send_time, recv_time, attribute, traveler, qc_en, me_en, team, vmi_results, vmi_pass, short_vals, short_avg, short_max, short_min, short_in_spec, long_vals, long_avg, long_max, long_min, long_in_spec, overall_pass, valuesJson
           ]
         );
@@ -694,23 +733,23 @@ app.post('/api/damper/sync', async (req, res) => {
     const alerts = payload.alerts || db_data.alerts || [];
     if (alerts && alerts.length > 0) {
       for (const a of alerts) {
-         await connection.query(
-            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ['Damper', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Damper', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
-         );
+        await connection.query(
+          "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          ['Damper', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Damper', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+        );
       }
       require('./alert_service').processAlerts(pool, 'Damper', alerts).catch(console.error);
     }
     await connection.commit();
     res.json({ success: true, message: 'Damper synced' });
-  } catch(e) {
+  } catch (e) {
     await connection.rollback();
     res.status(500).json({ error: e.message });
   } finally {
-    if(connection) connection.release();
+    if (connection) connection.release();
   }
 });
-  app.delete('/api/damper/records/:no', async (req, res) => {
+app.delete('/api/damper/records/:no', async (req, res) => {
   const { no } = req.params;
   try {
     await pool.query('DELETE FROM damper_records WHERE record_no = ?', [no]);
@@ -902,15 +941,23 @@ app.get('/api/laser/alerts', async (req, res) => {
 // ดึงค่าตั้งค่าของ Laser
 app.get('/api/laser/config', async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT config_value FROM laser_config_global WHERE config_key = 'laser_config_settings'");
-    if (rows.length > 0) {
-      let cfg = {};
-
-      try { cfg = JSON.parse(rows[0].config_value); } catch (e) { }
-      res.json({ success: true, config: Object.assign({ typeQty: {}, productQty: {} }, cfg) });
-    } else {
-      res.json({ success: true, config: { typeQty: {}, productQty: {} } });
+    // Read from laser_config table (product_key-based rows)
+    const [rows] = await pool.query('SELECT * FROM laser_config');
+    let cfg = { typeQty: {}, productQty: {} };
+    for (const row of rows) {
+      if (row.product_key === 'DEFAULT') {
+        if (row.eblock_qty !== null) {
+          cfg.typeQty['E-block'] = row.eblock_qty.toString();
+          cfg.typeQty['Epoch'] = row.eblock_qty.toString();
+        }
+        if (row.bobbin_qty !== null) cfg.typeQty['Bobbin'] = row.bobbin_qty.toString();
+      } else {
+        cfg.productQty[row.product_key] = {};
+        if (row.eblock_qty !== null) cfg.productQty[row.product_key]['E-block'] = row.eblock_qty.toString();
+        if (row.bobbin_qty !== null) cfg.productQty[row.product_key]['Bobbin'] = row.bobbin_qty.toString();
+      }
     }
+    res.json({ success: true, config: cfg });
   } catch (error) {
     console.error('GET /api/laser/config error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1054,7 +1101,7 @@ app.post('/api/laser/sync', async (req, res) => {
 
     for (const r of records) {
       const valuesJson = JSON.stringify(r);
-      
+
       let existingId = null;
       if (r.id) {
         const [rows] = await connection.query('SELECT id FROM laser_records WHERE id = ?', [r.id]);
@@ -1083,7 +1130,7 @@ app.post('/api/laser/sync', async (req, res) => {
       const defectsJson = JSON.stringify(r);
 
       // Build defects_json from non-standard fields
-      const STANDARD_SYNC = new Set(['id','mode','type','product','product_label','productLabel','partno','qty','machine','date','en','sendtime','recvtime','fixture','ptno','attr','remark','source','ts','draftIndex','overall','vmi','no','config_id','op','category']);
+      const STANDARD_SYNC = new Set(['id', 'mode', 'type', 'product', 'product_label', 'productLabel', 'partno', 'qty', 'machine', 'date', 'en', 'sendtime', 'recvtime', 'fixture', 'ptno', 'attr', 'remark', 'source', 'ts', 'draftIndex', 'overall', 'vmi', 'no', 'config_id', 'op', 'category']);
       const defectsObj = {};
       Object.keys(r).forEach(k => { if (!STANDARD_SYNC.has(k)) defectsObj[k] = r[k]; });
       const defectsJsonClean = JSON.stringify(defectsObj);
@@ -1133,23 +1180,23 @@ app.post('/api/laser/sync', async (req, res) => {
     const alerts = payload.alerts || db_data.alerts || [];
     if (alerts && alerts.length > 0) {
       for (const a of alerts) {
-         await connection.query(
-            "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ['Laser', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Laser', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
-         );
+        await connection.query(
+          "INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          ['Laser', new Date(a.ts || a.time), a.level, a.product, '', a.oven || '', a.traveler || '', 'Laser', a.avg || null, a.spec_result || '', a.msg, JSON.stringify(a)]
+        );
       }
       require('./alert_service').processAlerts(pool, 'Laser', alerts).catch(console.error);
     }
     await connection.commit();
     res.json({ success: true, message: 'Laser synced' });
-  } catch(e) {
+  } catch (e) {
     await connection.rollback();
     res.status(500).json({ error: e.message });
   } finally {
     connection.release();
   }
 });
-  app.delete('/api/laser/records/:id', async (req, res) => {
+app.delete('/api/laser/records/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM laser_records WHERE id = ?', [id]);
@@ -1197,20 +1244,20 @@ app.get('/api/dispensing/records', async (req, res) => {
       let values = {};
       try {
         if (r.values_json) values = JSON.parse(r.values_json);
-      } catch (e) {}
+      } catch (e) { }
 
       return {
         id: r.id,
         dataType: r.data_type,
         model: r.product || '',
         fixture: r.fixture || '',
-        pt: '', // not in schema
+        pt: values.pt || values.ptno || '',
         date: r.test_date_formatted || '',
         buytime: r.buytime || '',
         mctime: r.mctime || '',
         team: r.team || '',
         op: r.op || '',
-        oven: '', // not in schema
+        oven: values.oven || '',
         status: r.status || '',
         values,
         createdAt: r.created_at
@@ -1277,17 +1324,17 @@ app.post('/api/dispensing/sync', async (req, res) => {
     if (records && Array.isArray(records)) {
       // All explicit dispensing dimension column names in the DB
       const DISP_DIM_COLS = [
-        'x1','y1','x2','y2','x3','y3','x4','y4','x1_center',
-        'coil_position_1','coil_position_2','coil_position_1_s','coil_position_2_l',
-        'epoxy_length_1','epoxy_length_2','epoxy_length_1_s','epoxy_length_2_l','epoxy_length_1_l','epoxy_length_2_s',
-        'crash_stop_profile_1','crash_stop_profile_2','crash_stop_profile_3','crash_stop_profile_1_l','crash_stop_profile_2_s',
-        'coil_outer_profile_u','coil_outer_profile_v','coil_outer_profile_w',
-        'coil_inner_profile_1','coil_inner_profile_2','coil_inner_profile_u','coil_inner_profile_v','coil_inner_profile_w','coil_inner_profile_uv',
+        'x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'x4', 'y4', 'x1_center',
+        'coil_position_1', 'coil_position_2', 'coil_position_1_s', 'coil_position_2_l',
+        'epoxy_length_1', 'epoxy_length_2', 'epoxy_length_1_s', 'epoxy_length_2_l', 'epoxy_length_1_l', 'epoxy_length_2_s',
+        'crash_stop_profile_1', 'crash_stop_profile_2', 'crash_stop_profile_3', 'crash_stop_profile_1_l', 'crash_stop_profile_2_s',
+        'coil_outer_profile_u', 'coil_outer_profile_v', 'coil_outer_profile_w',
+        'coil_inner_profile_1', 'coil_inner_profile_2', 'coil_inner_profile_u', 'coil_inner_profile_v', 'coil_inner_profile_w', 'coil_inner_profile_uv',
         'coil_symmetry',
-        'fantail_profile_1','fantail_profile_2','fantail_profile_3','fantail_profile_4','fantail_profile_5',
-        'bobbin_position_1','bobbin_position_2','bobbin_hole_true','bobbin_slote_true',
-        'coil_parallel','coil_recess_dtm','coil_recess_ndtm',
-        'bobbin_parallel','bobbin_recess_dtm','bobbin_recess_ndtm'
+        'fantail_profile_1', 'fantail_profile_2', 'fantail_profile_3', 'fantail_profile_4', 'fantail_profile_5',
+        'bobbin_position_1', 'bobbin_position_2', 'bobbin_hole_true', 'bobbin_slote_true',
+        'coil_parallel', 'coil_recess_dtm', 'coil_recess_ndtm',
+        'bobbin_parallel', 'bobbin_recess_dtm', 'bobbin_recess_ndtm'
       ];
 
       // Helper: find value from r.values by case-insensitive key match
@@ -1308,7 +1355,7 @@ app.post('/api/dispensing/sync', async (req, res) => {
         const fullValues = { ...r.values, pt: r.pt, oven: r.oven };
         const valuesJson = JSON.stringify(fullValues);
         const opName = r.op || r.operator || 'ADMIN';
-        const product = r.product || '';
+        const product = r.model || r.product || '';
 
         let existingId = null;
         if (r.id && typeof r.id === 'number') {
@@ -1363,24 +1410,24 @@ app.post('/api/dispensing/sync', async (req, res) => {
     if (alert_log && Array.isArray(alert_log)) {
       const times = alert_log.map(a => {
         if (!a.ts) return null;
-        try { const d = new Date(a.ts); return !isNaN(d.getTime()) ? d.toISOString().slice(0,19) : null; } catch(e) { return null; }
+        try { const d = new Date(a.ts); return !isNaN(d.getTime()) ? d.toISOString().slice(0, 19) : null; } catch (e) { return null; }
       }).filter(Boolean);
-      
+
       let existingTimes = new Set();
       if (times.length > 0) {
         // DELETE matching timestamps to replace with incoming
         const [existingAlerts] = await connection.query('SELECT alert_time FROM system_alert WHERE process_type = "Dispensing"');
         existingTimes = new Set(existingAlerts.map(r => r.alert_time.toISOString().slice(0, 19)));
-        
+
         for (const t of times) {
-           await connection.query('DELETE FROM system_alert WHERE process_type = "Dispensing" AND alert_time >= ? AND alert_time <= ?', [t, t]);
+          await connection.query('DELETE FROM system_alert WHERE process_type = "Dispensing" AND alert_time >= ? AND alert_time <= ?', [t, t]);
         }
       }
       const newAlerts = [];
       for (const a of alert_log) {
         let alertTime = new Date();
         if (a.ts) {
-          try { const d = new Date(a.ts); if (!isNaN(d.getTime())) alertTime = d; } catch (e) {}
+          try { const d = new Date(a.ts); if (!isNaN(d.getTime())) alertTime = d; } catch (e) { }
         }
 
         const timeStr = alertTime.toISOString().slice(0, 19);
@@ -1433,7 +1480,7 @@ app.delete('/api/dispensing/records/:id', async (req, res) => {
   try {
     // If the ID is a client-side timestamp (larger than max INT), it's not in DB, just return success
     if (Number(id) > 2147483647) {
-        return res.json({ success: true, message: `Ignored local record ID ${id}` });
+      return res.json({ success: true, message: `Ignored local record ID ${id}` });
     }
     await pool.query('DELETE FROM dispensing_measurements WHERE record_id = ?', [id]);
     await pool.query('DELETE FROM dispensing_records WHERE id = ?', [id]);
@@ -1536,10 +1583,10 @@ function sendEmailViaPowerShell(toEmails, subject, htmlBody, senderEmail, sender
   return new Promise((resolve, reject) => {
     const user = senderEmail || process.env.EMAIL_USER || "your_email@outlook.com";
     const pass = senderPass || process.env.EMAIL_PASS || "your_password";
-    
+
     // แปลง Single Quote ให้ปลอดภัยสำหรับ PowerShell
     const safeHtml = htmlBody.replace(/'/g, "''");
-    
+
     const psScript = `
       $SMTPClient = New-Object Net.Mail.SmtpClient("smtp-mail.outlook.com", 587)
       $SMTPClient.EnableSsl = $true
@@ -1565,18 +1612,18 @@ function sendEmailViaPowerShell(toEmails, subject, htmlBody, senderEmail, sender
           Write-Error $_.Exception.Message
       }
     `;
-    
-    const tempFile = path.join(__dirname, 'temp_mail.ps1');
+
+    const tempFile = path.join(__dirname, `temp_mail_${Date.now()}_${Math.random().toString(36).slice(2)}.ps1`);
     fs.writeFileSync(tempFile, psScript, 'utf8');
-    
+
     // ใช้ Bypass เพื่อให้รัน Script ได้แม้จะติด Execution Policy
     exec(`powershell -ExecutionPolicy Bypass -File "${tempFile}"`, (error, stdout, stderr) => {
-      try { fs.unlinkSync(tempFile); } catch(e){} // ลบไฟล์ทิ้ง
+      try { fs.unlinkSync(tempFile); } catch (e) { } // ลบไฟล์ทิ้ง
       if (error || stderr) reject(error || stderr);
       else resolve(stdout);
     });
   });
-  console.warn("⚠️ nodemailer is not installed. Email alerts will be disabled. Run 'cmd /c npm install nodemailer' to enable.");
+
 }
 
 app.post('/api/dispensing/send-alert', async (req, res) => {
@@ -1743,150 +1790,124 @@ app.get('/api/dashboard/summary', async (req, res) => {
 // NEW ROUTE: LASER CONFIGURATION (Save to MySQL)
 // -------------------------------------------------------------------------
 app.post('/api/laser_config', async (req, res) => {
-    try {
-        const { product_key, eblock_qty, bobbin_qty } = req.body;
-        if (!product_key) {
-            return res.status(400).json({ error: 'Missing product_key' });
-        }
+  try {
+    const { product_key, eblock_qty, bobbin_qty } = req.body;
+    if (!product_key) {
+      return res.status(400).json({ error: 'Missing product_key' });
+    }
 
-        const e_val = (eblock_qty === null || eblock_qty === '' || isNaN(parseInt(eblock_qty))) ? null : parseInt(eblock_qty);
-        const b_val = (bobbin_qty === null || bobbin_qty === '' || isNaN(parseInt(bobbin_qty))) ? null : parseInt(bobbin_qty);
+    const e_val = (eblock_qty === null || eblock_qty === '' || isNaN(parseInt(eblock_qty))) ? null : parseInt(eblock_qty);
+    const b_val = (bobbin_qty === null || bobbin_qty === '' || isNaN(parseInt(bobbin_qty))) ? null : parseInt(bobbin_qty);
 
-        // if both are null and it's not DEFAULT, delete it.
-        if (e_val === null && b_val === null && product_key !== 'DEFAULT') {
-            await pool.query('DELETE FROM laser_config WHERE product_key = ?', [product_key]);
-        } else {
-            await pool.query(
-                `INSERT INTO laser_config (product_key, eblock_qty, bobbin_qty) 
+    // if both are null and it's not DEFAULT, delete it.
+    if (e_val === null && b_val === null && product_key !== 'DEFAULT') {
+      await pool.query('DELETE FROM laser_config WHERE product_key = ?', [product_key]);
+    } else {
+      await pool.query(
+        `INSERT INTO laser_config (product_key, eblock_qty, bobbin_qty) 
                  VALUES (?, ?, ?)
                  ON DUPLICATE KEY UPDATE eblock_qty = VALUES(eblock_qty), bobbin_qty = VALUES(bobbin_qty)`,
-                [product_key, e_val, b_val]
-            );
-        }
-        res.json({ message: 'Laser config updated successfully' });
-    } catch (err) {
-        console.error('Error updating laser config:', err);
-        res.status(500).json({ error: 'Database error', details: err.message });
+        [product_key, e_val, b_val]
+      );
     }
-});
-
-// -------------------------------------------------------------------------
-// LASER ENGRAVING MODULE
-// -------------------------------------------------------------------------
-app.get('/api/fix-db', async (req, res) => {
-  try {
-    let results = {};
-
-    let r1 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Epoxy_length_1' 
-            WHERE m.dimension_name = 'Epoxy_length_1_L' AND p.product_key NOT IN ('m11')
-        `);
-    results.Epoxy_length_1 = r1[0].affectedRows;
-
-    let r2 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Epoxy_length_2' 
-            WHERE m.dimension_name = 'Epoxy_length_2_L' AND p.product_key NOT IN ('dorado5d','dorado10d','v112d','v114d')
-        `);
-    results.Epoxy_length_2 = r2[0].affectedRows;
-
-    let r3 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Coil_position_1' 
-            WHERE m.dimension_name = 'Coil_position_1_S' AND p.product_key NOT IN ('dorado5d','dorado10d')
-        `);
-    results.Coil_position_1 = r3[0].affectedRows;
-
-    let r4 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Coil_position_2' 
-            WHERE m.dimension_name = 'Coil_position_2_L' AND p.product_key NOT IN ('dorado5d','dorado10d')
-        `);
-    results.Coil_position_2 = r4[0].affectedRows;
-
-    let r5 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Crash_stop_profile_1' 
-            WHERE m.dimension_name = 'Crash_stop_profile_1_L' AND p.product_key NOT IN ('dorado5d','dorado10d')
-        `);
-    results.Crash_stop_profile_1 = r5[0].affectedRows;
-
-    let r6 = await pool.query(`
-            UPDATE dispensing_measurements m 
-            JOIN dispensing_records r ON m.record_id = r.id
-            JOIN dispensing_product p ON r.product_id = p.id
-            SET m.dimension_name = 'Crash_stop_profile_2' 
-            WHERE m.dimension_name = 'Crash_stop_profile_2_S' AND p.product_key NOT IN ('dorado5d','dorado10d')
-        `);
-    results.Crash_stop_profile_2 = r6[0].affectedRows;
-
-    res.json({ success: true, results });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.json({ message: 'Laser config updated successfully' });
+  } catch (err) {
+    console.error('Error updating laser config:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
+
+
 // ==========================================
 // SYSTEM ALERT API
 // ==========================================
 
 app.get('/api/system-alerts', async (req, res) => {
-    try {
-        const { process_type, level, limit } = req.query;
-        let query = 'SELECT * FROM system_alert WHERE 1=1';
-        const params = [];
+  try {
+    const { process_type, level, limit } = req.query;
+    let query = 'SELECT * FROM system_alert WHERE 1=1';
+    const params = [];
 
-        if (process_type) {
-            query += ' AND process_type = ?';
-            params.push(process_type);
-        }
-        if (level) {
-            query += ' AND level = ?';
-            params.push(level);
-        }
-
-        query += ' ORDER BY alert_time DESC';
-
-        if (limit) {
-            query += ' LIMIT ?';
-            params.push(Number(limit));
-        }
-
-        const [rows] = await pool.query(query, params);
-        res.json({ success: true, alerts: rows });
-    } catch (err) {
-        console.error('Error fetching system alerts:', err);
-        res.status(500).json({ success: false, error: err.message });
+    if (process_type) {
+      query += ' AND process_type = ?';
+      params.push(process_type);
     }
+    if (level) {
+      query += ' AND level = ?';
+      params.push(level);
+    }
+
+    query += ' ORDER BY alert_time DESC';
+
+    if (limit) {
+      query += ' LIMIT ?';
+      params.push(Number(limit));
+    }
+
+    const [rows] = await pool.query(query, params);
+    res.json({ success: true, alerts: rows });
+  } catch (err) {
+    console.error('Error fetching system alerts:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.delete('/api/system-alerts', async (req, res) => {
-    try {
-        const { process_type } = req.query;
-        let query = 'DELETE FROM system_alert';
-        const params = [];
+  try {
+    const { process_type } = req.query;
+    let query = 'DELETE FROM system_alert';
+    const params = [];
 
-        if (process_type) {
-            query += ' WHERE process_type = ?';
-            params.push(process_type);
-        }
-
-        await pool.query(query, params);
-        res.json({ success: true, message: 'Alerts deleted successfully' });
-    } catch (err) {
-        console.error('Error deleting system alerts:', err);
-        res.status(500).json({ success: false, error: err.message });
+    if (process_type) {
+      query += ' WHERE process_type = ?';
+      params.push(process_type);
     }
+
+    await pool.query(query, params);
+    res.json({ success: true, message: 'Alerts deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting system alerts:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// DYNAMIC PRODUCT LIST ENDPOINTS
+// ==========================================
+app.get('/api/dispensing/products_list', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT product_name, mode FROM dispensing_product ORDER BY product_name');
+    res.json({ success: true, products: rows });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/laser/products_list', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT product_name, mode FROM laser_product ORDER BY product_name');
+    res.json({ success: true, products: rows });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/pof/products_list', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT product_name, mode FROM pof_product ORDER BY product_name');
+    res.json({ success: true, products: rows });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/damper/products_list', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT product_name, mode FROM damper_product ORDER BY product_name');
+    res.json({ success: true, products: rows });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
 });
 
 // ==========================================
@@ -1894,92 +1915,94 @@ app.delete('/api/system-alerts', async (req, res) => {
 // ==========================================
 
 app.get('/api/system/products', async (req, res) => {
-    try {
-        const [rows] = await pool.query('SELECT product_key, product_name, dims FROM master_products ORDER BY product_key');
-        res.json({ success: true, products: rows });
-    } catch(err) {
-        // Fallback if table doesn't exist yet
-        res.json({ success: true, products: [
-            {product_key: "cmr3d", product_name: "Cimarron 3D"},
-            {product_key: "cmr4d", product_name: "Cimarron 4D"},
-            {product_key: "cmr5d", product_name: "Cimarron 5D"},
-            {product_key: "comet", product_name: "Comet"},
-            {product_key: "dorado10d", product_name: "Dorado 10D"},
-            {product_key: "dorado5d", product_name: "Dorado 5D"},
-            {product_key: "dorado5dbb", product_name: "Dorado 5D AL BB"},
-            {product_key: "dor10n", product_name: "Dorado 10N"},
-            {product_key: "marlin10d", product_name: "Marlin 10D"},
-            {product_key: "m11", product_name: "M11"},
-            {product_key: "rosewood1d", product_name: "Rosewood 1D"},
-            {product_key: "rosewood2d", product_name: "Rosewood 2D"},
-            {product_key: "skybolt1d", product_name: "Skybolt 1D"},
-            {product_key: "skybolt2d", product_name: "Skybolt 2D"},
-            {product_key: "skybolt3d", product_name: "Skybolt 3D"},
-            {product_key: "skybolt4d", product_name: "Skybolt 4D"},
-            {product_key: "summit10d", product_name: "Summit 10D"},
-            {product_key: "v111d", product_name: "V11 1D"},
-            {product_key: "v112d", product_name: "V11 2D"},
-            {product_key: "v114d", product_name: "V11 4D"},
-            {product_key: "v15cmr4d", product_name: "V15 Cimarron 4D"},
-            {product_key: "cim3d", product_name: "Cimarron 3D (POF)"},
-            {product_key: "cim4d", product_name: "Cimarron 4D (POF)"},
-            {product_key: "cim5d", product_name: "Cimarron 5D (POF)"},
-            {product_key: "dor5d", product_name: "Dorado 5D (POF)"},
-            {product_key: "dor5dbb", product_name: "Dorado 5D AL BB (POF)"},
-            {product_key: "dor10d", product_name: "Dorado 10D (POF)"},
-            {product_key: "m11p", product_name: "M11 P (POF)"},
-            {product_key: "mar10d", product_name: "Marlin 10D (POF)"},
-            {product_key: "ros1d", product_name: "Rosewood 1D (POF)"},
-            {product_key: "ros2d", product_name: "Rosewood 2D (POF)"},
-            {product_key: "sky1d", product_name: "Skybolt 1D (POF)"},
-            {product_key: "sky2d", product_name: "Skybolt 2D (POF)"},
-            {product_key: "sky3d", product_name: "Skybolt 3D (POF)"},
-            {product_key: "sky4d", product_name: "Skybolt 4D (POF)"},
-            {product_key: "sum10d", product_name: "Summit 10D (POF)"},
-            {product_key: "v15", product_name: "V15 Cimarron 4D (POF)"}
-        ]});
-    }
+  try {
+    const [rows] = await pool.query('SELECT product_key, product_name, dims FROM master_products ORDER BY product_key');
+    res.json({ success: true, products: rows });
+  } catch (err) {
+    // Fallback if table doesn't exist yet
+    res.json({
+      success: true, products: [
+        { product_key: "cmr3d", product_name: "Cimarron 3D" },
+        { product_key: "cmr4d", product_name: "Cimarron 4D" },
+        { product_key: "cmr5d", product_name: "Cimarron 5D" },
+        { product_key: "comet", product_name: "Comet" },
+        { product_key: "dorado10d", product_name: "Dorado 10D" },
+        { product_key: "dorado5d", product_name: "Dorado 5D" },
+        { product_key: "dorado5dbb", product_name: "Dorado 5D AL BB" },
+        { product_key: "dor10n", product_name: "Dorado 10N" },
+        { product_key: "marlin10d", product_name: "Marlin 10D" },
+        { product_key: "m11", product_name: "M11" },
+        { product_key: "rosewood1d", product_name: "Rosewood 1D" },
+        { product_key: "rosewood2d", product_name: "Rosewood 2D" },
+        { product_key: "skybolt1d", product_name: "Skybolt 1D" },
+        { product_key: "skybolt2d", product_name: "Skybolt 2D" },
+        { product_key: "skybolt3d", product_name: "Skybolt 3D" },
+        { product_key: "skybolt4d", product_name: "Skybolt 4D" },
+        { product_key: "summit10d", product_name: "Summit 10D" },
+        { product_key: "v111d", product_name: "V11 1D" },
+        { product_key: "v112d", product_name: "V11 2D" },
+        { product_key: "v114d", product_name: "V11 4D" },
+        { product_key: "v15cmr4d", product_name: "V15 Cimarron 4D" },
+        { product_key: "cim3d", product_name: "Cimarron 3D (POF)" },
+        { product_key: "cim4d", product_name: "Cimarron 4D (POF)" },
+        { product_key: "cim5d", product_name: "Cimarron 5D (POF)" },
+        { product_key: "dor5d", product_name: "Dorado 5D (POF)" },
+        { product_key: "dor5dbb", product_name: "Dorado 5D AL BB (POF)" },
+        { product_key: "dor10d", product_name: "Dorado 10D (POF)" },
+        { product_key: "m11p", product_name: "M11 P (POF)" },
+        { product_key: "mar10d", product_name: "Marlin 10D (POF)" },
+        { product_key: "ros1d", product_name: "Rosewood 1D (POF)" },
+        { product_key: "ros2d", product_name: "Rosewood 2D (POF)" },
+        { product_key: "sky1d", product_name: "Skybolt 1D (POF)" },
+        { product_key: "sky2d", product_name: "Skybolt 2D (POF)" },
+        { product_key: "sky3d", product_name: "Skybolt 3D (POF)" },
+        { product_key: "sky4d", product_name: "Skybolt 4D (POF)" },
+        { product_key: "sum10d", product_name: "Summit 10D (POF)" },
+        { product_key: "v15", product_name: "V15 Cimarron 4D (POF)" }
+      ]
+    });
+  }
 });
 
 app.get('/api/system/spc_limits', async (req, res) => {
-    try {
-        const { mode, product } = req.query;
-        let query = 'SELECT * FROM spc_config_limits WHERE process_mode = ?';
-        let params = [mode || 'buyoff'];
-        if (product) {
-            query += ' AND product_key = ?';
-            params.push(product);
-        }
-        query += ' ORDER BY product_key, dimension_name';
-        
-        const [rows] = await pool.query(query, params);
-        res.json({ success: true, limits: rows });
-    } catch(err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: err.message });
+  try {
+    const { mode, product } = req.query;
+    let query = 'SELECT * FROM spc_config_limits WHERE process_mode = ?';
+    let params = [mode || 'buyoff'];
+    if (product) {
+      query += ' AND product_key = ?';
+      params.push(product);
     }
+    query += ' ORDER BY product_key, dimension_name';
+
+    const [rows] = await pool.query(query, params);
+    res.json({ success: true, limits: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.post('/api/system/spc_limits/batch', async (req, res) => {
-    try {
-        const { limits } = req.body;
-        if(!limits || !limits.length) return res.json({success: true});
-        
-        for (const lim of limits) {
-            await pool.query(
-                `INSERT INTO spc_config_limits 
+  try {
+    const { limits } = req.body;
+    if (!limits || !limits.length) return res.json({ success: true });
+
+    for (const lim of limits) {
+      await pool.query(
+        `INSERT INTO spc_config_limits 
                  (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl, frequency, laser_qty, laser_fixture, laser_shift)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                  lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl), frequency=VALUES(frequency),
                  laser_qty=VALUES(laser_qty), laser_fixture=VALUES(laser_fixture), laser_shift=VALUES(laser_shift)`,
-                [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl, lim.frequency, lim.laser_qty, lim.laser_fixture, lim.laser_shift]
-            );
-        }
-        res.json({ success: true });
-    } catch(err) {
-        res.status(500).json({ success: false, error: err.message });
+        [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl, lim.frequency, lim.laser_qty, lim.laser_fixture, lim.laser_shift]
+      );
     }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3001;
@@ -1999,6 +2022,7 @@ app.listen(PORT, () => {
 
 // === AUTO-SYNC WATCHER ===
 const watcherPath = path.join(__dirname, 'sync_watcher.js');
+
 if (fs.existsSync(watcherPath)) {
   try {
     require('./sync_watcher.js');
