@@ -9,6 +9,24 @@
 const LS_KEY_DMR = 'belton_damper_v3_records';
 const LS_KEY_ALERTS = 'belton_damper_v3_alerts';
 const LS_KEY_CFG = 'belton_damper_v3_config';
+const LS_KEY_DMR_CFG = 'belton_damper_v3_config';
+let dmpRecords = [];
+
+async function fetchDamperConfigFromDB() {
+  try {
+    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/system/config');
+    if (res.ok) {
+      const dbCfg = await res.json();
+      if (dbCfg && dbCfg[LS_KEY_DMR_CFG]) {
+        localStorage.setItem(LS_KEY_DMR_CFG, dbCfg[LS_KEY_DMR_CFG]);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch Damper config from DB", e);
+  }
+}
+// Call early
+fetchDamperConfigFromDB();
 
 // ─── Backend ──────────────────────────────────────────────────
 let isServerOnline = false;
@@ -115,7 +133,7 @@ let PRODUCTS = {};
 // ════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
-    populateProductDropdowns();
+    fetchDynamicProducts();
     buildVMIGrid();
     const d = document.getElementById('m-date');
     if (d) d.value = todayISO();
@@ -143,15 +161,59 @@ function startClock() {
 function loadConfig() {
     try {
         const saved = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-        PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
+        let sourceProducts = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
         if (saved.products) {
             Object.keys(saved.products).forEach(k => {
-                if (PRODUCTS[k]) PRODUCTS[k] = { ...PRODUCTS[k], ...saved.products[k] };
+                if (sourceProducts[k]) sourceProducts[k] = { ...sourceProducts[k], ...saved.products[k] };
             });
         }
+        PRODUCTS = new Proxy(sourceProducts, {
+            get: function(target, prop) {
+                if (typeof prop === 'symbol') return target[prop];
+                if (prop in target) return target[prop];
+                if (typeof prop === 'string') {
+                    const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
+                    const match = sortedKeys.find(k => prop.includes(target[k].label));
+                    if (match) return target[match];
+                }
+                return undefined;
+            },
+            ownKeys: function(target) { return Reflect.ownKeys(target); },
+            getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+            set: function(target, prop, value) { target[prop] = value; return true; }
+        });
+    } catch { 
+        PRODUCTS = new Proxy(JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)), {
+            get: function(target, prop) {
+                if (typeof prop === 'symbol') return target[prop];
+                if (prop in target) return target[prop];
+                if (typeof prop === 'string') {
+                    const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
+                    const match = sortedKeys.find(k => prop.includes(target[k].label));
+                    if (match) return target[match];
+                }
+                return undefined;
+            },
+            ownKeys: function(target) { return Reflect.ownKeys(target); },
+            getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+            set: function(target, prop, value) { target[prop] = value; return true; }
+        });
+    }
+}
 
-        // Dimensions are now dynamically loaded per-product in onProductChange()
-    } catch { PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)); }
+window.SERVER_PRODUCTS_LIST = [];
+
+async function fetchDynamicProducts() {
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/damper/products_list`);
+        const data = await res.json();
+        if (data.success) {
+            window.SERVER_PRODUCTS_LIST = data.products;
+            populateProductDropdowns();
+        }
+    } catch (e) {
+        console.error('Failed to fetch dynamic products:', e);
+    }
 }
 
 function applyDamperConfigForProduct(productKey) {
@@ -183,7 +245,7 @@ function applyDamperConfigForProduct(productKey) {
 
         g.nom = nom;
         g.tol = tol;
-        
+
         const lsl = (g.nom - g.tol).toFixed(3);
         const usl = (g.nom + g.tol).toFixed(3);
         g.subLabel = `Spec: ${g.nom.toFixed(4)} ± ${g.tol.toFixed(4)} in. (LSL: ${lsl} ~ USL: ${usl})`;
@@ -191,16 +253,36 @@ function applyDamperConfigForProduct(productKey) {
 }
 
 // ─── Populate Dropdowns ───────────────────────────────────────
-function populateProductDropdowns() {
+function populateProductDropdowns(modeFilter = null) {
     ['m-product', 'flt-product', 'viz-product'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         while (el.options.length > 1) el.remove(1);
-        Object.keys(PRODUCTS).forEach(k => {
-            const o = document.createElement('option');
-            o.value = k; o.textContent = PRODUCTS[k].label;
-            el.appendChild(o);
-        });
+        
+        if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+            Object.keys(PRODUCTS).forEach(k => {
+                const o = document.createElement('option');
+                o.value = k; o.textContent = PRODUCTS[k].label;
+                el.appendChild(o);
+            });
+        } else {
+            let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
+            if (dbMode === 'buyoff') dbMode = 'buy-off';
+            
+            const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode);
+            
+            const sourceKeys = Object.keys(PRODUCTS_DEFAULT);
+            const sortedKeys = sourceKeys.sort((a,b) => PRODUCTS_DEFAULT[b].label.length - PRODUCTS_DEFAULT[a].label.length);
+
+            filtered.forEach(p => {
+                let mk = sortedKeys.find(k => p.product_name.includes(PRODUCTS_DEFAULT[k].label)) || sourceKeys[0];
+                const o = document.createElement('option');
+                o.value = mk;
+                o.setAttribute('data-fullname', p.product_name);
+                o.textContent = p.product_name;
+                el.appendChild(o);
+            });
+        }
     });
 }
 
@@ -240,6 +322,9 @@ function onModeChange() {
         }
     }
     buildVMIGrid();
+    if (window.SERVER_PRODUCTS_LIST && window.SERVER_PRODUCTS_LIST.length > 0) {
+        populateProductDropdowns(mode);
+    }
     onProductChange();
 }
 
@@ -311,7 +396,7 @@ function onProductChange() {
             } else {
                 qtyInput.value = '';
             }
-        } catch(e) {
+        } catch (e) {
             qtyInput.value = '';
         }
     }
@@ -753,8 +838,9 @@ function renderRecords() {
             <td>${ovBadge(r.overall)}</td>
             <td>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
-                    <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="viewRecord(${r.id})">👁</button>
-                    <button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteRecord(${r.id})">🗑</button>
+                    <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="viewRecord('${r.id}')">👁</button>
+                    <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="editRecord('${r.id}')">✏️</button>
+                    <button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteRecord('${r.id}')">🗑</button>
                 </div>
             </td>
         </tr>`).join('');
@@ -823,10 +909,12 @@ function deleteRecord(id) {
         if (rec && typeof isServerOnline !== 'undefined' && isServerOnline) {
             try {
                 await fetch(`${BACKEND_URL}/api/damper/records/${rec.no}`, { method: 'DELETE' });
+                await refreshDataFromServer();
             } catch (e) { console.error('Delete Damper Record Error:', e); }
+        } else {
+            saveRecords(loadRecords().filter(r => r.id !== id));
+            updateKPIs(); updateBadges(); renderRecords();
         }
-        saveRecords(loadRecords().filter(r => r.id !== id));
-        updateKPIs(); updateBadges(); renderRecords();
         showToast('ลบข้อมูลสำเร็จ', 'success');
     });
 }
@@ -1177,43 +1265,45 @@ async function refreshDataFromServer() {
         if (resRecs.ok) {
             const data = await resRecs.json();
             if (data.success && Array.isArray(data.records)) {
-                // Map from server format to local format
-                const mapped = data.records.map(r => ({
-                    id: r.no + '_' + (r.mode || 'Buy off'),
-                    no: r.no,
-                    mode: r.mode || 'Buy off',
-                    date: r.date,
-                    product: r.traveler ? r.traveler.split('_')[0] : '',
-                    productLabel: r.traveler || '',
-                    partno: '',
-                    mc: '',
-                    team: r.team || '',
-                    qcEn: r.qcEn || '',
-                    meEn: r.meEn || '',
-                    traveler: r.traveler || '',
-                    sendTime: r.sendTime || '',
-                    recvTime: r.recvTime || '',
-                    attribute: r.attribute || 'Normal',
-                    pcs: (r.short && r.short.vals) ? r.short.vals.length : 0,
-                    dimData: {
-                        short_p1: r.short ? { avg: r.short.avg, max: r.short.max, min: r.short.min, vals: r.short.vals || [], result: r.short.inSpec ? 'Pass' : 'Fail' } : null,
-                        short_p2: null,
-                        long_top: r.long ? { avg: r.long.avg, max: r.long.max, min: r.long.min, vals: r.long.vals || [], result: r.long.inSpec ? 'Pass' : 'Fail' } : null,
-                        long_bot: null,
-                    },
-                    shortAvg: r.short ? r.short.avg : null,
-                    shortMax: r.short ? r.short.max : null,
-                    shortMin: r.short ? r.short.min : null,
-                    shortResult: r.short ? (r.short.inSpec ? 'Pass' : 'Fail') : 'Pass',
-                    longAvg: r.long ? r.long.avg : null,
-                    longMax: r.long ? r.long.max : null,
-                    longMin: r.long ? r.long.min : null,
-                    longResult: r.long ? (r.long.inSpec ? 'Pass' : 'Fail') : 'Pass',
-                    vmi: r.vmi || {},
-                    vmiNG: !r.vmiPass,
-                    overall: r.overallPass ? 'Pass' : 'Fail',
-                    savedAt: r.savedAt
-                }));
+                const mapped = data.records.map(r => {
+                    const vj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {});
+                    return {
+                        id: r.no + '_' + (r.mode || 'Buy off'),
+                        no: r.no,
+                        mode: r.mode || 'Buy off',
+                        date: r.date,
+                        product: vj.product || r.traveler ? r.traveler.split('_')[0] : '',
+                        productLabel: vj.productLabel || r.traveler || '',
+                        partno: vj.partno || '',
+                        mc: vj.mc || '',
+                        team: r.team || '',
+                        qcEn: r.qcEn || '',
+                        meEn: r.meEn || '',
+                        traveler: r.traveler || '',
+                        sendTime: r.sendTime || '',
+                        recvTime: r.recvTime || '',
+                        attribute: r.attribute || 'Normal',
+                        pcs: (r.short && r.short.vals) ? r.short.vals.length : 0,
+                        dimData: vj.dimData || {
+                            short_p1: r.short ? { avg: r.short.avg, max: r.short.max, min: r.short.min, vals: r.short.vals || [], result: r.short.inSpec ? 'Pass' : 'Fail' } : null,
+                            short_p2: null,
+                            long_top: r.long ? { avg: r.long.avg, max: r.long.max, min: r.long.min, vals: r.long.vals || [], result: r.long.inSpec ? 'Pass' : 'Fail' } : null,
+                            long_bot: null,
+                        },
+                        shortAvg: r.short ? r.short.avg : null,
+                        shortMax: r.short ? r.short.max : null,
+                        shortMin: r.short ? r.short.min : null,
+                        shortResult: r.short ? (r.short.inSpec ? 'Pass' : 'Fail') : 'Pass',
+                        longAvg: r.long ? r.long.avg : null,
+                        longMax: r.long ? r.long.max : null,
+                        longMin: r.long ? r.long.min : null,
+                        longResult: r.long ? (r.long.inSpec ? 'Pass' : 'Fail') : 'Pass',
+                        vmi: r.vmi || {},
+                        vmiNG: !r.vmiPass,
+                        overall: r.overallPass ? 'Pass' : 'Fail',
+                        savedAt: r.savedAt
+                    };
+                });
                 saveRecords(mapped);
                 renderRecords(); // ← render ทันทีหลัง save
             }
@@ -1418,7 +1508,7 @@ function renderPendingTable() {
         tbody.innerHTML = '<div class="empty" style="padding:20px"><p>ไม่มี Pending Records</p></div>';
         return;
     }
-    
+
     let html = '<table style="width:100%;text-align:left;">';
     html += '<thead><tr><th>No</th><th>Date</th><th>Product</th><th>PT Number</th><th>Select</th></tr></thead><tbody>';
     recs.forEach(r => {
@@ -1451,13 +1541,13 @@ function parseStage2Data() {
     const botText = document.getElementById('m-bot-data').value;
     const topNums = topText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
     const botNums = botText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
-    
+
     let html = `<h4>Extracted Data:</h4>`;
     html += `<p><b>Top</b>: ${topNums.length} values => ${topNums.join(', ')}</p>`;
     html += `<p><b>Bottom</b>: ${botNums.length} values => ${botNums.join(', ')}</p>`;
     document.getElementById('merge-preview-area').innerHTML = html;
-    
-    if(topNums.length > 0 && botNums.length > 0) {
+
+    if (topNums.length > 0 && botNums.length > 0) {
         document.getElementById('btn-merge-damper').disabled = false;
         window._stage2Data = { topNums, botNums };
     }
@@ -1468,36 +1558,36 @@ function commitStage2Damper() {
     const recs = loadRecords();
     const idx = recs.findIndex(r => r.id === _selectedMergeId);
     if (idx === -1) return;
-    
+
     const r = recs[idx];
     const { topNums, botNums } = window._stage2Data;
-    
+
     if (!r.dimData) r.dimData = {};
-    
+
     const evalGroup = (key, nums, gDef) => {
         const lsl = gDef.nom - gDef.tol;
         const usl = gDef.nom + gDef.tol;
-        const avg = nums.reduce((a,b)=>a+b,0)/nums.length;
+        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
         const max = Math.max(...nums);
         const min = Math.min(...nums);
         const allOk = nums.every(v => v >= lsl && v <= usl);
         return { vals: nums, avg: +avg.toFixed(5), max: +max.toFixed(5), min: +min.toFixed(5), result: allOk ? 'Pass' : 'Fail' };
     };
-    
+
     const topDef = DIM_GROUPS.long.find(x => x.key === 'long_top');
     const botDef = DIM_GROUPS.long.find(x => x.key === 'long_bot');
-    
+
     r.dimData['long_top'] = evalGroup('long_top', topNums, topDef);
     r.dimData['long_bot'] = evalGroup('long_bot', botNums, botDef);
-    
+
     r.longAvg = r.dimData['long_top'].avg;
     r.longMax = r.dimData['long_top'].max;
     r.longMin = r.dimData['long_top'].min;
     r.longResult = (r.dimData['long_top'].result === 'Pass' && r.dimData['long_bot'].result === 'Pass') ? 'Pass' : 'Fail';
-    
+
     const shortOk = (r.dimData['short_p1']?.result === 'Pass' && r.dimData['short_p2']?.result === 'Pass');
     r.overall = (!r.vmiNG && shortOk && r.longResult === 'Pass') ? 'Pass' : 'Fail';
-    
+
     saveRecords(recs);
     _selectedMergeId = null;
     window._stage2Data = null;
@@ -1505,12 +1595,12 @@ function commitStage2Damper() {
     document.getElementById('m-bot-data').value = '';
     document.getElementById('merge-preview-area').innerHTML = '<div style="color:var(--pass);font-weight:bold;padding:10px;background:rgba(39,174,96,0.1);border-radius:6px;">✅ Merge สำเร็จ!</div>';
     document.getElementById('btn-merge-damper').disabled = true;
-    
+
     updateKPIs();
     renderRecords();
     renderPendingTable();
     showToast('บันทึกข้อมูลเรียบร้อย', 'success');
-    
+
     if (typeof syncWithServer === 'function') syncWithServer();
 }
 
@@ -1524,7 +1614,7 @@ function clearAllDrafts() {
 }
 
 const originalSaveBatch = saveBatch;
-saveBatch = function() {
+saveBatch = function () {
     const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
     let anyMissing = false;
     for (const g of allGroups) {
@@ -1532,14 +1622,14 @@ saveBatch = function() {
             anyMissing = true;
         }
     }
-    
+
     if (anyMissing) {
         showConfirm('ข้อมูลไม่ครบ', 'ต้องการบันทึกเป็น Waiting (Stage 1) เพื่อรอ Merge ข้อมูลทีหลังหรือไม่?', () => {
             const oldOverall = document.getElementById('m-overall').value;
             setOverallPF('Waiting');
             try {
                 const oldGroups = [...DIM_GROUPS.long];
-                DIM_GROUPS.long = []; 
+                DIM_GROUPS.long = [];
                 originalSaveBatch();
                 DIM_GROUPS.long = oldGroups;
                 renderPendingTable();
@@ -1554,23 +1644,140 @@ saveBatch = function() {
 
 // Hook tab switch to render pending table
 const originalSwitchTab = switchTab;
-switchTab = function(id, btn) {
+switchTab = function (id, btn) {
     originalSwitchTab(id, btn);
-    if(id === 'manual' || id === 'stage2') {
+    if (id === 'manual' || id === 'stage2') {
         renderPendingTable();
     }
 }
 
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
-    e.preventDefault();
-    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
-    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
-                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
-    const index = focusable.indexOf(e.target);
-    if (index > -1 && index < focusable.length - 1) {
-      focusable[index + 1].focus();
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+        e.preventDefault();
+        const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+        const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+            .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+        const index = focusable.indexOf(e.target);
+        if (index > -1 && index < focusable.length - 1) {
+            focusable[index + 1].focus();
+        }
     }
-  }
 });
 
+// --- Edit Damper Record ---
+document.addEventListener('DOMContentLoaded', () => {
+    const editModalHTML = `
+    <div id="modal-rec-edit" class="modal-overlay" style="display:none;z-index:9999;">
+        <div class="modal-content" style="max-width:800px;width:95%">
+            <h3 style="margin-top:0;margin-bottom:16px;font-size:18px;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:10px">
+                แก้ไขข้อมูลบันทึก <span id="e-dmp-no" style="color:var(--blue)"></span>
+            </h3>
+            <input type="hidden" id="e-dmp-id">
+            
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+                <div class="form-group"><label>Date</label><input type="date" id="e-dmp-date" class="form-input"></div>
+                <div class="form-group"><label>Product</label><input type="text" id="e-dmp-product" class="form-input"></div>
+                <div class="form-group"><label>Traveler</label><input type="text" id="e-dmp-traveler" class="form-input"></div>
+                
+                <div class="form-group"><label>Part No.</label><input type="text" id="e-dmp-partno" class="form-input"></div>
+                <div class="form-group"><label>Fixture / MC</label><input type="text" id="e-dmp-mc" class="form-input"></div>
+                <div class="form-group"><label>Team</label><input type="text" id="e-dmp-team" class="form-input"></div>
+                
+                <div class="form-group"><label>QC EN</label><input type="text" id="e-dmp-qcEn" class="form-input"></div>
+                <div class="form-group"><label>ME EN</label><input type="text" id="e-dmp-meEn" class="form-input"></div>
+                <div class="form-group"><label>Attribute</label><input type="text" id="e-dmp-attr" class="form-input"></div>
+            </div>
+
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px">Damper Values (Average)</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;padding:12px;background:var(--bg2);border-radius:8px">
+                <div class="form-group"><label>Short P1 Avg</label><input type="number" step="0.0001" id="e-dmp-short" class="form-input"></div>
+                <div class="form-group"><label>Long Top Avg</label><input type="number" step="0.0001" id="e-dmp-long" class="form-input"></div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                <div class="form-group">
+                    <label>Overall Result</label>
+                    <select id="e-dmp-overall" class="form-select">
+                        <option value="Pass">Pass</option>
+                        <option value="Fail">Fail</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--border);padding-top:16px;">
+                <button class="btn btn-outline" onclick="document.getElementById('modal-rec-edit').style.display='none'">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="saveEditRecord()">💾 บันทึก</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', editModalHTML);
+});
+
+window.editRecord = function (id) {
+    const r = loadRecords().find(x => String(x.id) === String(id));
+    if (!r) { alert('Record not found'); return; }
+
+    document.getElementById('e-dmp-id').value = r.id;
+    document.getElementById('e-dmp-no').textContent = '#' + r.no;
+    document.getElementById('e-dmp-date').value = r.date || '';
+    document.getElementById('e-dmp-product').value = r.productLabel || r.product || '';
+    document.getElementById('e-dmp-traveler').value = r.traveler || '';
+    document.getElementById('e-dmp-partno').value = r.partno || '';
+    document.getElementById('e-dmp-mc').value = r.mc || '';
+    document.getElementById('e-dmp-team').value = r.team || '';
+    document.getElementById('e-dmp-qcEn').value = r.qcEn || '';
+    document.getElementById('e-dmp-meEn').value = r.meEn || '';
+    document.getElementById('e-dmp-attr').value = r.attribute || '';
+
+    document.getElementById('e-dmp-short').value = r.dimData?.short_p1?.avg || '';
+    document.getElementById('e-dmp-long').value = r.dimData?.long_top?.avg || '';
+
+    document.getElementById('e-dmp-overall').value = r.overall === 'Pass' ? 'Pass' : 'Fail';
+
+    document.getElementById('modal-rec-edit').style.display = 'flex';
+};
+
+window.saveEditRecord = async function () {
+    const id = document.getElementById('e-dmp-id').value;
+    const recs = loadRecords();
+    const idx = recs.findIndex(x => String(x.id) === id);
+    if (idx < 0) return;
+
+    const r = recs[idx];
+    r.date = document.getElementById('e-dmp-date').value;
+    r.productLabel = document.getElementById('e-dmp-product').value;
+    r.traveler = document.getElementById('e-dmp-traveler').value;
+    r.partno = document.getElementById('e-dmp-partno').value;
+    r.mc = document.getElementById('e-dmp-mc').value;
+    r.team = document.getElementById('e-dmp-team').value;
+    r.qcEn = document.getElementById('e-dmp-qcEn').value;
+    r.meEn = document.getElementById('e-dmp-meEn').value;
+    r.attribute = document.getElementById('e-dmp-attr').value;
+    r.overall = document.getElementById('e-dmp-overall').value;
+
+    const sAvg = parseFloat(document.getElementById('e-dmp-short').value);
+    const lAvg = parseFloat(document.getElementById('e-dmp-long').value);
+
+    if (r.dimData) {
+        if (r.dimData.short_p1 && !isNaN(sAvg)) r.dimData.short_p1.avg = sAvg;
+        if (r.dimData.long_top && !isNaN(lAvg)) r.dimData.long_top.avg = lAvg;
+    }
+
+    saveRecords(recs);
+    renderRecords();
+    document.getElementById('modal-rec-edit').style.display = 'none';
+
+    // Sync to Server
+    if (typeof BACKEND_URL !== 'undefined') {
+        try {
+            await fetch(`${BACKEND_URL}/api/damper/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ db_data: { records: [r] } })
+            });
+            console.log('Edit synced to server');
+        } catch (e) {
+            console.error('Failed to sync edit', e);
+        }
+    }
+};

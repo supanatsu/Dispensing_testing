@@ -63,8 +63,11 @@ function initGlobalConfig() {
 
     loadGlobalLaserConfig();
     loadGlobalDamperConfig();
-    document.getElementById('gc-pof-product').value = '';
-    document.getElementById('gc-pof-form').style.display = 'none';
+    if (typeof loadGlobalPofConfig === 'function') {
+        loadGlobalPofConfig();
+    } else {
+        document.getElementById('gc-pof-product').value = '';
+    }
 }
 
 // ========================
@@ -92,34 +95,28 @@ function loadGlobalLaserConfig() {
     if (!cfg.typeQty) cfg.typeQty = {};
     if (!cfg.productQty) cfg.productQty = {};
 
-    // Get selected product
+    // Get selected product and category
     const prodSel = document.getElementById('gc-laser-product');
     const selectedKey = prodSel ? prodSel.value : '';
+    const catSel = document.getElementById('gc-laser-category');
+    const category = catSel ? catSel.value : 'E-block';
 
-    const defaultContainer = document.getElementById('gc-laser-default-qtys');
-    const productContainer = document.getElementById('gc-laser-product-qty-container');
-    const productEblockInput = document.getElementById('gc-laser-qty-product-eblock');
-    const productBobbinInput = document.getElementById('gc-laser-qty-product-bobbin');
+    const freqInput = document.getElementById('gc-laser-freq');
+    const infoText = document.getElementById('gc-laser-freq-info');
 
-    if (selectedKey) {
-        if (defaultContainer) defaultContainer.style.display = 'none';
-        if (productContainer) productContainer.style.display = 'grid';
-
-        if (productEblockInput) {
-            productEblockInput.value = (cfg.productQty[selectedKey] && cfg.productQty[selectedKey]['E-block']) || '';
+    if (freqInput) {
+        let val = '';
+        if (selectedKey) {
+            val = (cfg.productQty[selectedKey] && cfg.productQty[selectedKey][category]) || '';
+            if (infoText) {
+                const globalVal = cfg.typeQty[category] || (category === 'E-block' ? 2 : 15);
+                infoText.innerHTML = val ? `(Override from default ${globalVal})` : `(Using default: <b>${globalVal}</b>)`;
+            }
+        } else {
+            val = cfg.typeQty[category] || '';
+            if (infoText) infoText.innerHTML = `(System Default: E-block=2, Bobbin=15)`;
         }
-        if (productBobbinInput) {
-            productBobbinInput.value = (cfg.productQty[selectedKey] && cfg.productQty[selectedKey]['Bobbin']) || '';
-        }
-    } else {
-        if (defaultContainer) defaultContainer.style.display = 'grid';
-        if (productContainer) productContainer.style.display = 'none';
-
-        // --- Qty per batch ---
-        const eblockEl = document.getElementById('gc-laser-qty-eblock');
-        const bobbinEl = document.getElementById('gc-laser-qty-bobbin');
-        if (eblockEl) eblockEl.value = cfg.typeQty['E-block'] || '';
-        if (bobbinEl) bobbinEl.value = cfg.typeQty['Bobbin'] || '';
+        freqInput.value = val;
     }
 
     // --- Summary cards (index.html) ---
@@ -191,17 +188,28 @@ async function saveGlobalLaserConfig() {
         bobbin_qty: null
     };
 
-    if (selectedKey) {
-        const eb = document.getElementById('gc-laser-qty-product-eblock').value.trim();
-        const bb = document.getElementById('gc-laser-qty-product-bobbin').value.trim();
-        payload.eblock_qty = eb ? eb : null;
-        payload.bobbin_qty = bb ? bb : null;
-    } else {
-        const eb = document.getElementById('gc-laser-qty-eblock').value.trim();
-        const bb = document.getElementById('gc-laser-qty-bobbin').value.trim();
-        payload.eblock_qty = eb ? eb : null;
-        payload.bobbin_qty = bb ? bb : null;
+    const dt = document.getElementById('gc-laser-datatype')?.value || 'buyoff';
+    const category = document.getElementById('gc-laser-category')?.value || 'E-block';
+    const freq = document.getElementById('gc-laser-freq')?.value.trim();
+
+    // In current system, we assume frequency is per category (E-block or Bobbin) and per Product (if selected).
+    // The previous API /api/laser_config stores eblock_qty and bobbin_qty per product.
+    
+    // We must fetch existing to preserve the other category's value
+    let existingEblock = null;
+    let existingBobbin = null;
+    if (window.LASER_CONFIG) {
+        if (selectedKey) {
+            existingEblock = window.LASER_CONFIG.productQty[selectedKey]?.['E-block'];
+            existingBobbin = window.LASER_CONFIG.productQty[selectedKey]?.['Bobbin'];
+        } else {
+            existingEblock = window.LASER_CONFIG.typeQty['E-block'];
+            existingBobbin = window.LASER_CONFIG.typeQty['Bobbin'];
+        }
     }
+    
+    payload.eblock_qty = category === 'E-block' ? (freq ? freq : null) : existingEblock;
+    payload.bobbin_qty = category === 'Bobbin' ? (freq ? freq : null) : existingBobbin;
 
     try {
         const res = await fetch(API_BASE + '/api/laser_config', {
@@ -464,11 +472,21 @@ function loadGlobalDamperConfig() {
         }
     });
 
-    // Load Frequencies (always global, not product specific)
+    // Load Frequencies (per product, fallback to global)
+    const prodOverride = (cfg.productDims && selectedKey && cfg.productDims[selectedKey]) ? cfg.productDims[selectedKey] : {};
     const freqBuyoffEl = document.getElementById('gc-dmp-freq-buyoff');
     const freqRovingEl = document.getElementById('gc-dmp-freq-roving');
-    if (freqBuyoffEl) freqBuyoffEl.value = cfg.freqBuyoff !== undefined ? cfg.freqBuyoff : '';
-    if (freqRovingEl) freqRovingEl.value = cfg.freqRoving !== undefined ? cfg.freqRoving : '';
+    
+    if (freqBuyoffEl) {
+        freqBuyoffEl.value = prodOverride.freqBuyoff !== undefined ? prodOverride.freqBuyoff : (cfg.freqBuyoff !== undefined ? cfg.freqBuyoff : '');
+    }
+    if (freqRovingEl) {
+        freqRovingEl.value = prodOverride.freqRoving !== undefined ? prodOverride.freqRoving : (cfg.freqRoving !== undefined ? cfg.freqRoving : '');
+    }
+    
+    if (typeof filterDamperRows === 'function') {
+        filterDamperRows();
+    }
 }
 
 function saveGlobalDamperConfig() {
@@ -514,18 +532,27 @@ function saveGlobalDamperConfig() {
         }
     });
 
-    // Frequencies (always global)
+    // Frequencies (per product)
     const freqBuyoffVal = parseInt(document.getElementById('gc-dmp-freq-buyoff')?.value, 10);
     const freqRovingVal = parseInt(document.getElementById('gc-dmp-freq-roving')?.value, 10);
     
-    if (!isNaN(freqBuyoffVal) && freqBuyoffVal > 0) { cfg.freqBuyoff = freqBuyoffVal; changed = true; }
-    else if (cfg.freqBuyoff !== undefined && !selectedKey) { delete cfg.freqBuyoff; changed = true; }
+    if (!isNaN(freqBuyoffVal) && freqBuyoffVal > 0) { targetObj.freqBuyoff = freqBuyoffVal; changed = true; }
+    else if (targetObj.freqBuyoff !== undefined) { delete targetObj.freqBuyoff; changed = true; }
     
-    if (!isNaN(freqRovingVal) && freqRovingVal > 0) { cfg.freqRoving = freqRovingVal; changed = true; }
-    else if (cfg.freqRoving !== undefined && !selectedKey) { delete cfg.freqRoving; changed = true; }
+    if (!isNaN(freqRovingVal) && freqRovingVal > 0) { targetObj.freqRoving = freqRovingVal; changed = true; }
+    else if (targetObj.freqRoving !== undefined) { delete targetObj.freqRoving; changed = true; }
 
     if (changed || selectedKey) {
-        localStorage.setItem(LS_KEY_DMR_CFG, JSON.stringify(cfg));
+        const cfgStr = JSON.stringify(cfg);
+        localStorage.setItem(LS_KEY_DMR_CFG, cfgStr);
+        
+        // Sync with DB
+        fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [LS_KEY_DMR_CFG]: cfgStr })
+        }).catch(e => console.error("Sync Damper to DB failed", e));
+        
         alert('บันทึก Damper Specifications สำเร็จ\n(รีเฟรชหน้า Damper Install เพื่อใช้งานค่าใหม่)');
         loadGlobalDamperConfig();
     } else {

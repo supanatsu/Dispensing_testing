@@ -12,6 +12,22 @@ const LS_KEY_POF = 'belton_pof_v4_records';
 const LS_KEY_ALERTS = 'belton_pof_v4_alerts';
 const LS_KEY_CFG = 'belton_pof_v4_config';
 
+async function fetchPOFConfigFromDB() {
+  try {
+    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/system/config');
+    if (res.ok) {
+      const dbCfg = await res.json();
+      if (dbCfg && dbCfg.belton_pof_config_v1) {
+        localStorage.setItem('belton_pof_config_v1', dbCfg.belton_pof_config_v1);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch POF config from DB", e);
+  }
+}
+// Call early
+fetchPOFConfigFromDB();
+
 //  Backend 
 let isServerOnline = false;
 
@@ -345,7 +361,7 @@ function getSPC(productKey, modeKey, typeKey) {
 // 
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
-  populateProductDropdowns();
+  fetchDynamicProducts();
   populateModeDropdowns();
 
   const d = document.getElementById('m-date');
@@ -384,14 +400,58 @@ function startClock() {
 function loadConfig() {
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-    PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
+    let sourceProducts = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
     if (saved.products) {
       Object.keys(saved.products).forEach(k => {
-        if (PRODUCTS[k]) PRODUCTS[k] = { ...PRODUCTS[k], ...saved.products[k] };
+        if (sourceProducts[k]) sourceProducts[k] = { ...sourceProducts[k], ...saved.products[k] };
       });
     }
+    PRODUCTS = new Proxy(sourceProducts, {
+      get: function (target, prop) {
+        if (typeof prop === 'symbol') return target[prop];
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string') {
+          const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
+          const match = sortedKeys.find(k => prop.includes(target[k].label));
+          if (match) return target[match];
+        }
+        return undefined;
+      },
+      ownKeys: function (target) { return Reflect.ownKeys(target); },
+      getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+      set: function (target, prop, value) { target[prop] = value; return true; }
+    });
   } catch {
-    PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
+    PRODUCTS = new Proxy(JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)), {
+      get: function (target, prop) {
+        if (typeof prop === 'symbol') return target[prop];
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string') {
+          const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
+          const match = sortedKeys.find(k => prop.includes(target[k].label));
+          if (match) return target[match];
+        }
+        return undefined;
+      },
+      ownKeys: function (target) { return Reflect.ownKeys(target); },
+      getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+      set: function (target, prop, value) { target[prop] = value; return true; }
+    });
+  }
+}
+
+window.SERVER_PRODUCTS_LIST = [];
+
+async function fetchDynamicProducts() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/pof/products_list`);
+    const data = await res.json();
+    if (data.success) {
+      window.SERVER_PRODUCTS_LIST = data.products;
+      populateProductDropdowns();
+    }
+  } catch (e) {
+    console.error('Failed to fetch dynamic products:', e);
   }
 }
 
@@ -426,17 +486,39 @@ function populateModeDropdowns() {
   });
 }
 
-function populateProductDropdowns() {
+function populateProductDropdowns(modeFilter = null) {
   ['m-product', 'flt-product', 'viz-product', 'cfg-product-sel', 'imp-product'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     while (el.options.length > 1) el.remove(1);
-    Object.keys(PRODUCTS).forEach(k => {
-      const o = document.createElement('option');
-      o.value = k;
-      o.textContent = PRODUCTS[k].label;
-      el.appendChild(o);
-    });
+
+    if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+      Object.keys(PRODUCTS).forEach(k => {
+        const o = document.createElement('option');
+        o.value = k;
+        o.textContent = PRODUCTS[k].label;
+        el.appendChild(o);
+      });
+    } else {
+      // Map mode to match DB string Buy-off/Roving
+      let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
+      if (dbMode === 'buyoff') dbMode = 'buy-off';
+
+      const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode);
+
+      // Use a proxy source for keys
+      const sourceKeys = Object.keys(PRODUCTS_DEFAULT);
+      const sortedKeys = sourceKeys.sort((a, b) => PRODUCTS_DEFAULT[b].label.length - PRODUCTS_DEFAULT[a].label.length);
+
+      filtered.forEach(p => {
+        let mk = sortedKeys.find(k => p.product_name.includes(PRODUCTS_DEFAULT[k].label)) || sourceKeys[0];
+        const o = document.createElement('option');
+        o.value = mk;
+        o.setAttribute('data-fullname', p.product_name);
+        o.textContent = p.product_name;
+        el.appendChild(o);
+      });
+    }
   });
 }
 
@@ -618,6 +700,17 @@ async function refreshDataFromServer() {
 async function syncWithServer() {
   showToast('กำลัง Sync ข้อมูล...', 'info');
   await checkBackendConnection();
+  if (isServerOnline && _recordsCache.length > 0) {
+    try {
+      await fetch(`${BACKEND_URL}/api/pof/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_data: { records: _recordsCache } })
+      });
+    } catch (e) {
+      console.warn('POF Push sync failed', e);
+    }
+  }
   await refreshDataFromServer();
   showToast(isServerOnline ? '✅ Sync สำเร็จ' : '⚠️ ออฟไลน์: ใช้ข้อมูลในเครื่อง', isServerOnline ? 'success' : 'warn');
 }
@@ -634,6 +727,9 @@ function onModeChange() {
     badge.style.color = m.color;
     badge.style.background = m.bg;
     badge.style.border = `1px solid ${m.color}33`;
+  }
+  if (window.SERVER_PRODUCTS_LIST && window.SERVER_PRODUCTS_LIST.length > 0) {
+    populateProductDropdowns(modeKey);
   }
   onProductChange();
 }
@@ -665,7 +761,7 @@ function onProductChange() {
     let shortSpc = { ...spc };
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
-      const pCfg = allCfg[prodKey];
+      const pCfg = allCfg[prodKey] || allCfg['default'];
       const grp = MODES[modeKey]?.spcKey || 'buyoff';
       if (pCfg && pCfg[grp]) {
         const bc = pCfg[grp];
@@ -740,7 +836,7 @@ function onProductChange() {
   if (qtyInput && prodKey) {
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
-      const pCfg = allCfg[prodKey];
+      const pCfg = allCfg[prodKey] || allCfg['default'];
       if (pCfg) {
         if (modeKey === 'buyoff' || modeKey === 'oba') {
           qtyInput.value = pCfg.freq_buyoff ? `${pCfg.freq_buyoff}/Shift/Oven` : '';
@@ -951,9 +1047,9 @@ async function saveRecord() {
       spc_trig: spc.trigger,
       spc_spec: spc.spec,
       spec_result: outSpec,
-      eblock_long: EP_VALS.ebl_long || null,
-      eblock_short: EP_VALS.ebs_long || null,
-      eblock_avg: document.getElementById('m-eblock-avg')?.value ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
+      eblock_long: EP_VALS.ebl_long ?? null,
+      eblock_short: EP_VALS.ebs_long ?? null,
+      eblock_avg: document.getElementById('m-eblock-avg')?.value !== '' ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
       ebl_long: EP_VALS.ebl_long, ebl_center: EP_VALS.ebl_center, ebl_short: EP_VALS.ebl_short,
       ebs_long: EP_VALS.ebs_long, ebs_center: EP_VALS.ebs_center, ebs_short: EP_VALS.ebs_short,
       coil_short: document.getElementById('m-coil-short')?.value ? parseFloat(document.getElementById('m-coil-short').value) : null,
@@ -1030,7 +1126,7 @@ async function saveRecord() {
   const isAlert = !inSpec || newRecords[0].trigger === 'OUT';
   if (isAlert) {
     alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${newRecords[0].en || '-'}`);
-    
+
     const alertObj = {
       id: newRecords[0].id,
       ts: newRecords[0].savedAt,
@@ -1134,7 +1230,8 @@ function loadEpoxyCfgFromStorage() {
     const prodKey = document.getElementById('m-product')?.value;
     if (!prodKey) return;
     const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
-    const epoxy = allCfg[prodKey]?.epoxy;
+    const pCfg = allCfg[prodKey] || allCfg['default'];
+    const epoxy = pCfg?.epoxy;
     if (epoxy) {
       EP_CFG.rejectBelow = epoxy.reject ?? 10;
       EP_CFG.holdBelow = epoxy.hold ?? 30;
@@ -1152,7 +1249,7 @@ function buildEpoxyPicker(pickerId, key) {
   const container = document.getElementById(pickerId);
   if (!container) return;
   container.innerHTML = '';
-  for (let v = 10; v <= 100; v += 10) {
+  for (let v = 0; v <= 100; v += 10) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ep-pick-btn';
@@ -1231,7 +1328,7 @@ function calcEpoxyAvg() {
 
   // Determine result using config thresholds
   let result = overallAvg >= EP_CFG.passMin ? 'pass'
-    : overallAvg >= EP_CFG.rejectBelow ? 'hold' : 'fail';
+    : overallAvg > EP_CFG.rejectBelow ? 'hold' : 'fail';
 
   ['pass', 'hold', 'fail'].forEach(r => {
     const btn = document.getElementById('ep-btn-' + r);
@@ -1435,6 +1532,7 @@ function deleteRecord(id) {
         const r = await res.json();
         if (r.success) {
           showToast('ลบข้อมูลจาก MySQL สำเร็จ', 'success');
+          await refreshDataFromServer();
         } else {
           showToast('เกิดข้อผิดพลาด: ' + r.message, 'error');
         }
@@ -1582,6 +1680,19 @@ function saveEditRecord() {
   r.overall = document.getElementById('edit-overall').value;
   r.remark = document.getElementById('edit-remark').value;
   saveRecords(_recordsCache);
+
+  if (isServerOnline) {
+    try {
+      fetch(`${BACKEND_URL}/api/pof/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_data: { records: [r] } })
+      });
+    } catch (e) {
+      console.error('Sync Edit Error:', e);
+    }
+  }
+
   closeModal('modal-rec-edit');
   renderRecords();
   showToast(`บันทึกการแก้ไข Record #${r.no} สำเร็จ`, 'success');
@@ -2989,12 +3100,12 @@ async function importExportedCSV(event) {
   } else { showToast('ไม่พบข้อมูลที่จะนำเข้า (ไฟล์ว่าง)', 'warn'); }
 }
 
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
     e.preventDefault();
     const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
     const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
-                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+      .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
     const index = focusable.indexOf(e.target);
     if (index > -1 && index < focusable.length - 1) {
       focusable[index + 1].focus();

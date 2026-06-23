@@ -3,8 +3,9 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
-  <title>BELTON IPQC — Push Out Force</title>
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, viewport-fit=cover">
+  <title>BELTON IPQC — Push Out Force (Buy-off, Roving ,OBA ,Special)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="main.css">
@@ -442,6 +443,7 @@
                 <select id="m-condition" class="form-select">
                   <option value="NTC">NTC</option>
                   <option value="TC">TC</option>
+                  <option value="NTC&TC">NTC&TC</option>
                 </select>
               </div>
 
@@ -453,8 +455,9 @@
 
               <!-- Frequency -->
               <div class="form-group" id="grp-qty">
-                <label>Frequency <span style="font-size:10px;color:var(--text3)">(ดูดค่าจาก System Config)</span></label>
-                <input type="text" id="m-qty" class="form-input" placeholder="-" readonly style="background-color: var(--bg2); border-color: var(--border2); color: var(--text2); cursor: not-allowed; font-weight: bold;">
+                <label>Frequency <span style="font-size:10px;color:var(--text3)"></span></label>
+                <input type="text" id="m-qty" class="form-input" placeholder="pcs/shift/oven" readonly
+                  style="background-color: var(--bg2); border-color: var(--border2); color: var(--text2); cursor: not-allowed; font-weight: bold;">
               </div>
 
               <!-- date -->
@@ -592,39 +595,158 @@
 
               <style>
                 /* ── Epoxy Coverage Picker ─────────────────── */
-                .ep-row-new { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; align-items: center; margin-bottom: 8px; }
-                .ep-row-lbl { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; }
-                .ep-avg-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: var(--accent); }
-                .ep-picker-row { display: flex; flex-wrap: wrap; gap: 4px; }
-                .ep-pick-btn {
-                  min-width: 36px; padding: 5px 3px; border-radius: 5px;
-                  border: 1.5px solid var(--border); background: var(--bg2);
-                  font-size: 11px; font-weight: 700; color: var(--text3);
-                  cursor: pointer; text-align: center; transition: all .15s;
-                  flex: 1; min-width: 32px;
+                .ep-row-new {
+                  display: grid;
+                  grid-template-columns: 110px 1fr 60px;
+                  gap: 8px;
+                  align-items: center;
+                  margin-bottom: 8px;
                 }
-                .ep-pick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg3); }
-                .ep-pick-btn.ep-sel-reject { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
-                .ep-pick-btn.ep-sel-hold   { border-color: #f59e0b; background: #fffbeb; color: #b45309; }
-                .ep-pick-btn.ep-sel-accept { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
 
-                .ep-col-hdr { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; margin-bottom: 4px; }
-                .ep-col-hdr span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); text-align: center; }
-                .ep-divider { border: none; border-top: 1px dashed var(--border); margin: 8px 0; }
+                .ep-row-lbl {
+                  font-size: 12px;
+                  font-weight: 700;
+                  color: var(--text2);
+                  white-space: nowrap;
+                }
 
-                .ep-overall-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 10px; }
-                .ep-pill { padding: 9px; border-radius: 7px; text-align: center; font-size: 12px; font-weight: 800; border: 1px solid var(--border); color: var(--text3); background: var(--bg2); transition: all .2s; }
-                .ep-pill.ep-pass { background: var(--pass); color: #fff; border-color: var(--pass); }
-                .ep-pill.ep-hold { background: var(--warn); color: #fff; border-color: var(--warn); }
-                .ep-pill.ep-fail { background: var(--fail); color: #fff; border-color: var(--fail); }
+                .ep-avg-box {
+                  background: var(--bg3);
+                  border: 1px solid var(--border2);
+                  border-radius: 6px;
+                  height: 34px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-size: 14px;
+                  font-weight: 800;
+                  color: var(--accent);
+                }
+
+                .ep-picker-row {
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 4px;
+                }
+
+                .ep-pick-btn {
+                  min-width: 36px;
+                  padding: 5px 3px;
+                  border-radius: 5px;
+                  border: 1.5px solid var(--border);
+                  background: var(--bg2);
+                  font-size: 11px;
+                  font-weight: 700;
+                  color: var(--text3);
+                  cursor: pointer;
+                  text-align: center;
+                  transition: all .15s;
+                  flex: 1;
+                  min-width: 32px;
+                }
+
+                .ep-pick-btn:hover {
+                  border-color: var(--accent);
+                  color: var(--accent);
+                  background: var(--bg3);
+                }
+
+                .ep-pick-btn.ep-sel-reject {
+                  border-color: #dc2626;
+                  background: #fef2f2;
+                  color: #dc2626;
+                }
+
+                .ep-pick-btn.ep-sel-hold {
+                  border-color: #f59e0b;
+                  background: #fffbeb;
+                  color: #b45309;
+                }
+
+                .ep-pick-btn.ep-sel-accept {
+                  border-color: #16a34a;
+                  background: #f0fdf4;
+                  color: #16a34a;
+                }
+
+                .ep-col-hdr {
+                  display: grid;
+                  grid-template-columns: 110px 1fr 60px;
+                  gap: 8px;
+                  margin-bottom: 4px;
+                }
+
+                .ep-col-hdr span {
+                  font-size: 10px;
+                  font-weight: 700;
+                  text-transform: uppercase;
+                  letter-spacing: .5px;
+                  color: var(--text3);
+                  text-align: center;
+                }
+
+                .ep-divider {
+                  border: none;
+                  border-top: 1px dashed var(--border);
+                  margin: 8px 0;
+                }
+
+                .ep-overall-row {
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 8px;
+                  margin-top: 10px;
+                }
+
+                .ep-pill {
+                  padding: 9px;
+                  border-radius: 7px;
+                  text-align: center;
+                  font-size: 12px;
+                  font-weight: 800;
+                  border: 1px solid var(--border);
+                  color: var(--text3);
+                  background: var(--bg2);
+                  transition: all .2s;
+                }
+
+                .ep-pill.ep-pass {
+                  background: var(--pass);
+                  color: #fff;
+                  border-color: var(--pass);
+                }
+
+                .ep-pill.ep-hold {
+                  background: var(--warn);
+                  color: #fff;
+                  border-color: var(--warn);
+                }
+
+                .ep-pill.ep-fail {
+                  background: var(--fail);
+                  color: #fff;
+                  border-color: var(--fail);
+                }
 
                 /* hidden: retain for coil/bobbin cfg ref */
-                .ep-cfg-row { display:none; }
+                .ep-cfg-row {
+                  display: none;
+                }
 
                 @media(max-width:600px) {
-                  .ep-row-new { grid-template-columns: 90px 1fr 52px; gap:5px; }
-                  .ep-col-hdr { grid-template-columns: 90px 1fr 52px; }
-                  .ep-pick-btn { min-width:28px; font-size:10px; }
+                  .ep-row-new {
+                    grid-template-columns: 90px 1fr 52px;
+                    gap: 5px;
+                  }
+
+                  .ep-col-hdr {
+                    grid-template-columns: 90px 1fr 52px;
+                  }
+
+                  .ep-pick-btn {
+                    min-width: 28px;
+                    font-size: 10px;
+                  }
                 }
               </style>
 
@@ -636,7 +758,9 @@
               </div>
 
               <!-- E-Block Long Fantail -->
-              <div class="ep-row-lbl" style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #1e3a8a; font-size: 13px;">🔵 E-Block Long Fantail</div>
+              <div class="ep-row-lbl"
+                style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #1e3a8a; font-size: 13px;">🔵
+                E-Block Long Fantail</div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
                 <div class="ep-picker-row" id="ep-picker-ebl_long"></div>
@@ -652,14 +776,17 @@
                 <div class="ep-picker-row" id="ep-picker-ebl_short"></div>
                 <div class="ep-avg-box" id="epavg-ebl_short">0</div>
               </div>
-              <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+              <div
+                style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
                 Avg E-Block Long: <span id="epavg-ebl" style="color: var(--accent); font-size: 14px;">0</span> %
               </div>
 
               <hr class="ep-divider">
 
               <!-- Short Fantail -->
-              <div class="ep-row-lbl" style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #ea580c; font-size: 13px;">🟠 Short Fantail</div>
+              <div class="ep-row-lbl"
+                style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #ea580c; font-size: 13px;">🟠
+                Short Fantail</div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
                 <div class="ep-picker-row" id="ep-picker-ebs_long"></div>
@@ -675,7 +802,8 @@
                 <div class="ep-picker-row" id="ep-picker-ebs_short"></div>
                 <div class="ep-avg-box" id="epavg-ebs_short">0</div>
               </div>
-              <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+              <div
+                style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
                 Avg Short Fantail: <span id="epavg-ebs" style="color: var(--accent); font-size: 14px;">0</span> %
               </div>
 
@@ -685,12 +813,12 @@
               <div class="ep-cfg-row" id="grp-epoxy-bobbin"></div>
 
               <!-- Hidden inputs to keep saveRecord() compatibility -->
-              <div id="epv-ebl_long"    style="display:none">0</div>
-              <div id="epv-ebl_center"  style="display:none">0</div>
-              <div id="epv-ebl_short"   style="display:none">0</div>
-              <div id="epv-ebs_long"    style="display:none">0</div>
-              <div id="epv-ebs_center"  style="display:none">0</div>
-              <div id="epv-ebs_short"   style="display:none">0</div>
+              <div id="epv-ebl_long" style="display:none">0</div>
+              <div id="epv-ebl_center" style="display:none">0</div>
+              <div id="epv-ebl_short" style="display:none">0</div>
+              <div id="epv-ebs_long" style="display:none">0</div>
+              <div id="epv-ebs_center" style="display:none">0</div>
+              <div id="epv-ebs_short" style="display:none">0</div>
 
               <!-- Overall result pills -->
               <div class="ep-overall-row" id="ep-overall-row">

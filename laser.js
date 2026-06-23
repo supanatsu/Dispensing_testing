@@ -10,7 +10,7 @@ const CONFIG_KEY = 'belton_laser_config_v1';
 //   All others default to 'Epoch' (2 pcs/Fixture/Shift).
 //   Draft qty limit is driven purely by the Type dropdown.
 // ============================================================
-const PRODUCTS = {
+const _internalProducts = {
   dorado5dalbb: { label: 'Dorado 5D AL BB' },
   dorado10dalbb: { label: 'Dorado 10D AL BB' },
   marlin10d: { label: 'Marlin 10D' },
@@ -33,6 +33,37 @@ const PRODUCTS = {
   v114d: { label: 'V11 4D' },
   v15cmr4d: { label: 'V15 CMR 4D' },
 };
+
+window.PRODUCTS = new Proxy(_internalProducts, {
+    get: function(target, prop) {
+        if (typeof prop === 'symbol') return target[prop];
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string') {
+            const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
+            const match = sortedKeys.find(k => prop.includes(target[k].label));
+            if (match) return target[match];
+        }
+        return undefined;
+    },
+    ownKeys: function(target) { return Reflect.ownKeys(target); },
+    getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); }
+});
+
+window.SERVER_PRODUCTS_LIST = [];
+
+async function fetchDynamicProducts() {
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/laser/products_list`);
+        const data = await res.json();
+        if (data.success) {
+            window.SERVER_PRODUCTS_LIST = data.products;
+            populateProductDropdowns(_inputMode);
+        }
+    } catch (e) {
+        console.error('Failed to fetch dynamic products:', e);
+    }
+}
+
 
 const DEFECT_ITEMS = [
   { id: 'skip', label: 'Skip (ไม่มี)', labelShort: 'Skip' },
@@ -317,12 +348,16 @@ function onModeChange() {
   const el = document.getElementById('m-mode');
   if (el) _inputMode = el.value;
   updateFormFieldsByType();
+  populateProductDropdowns(_inputMode);
 }
 
 function setMode(mode, btn) {
   _inputMode = mode;
   const sel = document.getElementById('m-mode');
   if (sel) sel.value = mode;
+  if (window.SERVER_PRODUCTS_LIST && window.SERVER_PRODUCTS_LIST.length > 0) {
+      populateProductDropdowns(mode);
+  }
 }
 
 // ========================
@@ -386,15 +421,28 @@ function closeImageModal() {
 // ========================
 // FORM HELPERS
 // ========================
-function populateDropdowns() {
+function populateProductDropdowns(modeFilter = null) {
   const pSelect = document.getElementById('m-product');
   const fProduct = document.getElementById('f-product');
   const vProduct = document.getElementById('viz-product');
 
   let opts = '<option value="">— เลือก Product —</option>';
-  Object.keys(PRODUCTS).forEach(k => {
-    opts += `<option value="${k}">${PRODUCTS[k].label}</option>`;
-  });
+  
+  if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+      Object.keys(_internalProducts).forEach(k => {
+        opts += `<option value="${k}">${_internalProducts[k].label}</option>`;
+      });
+  } else {
+      let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
+      if (dbMode === 'buyoff') dbMode = 'buy-off';
+      const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase().trim() === dbMode);
+      const sortedKeys = Object.keys(_internalProducts).sort((a,b) => _internalProducts[b].label.length - _internalProducts[a].label.length);
+
+      filtered.forEach(p => {
+          let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || Object.keys(_internalProducts)[0];
+          opts += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
+      });
+  }
 
   if (pSelect) pSelect.innerHTML = opts;
   if (fProduct) fProduct.innerHTML = '<option value="">ทุก Product</option>' + opts.replace('<option value="">— เลือก Product —</option>', '');
@@ -408,10 +456,9 @@ function updateFormFieldsByType() {
 
   // Keep qty display in sync whenever Type or Mode dropdown changes
   const qtyEl = document.getElementById('m-qty');
-  const modeVal = document.getElementById('m-mode')?.value || _inputMode;
   const prodKey = document.getElementById('m-product')?.value;
   if (qtyEl) {
-    let qType = (modeVal === 'roving' || modeVal === 'new_roving') ? 'Bobbin' : 'E-block';
+    let qType = (type === 'Epoch' || type === 'E-block') ? 'E-block' : 'Bobbin';
     let q = prodKey ? getProductQty(prodKey, qType) : getQtyByType(qType);
     qtyEl.textContent = q ? q + '/Shift/Oven' : '—';
   }
@@ -1437,7 +1484,43 @@ function saveEdit() {
   });
 
   rec.overall = getOverallResult(rec);
-  saveDB(); updateDashboard(); renderAboutTable(); closeModal('edit-modal');
+  saveDB(); 
+
+  if (isServerOnline) {
+    try {
+      fetch(`${API_BASE}/api/laser/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_data: { records: [rec] } })
+      }).then(res => res.json()).then(data => {
+        if (!data.success) {
+          showToast('Failed to sync edit: ' + data.error, 'error');
+        } else {
+          showToast('Updated and synced successfully', 'success');
+          refreshDataFromServer();
+        }
+      }).catch(err => console.error('Sync edit error:', err));
+    } catch (e) {
+      console.error('Fetch error:', e);
+    }
+  } else {
+    showToast('Saved locally', 'success');
+  }
+
+  updateDashboard(); renderAboutTable(); closeModal('edit-modal');
+  
+  if (typeof isBackendOnline !== 'undefined' ? isBackendOnline : isServerOnline) {
+    try {
+      fetch(`${BACKEND_URL}/api/laser/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_data: { records: [rec] } })
+      });
+    } catch (e) {
+      console.error('Laser Edit Sync Error:', e);
+    }
+  }
+
   showToast('บันทึกการแก้ไขสำเร็จ', 'success');
 }
 
@@ -2692,7 +2775,7 @@ function renderProductYieldChart() {
 // ========================
 function init() {
   loadConfig();
-  populateDropdowns();
+  fetchDynamicProducts();
   loadDB();
   setupDropZone();
 
@@ -2846,7 +2929,21 @@ async function refreshDataFromServer() {
         });
 
         // รวม records จาก server กับที่มีเฉพาะใน local (ยังไม่ได้ sync)
-        const localOnly = DB.records.filter(r => !serverIds.has(r.id));
+        // เพื่อป้องกัน duplicate record (local ใช้ id=Date.now(), server ใช้ id=AutoIncrement)
+        // เราจะ discard local record ถ้ามี record บน server ที่มี (product, machine, test_date, fixture, sendtime) ตรงกัน
+        const localOnly = DB.records.filter(r => {
+          if (serverIds.has(r.id)) return false;
+          // Check if this record already exists in server records by matching key fields
+          const exists = normalizedServerRecs.some(sr => 
+            sr.product === r.product &&
+            sr.machine === r.machine &&
+            sr.date === r.date &&
+            sr.fixture === r.fixture &&
+            sr.sendtime === r.sendtime
+          );
+          return !exists;
+        });
+        
         DB.records = [...normalizedServerRecs, ...localOnly];
         // อัปเดต nextId ให้ไม่ชนกับ id ที่มีอยู่ใน DB
         const maxId = DB.records.reduce((m, r) => Math.max(m, typeof r.id === 'number' ? r.id : 0), DB.nextId || 1);

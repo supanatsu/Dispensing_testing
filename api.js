@@ -1,4 +1,4 @@
-﻿// ==========================================================================
+// ==========================================================================
 // api.js
 // Defines the global API_BASE constant used by all BELTON IPQC frontend
 // pages (index.html, dispensing.html, laser.html, push_out_force.html,
@@ -40,3 +40,61 @@ const API_BASE = (function () {
 })();
 const BACKEND_URL = API_BASE;
 
+// ==========================================================================
+// Config DB Sync
+// Hydrate localStorage from MySQL synchronously so that when scripts load, 
+// they immediately get the latest config, satisfying the requirement to persist.
+// ==========================================================================
+(function syncLocalStorageWithDB() {
+  try {
+    const xhr = new XMLHttpRequest();
+    // Synchronous request to guarantee local storage is hydrated before other scripts run
+    // Using BACKEND_URL fallback if API_BASE is empty for file:// execution
+    const fetchUrl = (API_BASE || 'http://localhost:3001') + '/api/system/config';
+    xhr.open('GET', fetchUrl, false);
+    xhr.send(null);
+    if (xhr.status === 200) {
+      const dbConfigs = JSON.parse(xhr.responseText);
+      for (const [key, value] of Object.entries(dbConfigs)) {
+        if (value && value !== 'undefined') {
+          if (localStorage.getItem(key) !== value) {
+            localStorage.setItem(key, value);
+          }
+        }
+      }
+      console.log('Configs synced from DB synchronously successfully.');
+    }
+  } catch (err) {
+    console.warn('Failed to sync configs from DB on load:', err);
+  }
+
+  // Intercept localStorage.setItem to also save configs back to MySQL
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    originalSetItem.apply(this, arguments);
+    
+    // Sync config and alert keys automatically
+    const syncKeys = [
+      'belton_ipqc_dispensing_merged',
+      'belton_laser_config_v1',
+      'belton_pof_config_v1',
+      'belton_damper_config_v1',
+      'belton_pof_v4_config',
+      'belton_damper_v2_config',
+      'LASER_CONFIG'
+    ];
+    if (syncKeys.includes(key) || key.includes('config') || key.includes('cfg')) {
+      // Don't block the UI thread for saving
+      const postUrl = (API_BASE || 'http://localhost:3001') + '/api/system/config';
+      try {
+        fetch(postUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [key]: value })
+        }).catch(err => console.warn('Failed to save config to DB:', err));
+      } catch (e) {
+        console.warn('Fetch failed for config save:', e);
+      }
+    }
+  };
+})();

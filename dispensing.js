@@ -11,7 +11,7 @@ const customCanvasBackgroundColor = {
 };
 Chart.register(customCanvasBackgroundColor);
 
-window.PRODUCTS = {
+const _internalProducts = {
     'cmr3d': { label: 'Cimarron BP 3D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
     'cmr4d': { label: 'Cimarron BP 4D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'X1', 'Y1', 'Bobbin_position_1', 'X2', 'Y2', 'Bobbin_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_parallel', n: 7 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
     'cmr5d': { label: 'Cimarron BP 5D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'X1', 'Y1', 'Bobbin_position_1', 'X2', 'Y2', 'Bobbin_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_parallel', n: 7 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
@@ -33,6 +33,36 @@ window.PRODUCTS = {
     'v114d': { label: 'V11 4D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
     'v15cmr4d': { label: 'V15 CMR 4D', dims: ['X1', 'Y1', 'X2', 'Y2', 'Coil_position_1', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
 };
+
+window.PRODUCTS = new Proxy(_internalProducts, {
+    get: function (target, prop) {
+        if (typeof prop === 'symbol') return target[prop];
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string') {
+            const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
+            const match = sortedKeys.find(k => prop.includes(target[k].label));
+            if (match) return target[match];
+        }
+        return undefined;
+    },
+    ownKeys: function (target) { return Reflect.ownKeys(target); },
+    getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); }
+});
+
+window.SERVER_PRODUCTS_LIST = [];
+
+async function fetchDynamicProducts() {
+    try {
+        const res = await fetch(`${API_BASE}/api/dispensing/products_list`);
+        const data = await res.json();
+        if (data.success) {
+            window.SERVER_PRODUCTS_LIST = data.products;
+            populateDropdowns();
+        }
+    } catch (e) {
+        console.error('Failed to fetch dynamic products:', e);
+    }
+}
 
 window.SPEC_BUYOFF = {
     cmr3d: { Coil_outer_profile_u: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_v: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_w: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
@@ -1458,26 +1488,26 @@ function updateNotifBadge() {
     // Alert logic has been centralized
 }
 
-function renderAlertLog() {}
-function generateOutlookDraft() {}
-function sendAutoAlertViaPython() {}
+function renderAlertLog() { }
+function generateOutlookDraft() { }
+function sendAutoAlertViaPython() { }
 function checkRealtimeAlertAndNotify(rec) {
     if (rec && (rec.status === 'REJECT' || rec.status === 'FAIL' || rec.status === 'NG')) {
         alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (REJECT/Fail)! \nโปรดตรวจสอบ Product: ${rec.product || rec.model || '-'} Fixture: ${rec.fixture || '-'}`);
     }
 }
 
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
-    e.preventDefault();
-    const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
-    const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
-                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
-    const index = focusable.indexOf(e.target);
-    if (index > -1 && index < focusable.length - 1) {
-      focusable[index + 1].focus();
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+        e.preventDefault();
+        const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
+        const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
+            .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+        const index = focusable.indexOf(e.target);
+        if (index > -1 && index < focusable.length - 1) {
+            focusable[index + 1].focus();
+        }
     }
-  }
 });
 window.addEventListener('DOMContentLoaded', () => {
     migrateOldData();
@@ -1487,7 +1517,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // ⭐ URGENT FIX: Delay populateDropdowns() เพื่อให้ initConfigs() เสร็จก่อน
     setTimeout(() => {
         console.log('[DOMContentLoaded] Calling populateDropdowns() after initConfigs()');
-        populateDropdowns();
+        fetchDynamicProducts(); // THIS calls populateDropdowns() when done
     }, 50);
 
     setDefaultDate();
@@ -1495,7 +1525,6 @@ window.addEventListener('DOMContentLoaded', () => {
     updateDashboard();
     renderAutoTable();
     renderAboutTable();
-    loadRecipients();
 
     // Initialize Connection Health Checking
     checkBackendConnection().then(() => {
@@ -1645,30 +1674,43 @@ function initConfigs() {
 function getProductOptions(dataType, includeAll = false, includeSelectFirst = false) {
     let options = '';
 
-    // เพิ่ม placeholder option หากต้องการ
     if (includeSelectFirst) {
         options += '<option value="">— เลือก Product —</option>';
     }
-
-    // เพิ่ม "ทุก Product" option หากต้องการ
     if (includeAll) {
         options += '<option value="">ทุก Product</option>';
     }
 
-    // Loop ผ่าน PRODUCTS และสร้าง <option> สำหรับแต่ละตัว
-    Object.entries(PRODUCTS).forEach(([k, v]) => {
-        // เงื่อนไข: ถ้าเป็นโหมด Roving Audit ให้ข้าม (ไม่แสดง) Dorado 5D
-        if (dataType === 'Roving Audit' && k === 'dorado5d') {
-            return; // ข้าม dorado5d สำหรับ Roving Audit
-        }
+    if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+        // Fallback
+        Object.entries(_internalProducts).forEach(([k, v]) => {
+            if (dataType === 'Roving Audit' && k === 'dorado5d') return;
+            if (k.toLowerCase() === 'rosewood5d') return;
+            options += `<option value="${k}">${v.label}</option>`;
+        });
+        return options;
+    }
 
-        // ตัด Rosewood 5D ออกจากระบบทั้งหมด (ตามที่คุณเคยตั้งค่าไว้)
-        if (k.toLowerCase() === 'rosewood5d') {
-            return; // ข้าม rosewood5d
-        }
+    // Use MySQL data
+    let dbMode = dataType ? dataType.toLowerCase().trim().replace(/\s+/g, '') : null;
+    if (dbMode === 'buy-off') dbMode = 'buyoff';
+    if (dbMode === 'rovingaudit') dbMode = 'roving';
 
-        // เพิ่ม option สำหรับ product นี้
-        options += `<option value="${k}">${v.label}</option>`;
+    const filtered = window.SERVER_PRODUCTS_LIST.filter(p => {
+        if (!dbMode || dbMode === 'all') return true;
+        let pMode = (p.mode || '').toLowerCase().trim().replace(/\s+/g, '');
+        if (pMode === 'buy-off') pMode = 'buyoff';
+        if (pMode === 'rovingaudit') pMode = 'roving';
+        return pMode === dbMode;
+    });
+
+    // Sort array by length DESC to match longest string first, then map to internal product key
+    const sourceKeys = Object.keys(_internalProducts);
+    const sortedKeys = sourceKeys.sort((a, b) => _internalProducts[b].label.length - _internalProducts[a].label.length);
+
+    filtered.forEach(p => {
+        let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || sourceKeys[0];
+        options += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
     });
 
     return options;
@@ -3068,8 +3110,8 @@ function saveEdit() {
         });
     }
     rec.status = getInternalStatus(rec.values, rec.model, rec.dataType);
-    saveDB(); syncDataConsistency(true); 
-    
+    saveDB(); syncDataConsistency(true);
+
     // Sync to backend immediately
     if (typeof isBackendOnline !== 'undefined' && isBackendOnline) {
         try {
@@ -4454,9 +4496,12 @@ function saveManualDraft() {
         if (exist.length + added >= 4) return;
 
         const now = new Date();
+        const isFullyComplete = vmiVal !== '' && coilVal !== '' && hiPotVal !== '';
+        const evalStatus = isFullyComplete ? getInternalStatus(vals, mk, dType) : 'WAITING';
+        
         const draftRec = {
-            id: 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-            status: 'WAITING',
+            id: (isFullyComplete ? 'LOCAL_' : 'DRAFT_') + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            status: evalStatus,
             dataType: dType,
             model: mk,
             modelLabel: PRODUCTS[mk] ? PRODUCTS[mk].label : mk,
@@ -4477,8 +4522,10 @@ function saveManualDraft() {
     if (added > 0) {
         saveDB();
         if (isBackendOnline) syncWithServer(true);
+        renderAboutTable();
         renderPendingTable();
         updatePendingBadge();
+        updateDashboard();
 
         // ล้างเฉพาะค่าวัด (ไม่ล้าง Fixture / PT / Oven)
         inputs.forEach(inp => {

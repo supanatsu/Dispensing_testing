@@ -10,11 +10,11 @@ async function loadAlerts() {
         const processType = document.getElementById('filter-module').value;
         const level = document.getElementById('filter-level').value;
 
-        let url = 'http://localhost:3001/api/system-alerts';
+        let url = `${API_BASE}/api/system-alerts`;
         const params = new URLSearchParams();
         if (processType) params.append('process_type', processType);
         if (level) params.append('level', level);
-        
+
         if (params.toString()) {
             url += '?' + params.toString();
         }
@@ -78,10 +78,10 @@ function renderAlerts() {
 
 function updateKPIs() {
     document.getElementById('kpi-total').textContent = currentAlerts.length;
-    
+
     const criticalCount = currentAlerts.filter(a => a.level === 'NG' || a.level === 'Critical').length;
     document.getElementById('kpi-critical').textContent = criticalCount;
-    
+
     const warningCount = currentAlerts.filter(a => a.level === 'Warning').length;
     document.getElementById('kpi-warning').textContent = warningCount;
 }
@@ -91,7 +91,7 @@ async function clearAlerts() {
 
     try {
         const processType = document.getElementById('filter-module').value;
-        let url = 'http://localhost:3001/api/system-alerts';
+        let url = `${API_BASE}/api/system-alerts`;
         if (processType) {
             url += `?process_type=${processType}`;
         }
