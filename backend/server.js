@@ -339,50 +339,50 @@ app.get('/api/pof/records', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM pof_records ORDER BY record_no ASC');
     const records = rows.map(r => {
       let vj = {};
-      try { vj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {}); } catch(e){}
+      try { vj = typeof r.values_json === 'string' ? JSON.parse(r.values_json) : (r.values_json || {}); } catch (e) { }
       return {
-      no: r.record_no,
-      date: r.test_date
-        ? (r.test_date instanceof Date
-          ? `${r.test_date.getFullYear()}-${String(r.test_date.getMonth() + 1).padStart(2, '0')}-${String(r.test_date.getDate()).padStart(2, '0')}`
-          : String(r.test_date).slice(0, 10))
-        : '',
-      // ── fields ที่เคยหายไป ──
-      mode: r.mode || 'buyoff',
-      coil_type: r.coil_type || 'sl',
-      condition: r.category || 'NTC',
-      product: r.product || '',
-      product_label: r.product_label || '',
-      unit: r.unit || 'Lbs',
-      overall: r.overall || 'Pass',
-      // ── SPC snapshot ──
-      spc_ucl: r.spc_ucl != null ? parseFloat(r.spc_ucl) : null,
-      spc_cl: r.spc_cl != null ? parseFloat(r.spc_cl) : null,
-      spc_lcl: r.spc_lcl != null ? parseFloat(r.spc_lcl) : null,
-      spc_trig: r.spc_trig != null ? parseFloat(r.spc_trig) : null,
-      spc_spec: r.spc_spec != null ? parseFloat(r.spc_spec) : null,
-      // ── ค่าวัด ──
-      oven: r.oven,
-      remark: r.remark,
-      team: r.team,
-      en: r.en,
-      traveler: r.traveler,
-      long1: r.long1 != null ? parseFloat(r.long1) : null,
-      short2: r.short2 != null ? parseFloat(r.short2) : null,
-      avg: r.avg_val != null ? parseFloat(r.avg_val) : null,
-      max: r.max_val != null ? parseFloat(r.max_val) : null,
-      min: r.min_val != null ? parseFloat(r.min_val) : null,
-      range: r.range_val != null ? parseFloat(r.range_val) : null,
-      spec_result: r.spec_result,
-      trigger: r.trigger_val,
-      out_cl: r.out_cl,
-      trend: r.trend,
-      nine_pt: r.nine_pt,
-      savedAt: r.saved_at,
-      values_json: r.values_json,
-      lot: (vj && vj.lot) ? vj.lot : '',
-      qty: (vj && vj.qty) ? vj.qty : ''
-    };
+        no: r.record_no,
+        date: r.test_date
+          ? (r.test_date instanceof Date
+            ? `${r.test_date.getFullYear()}-${String(r.test_date.getMonth() + 1).padStart(2, '0')}-${String(r.test_date.getDate()).padStart(2, '0')}`
+            : String(r.test_date).slice(0, 10))
+          : '',
+        // ── fields ที่เคยหายไป ──
+        mode: r.mode || 'buyoff',
+        coil_type: r.coil_type || 'sl',
+        condition: r.category || 'NTC',
+        product: r.product || '',
+        product_label: r.product_label || '',
+        unit: r.unit || 'Lbs',
+        overall: r.overall || 'Pass',
+        // ── SPC snapshot ──
+        spc_ucl: r.spc_ucl != null ? parseFloat(r.spc_ucl) : null,
+        spc_cl: r.spc_cl != null ? parseFloat(r.spc_cl) : null,
+        spc_lcl: r.spc_lcl != null ? parseFloat(r.spc_lcl) : null,
+        spc_trig: r.spc_trig != null ? parseFloat(r.spc_trig) : null,
+        spc_spec: r.spc_spec != null ? parseFloat(r.spc_spec) : null,
+        // ── ค่าวัด ──
+        oven: r.oven,
+        remark: r.remark,
+        team: r.team,
+        en: r.en,
+        traveler: r.traveler,
+        long1: r.long1 != null ? parseFloat(r.long1) : null,
+        short2: r.short2 != null ? parseFloat(r.short2) : null,
+        avg: r.avg_val != null ? parseFloat(r.avg_val) : null,
+        max: r.max_val != null ? parseFloat(r.max_val) : null,
+        min: r.min_val != null ? parseFloat(r.min_val) : null,
+        range: r.range_val != null ? parseFloat(r.range_val) : null,
+        spec_result: r.spec_result,
+        trigger: r.trigger_val,
+        out_cl: r.out_cl,
+        trend: r.trend,
+        nine_pt: r.nine_pt,
+        savedAt: r.saved_at,
+        values_json: r.values_json,
+        lot: (vj && vj.lot) ? vj.lot : '',
+        qty: (vj && vj.qty) ? vj.qty : ''
+      };
     });
     res.json({ success: true, records });
   } catch (error) {
@@ -690,22 +690,22 @@ app.post('/api/damper/sync', async (req, res) => {
       const team = r.team || '';
       const vmi_results = r.vmi ? JSON.stringify(r.vmi) : (r.vmi_results || null);
       const vmi_pass = r.vmiNG !== undefined ? !r.vmiNG : (r.vmiPass !== undefined ? (r.vmiPass ? 1 : 0) : (r.vmi_pass !== undefined ? r.vmi_pass : 1));
-      
-      const shortObj = r.dimData ? r.dimData['short_p1'] : r.short;
-      const longObj = r.dimData ? r.dimData['long_top'] : r.long;
 
-      const short_vals = shortObj?.vals ? shortObj.vals.join(',') : (r.shortAvg != null ? '' : (r.short_vals || ''));
-      const short_avg = shortObj?.avg != null ? parseFloat(shortObj.avg) : (r.shortAvg != null ? parseFloat(r.shortAvg) : null);
-      const short_max = shortObj?.max != null ? parseFloat(shortObj.max) : (r.shortMax != null ? parseFloat(r.shortMax) : null);
-      const short_min = shortObj?.min != null ? parseFloat(shortObj.min) : (r.shortMin != null ? parseFloat(r.shortMin) : null);
-      const short_in_spec = shortObj?.result ? (shortObj.result === 'Pass' ? 1 : 0) : (shortObj?.inSpec !== undefined ? (shortObj.inSpec ? 1 : 0) : (r.shortResult === 'Pass' ? 1 : (r.shortResult === 'Fail' ? 0 : 1)));
-      
-      const long_vals = longObj?.vals ? longObj.vals.join(',') : (r.longAvg != null ? '' : (r.long_vals || ''));
-      const long_avg = longObj?.avg != null ? parseFloat(longObj.avg) : (r.longAvg != null ? parseFloat(r.longAvg) : null);
-      const long_max = longObj?.max != null ? parseFloat(longObj.max) : (r.longMax != null ? parseFloat(r.longMax) : null);
-      const long_min = longObj?.min != null ? parseFloat(longObj.min) : (r.longMin != null ? parseFloat(r.longMin) : null);
-      const long_in_spec = longObj?.result ? (longObj.result === 'Pass' ? 1 : 0) : (longObj?.inSpec !== undefined ? (longObj.inSpec ? 1 : 0) : (r.longResult === 'Pass' ? 1 : (r.longResult === 'Fail' ? 0 : 1)));
-      
+      const shortObj = r.dimData ? (r.dimData['datum'] || r.dimData['short_p1']) : r.short;
+      const longObj = r.dimData ? (r.dimData['nondatum'] || r.dimData['long_top']) : r.long;
+
+      const short_vals = shortObj?.vals ? shortObj.vals.join(',') : (r.datumAvg != null ? '' : (r.shortAvg != null ? '' : (r.short_vals || '')));
+      const short_avg = shortObj?.avg != null ? parseFloat(shortObj.avg) : (r.datumAvg != null ? parseFloat(r.datumAvg) : (r.shortAvg != null ? parseFloat(r.shortAvg) : null));
+      const short_max = shortObj?.max != null ? parseFloat(shortObj.max) : (r.datumMax != null ? parseFloat(r.datumMax) : (r.shortMax != null ? parseFloat(r.shortMax) : null));
+      const short_min = shortObj?.min != null ? parseFloat(shortObj.min) : (r.datumMin != null ? parseFloat(r.datumMin) : (r.shortMin != null ? parseFloat(r.shortMin) : null));
+      const short_in_spec = shortObj?.result ? (shortObj.result === 'Pass' ? 1 : 0) : (shortObj?.inSpec !== undefined ? (shortObj.inSpec ? 1 : 0) : (r.datumResult === 'Pass' ? 1 : (r.datumResult === 'Fail' ? 0 : (r.shortResult === 'Pass' ? 1 : (r.shortResult === 'Fail' ? 0 : 1)))));
+
+      const long_vals = longObj?.vals ? longObj.vals.join(',') : (r.nondatumAvg != null ? '' : (r.longAvg != null ? '' : (r.long_vals || '')));
+      const long_avg = longObj?.avg != null ? parseFloat(longObj.avg) : (r.nondatumAvg != null ? parseFloat(r.nondatumAvg) : (r.longAvg != null ? parseFloat(r.longAvg) : null));
+      const long_max = longObj?.max != null ? parseFloat(longObj.max) : (r.nondatumMax != null ? parseFloat(r.nondatumMax) : (r.longMax != null ? parseFloat(r.longMax) : null));
+      const long_min = longObj?.min != null ? parseFloat(longObj.min) : (r.nondatumMin != null ? parseFloat(r.nondatumMin) : (r.longMin != null ? parseFloat(r.longMin) : null));
+      const long_in_spec = longObj?.result ? (longObj.result === 'Pass' ? 1 : 0) : (longObj?.inSpec !== undefined ? (longObj.inSpec ? 1 : 0) : (r.nondatumResult === 'Pass' ? 1 : (r.nondatumResult === 'Fail' ? 0 : (r.longResult === 'Pass' ? 1 : (r.longResult === 'Fail' ? 0 : 1)))));
+
       const overall_pass = r.overall === 'Pass' ? 1 : (r.overallPass ? 1 : (r.overall_pass !== undefined ? r.overall_pass : 0));
 
       const actualProduct = r.productKey || r.product || '';
@@ -1876,7 +1876,9 @@ app.delete('/api/system-alerts', async (req, res) => {
 // ==========================================
 app.get('/api/dispensing/products_list', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT product_name, mode FROM dispensing_product ORDER BY product_name');
+    const q = `
+      SELECT * FROM dispensing_product ORDER BY product_name`;
+    const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -1885,7 +1887,9 @@ app.get('/api/dispensing/products_list', async (req, res) => {
 
 app.get('/api/laser/products_list', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT product_name, mode FROM laser_product ORDER BY product_name');
+    const q = `
+      SELECT * FROM laser_product ORDER BY product_name`;
+    const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -1894,7 +1898,9 @@ app.get('/api/laser/products_list', async (req, res) => {
 
 app.get('/api/pof/products_list', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT product_name, mode FROM pof_product ORDER BY product_name');
+    const q = `
+      SELECT * FROM pof_product ORDER BY product_name`;
+    const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -1903,7 +1909,13 @@ app.get('/api/pof/products_list', async (req, res) => {
 
 app.get('/api/damper/products_list', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT product_name, mode FROM damper_product ORDER BY product_name');
+    const q = `
+      SELECT dp.product_name AS product_key, COALESCE(mp.product_name, dp.product_name) AS product_name, dp.mode 
+      FROM damper_product dp 
+      LEFT JOIN master_products mp ON dp.product_name = mp.product_key 
+      ORDER BY product_name ASC
+    `;
+    const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -1930,11 +1942,13 @@ app.get('/api/system/products', async (req, res) => {
         { product_key: "dorado5d", product_name: "Dorado 5D" },
         { product_key: "dorado5dbb", product_name: "Dorado 5D AL BB" },
         { product_key: "dor10n", product_name: "Dorado 10N" },
+        { product_key: "dor10naad", product_name: "Dorado 10D NOAR-AAD" },
         { product_key: "marlin10d", product_name: "Marlin 10D" },
         { product_key: "m11", product_name: "M11" },
         { product_key: "rosewood1d", product_name: "Rosewood 1D" },
         { product_key: "rosewood2d", product_name: "Rosewood 2D" },
         { product_key: "skybolt1d", product_name: "Skybolt 1D" },
+        { product_key: "sky1dmm", product_name: "Skybolt 1D MM" },
         { product_key: "skybolt2d", product_name: "Skybolt 2D" },
         { product_key: "skybolt3d", product_name: "Skybolt 3D" },
         { product_key: "skybolt4d", product_name: "Skybolt 4D" },
@@ -1949,11 +1963,13 @@ app.get('/api/system/products', async (req, res) => {
         { product_key: "dor5d", product_name: "Dorado 5D (POF)" },
         { product_key: "dor5dbb", product_name: "Dorado 5D AL BB (POF)" },
         { product_key: "dor10d", product_name: "Dorado 10D (POF)" },
+        { product_key: "dor10naad", product_name: "Dorado 10D NOAR-AAD (POF)" },
         { product_key: "m11p", product_name: "M11 P (POF)" },
         { product_key: "mar10d", product_name: "Marlin 10D (POF)" },
         { product_key: "ros1d", product_name: "Rosewood 1D (POF)" },
         { product_key: "ros2d", product_name: "Rosewood 2D (POF)" },
         { product_key: "sky1d", product_name: "Skybolt 1D (POF)" },
+        { product_key: "sky1dmm", product_name: "Skybolt 1D MM (POF)" },
         { product_key: "sky2d", product_name: "Skybolt 2D (POF)" },
         { product_key: "sky3d", product_name: "Skybolt 3D (POF)" },
         { product_key: "sky4d", product_name: "Skybolt 4D (POF)" },
