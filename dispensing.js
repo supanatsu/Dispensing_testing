@@ -11,29 +11,7 @@ const customCanvasBackgroundColor = {
 };
 Chart.register(customCanvasBackgroundColor);
 
-const _internalProducts = {
-    'cmr3d': { label: 'Cimarron BP 3D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'cmr4d': { label: 'Cimarron BP 4D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'X1', 'Y1', 'Bobbin_position_1', 'X2', 'Y2', 'Bobbin_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_parallel', n: 7 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'cmr5d': { label: 'Cimarron BP 5D', dims: ['Coil_outer_profile_u', 'Coil_outer_profile_v', 'Coil_outer_profile_w', 'X1', 'Y1', 'Bobbin_position_1', 'X2', 'Y2', 'Bobbin_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_parallel', n: 7 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'dorado5d': { label: 'Dorado 5D', dims: ['X1', 'Y1', 'Coil_position_1_S', 'X2', 'Y2', 'Coil_position_2_L', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1_L', 'Crash_stop_profile_2_S', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'dorado5dbb': { label: 'Dorado 5D AL BB', dims: ['X1', 'Y1', 'Coil_position_1_S', 'X2', 'Y2', 'Coil_position_2_L', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1_L', 'Crash_stop_profile_2_S', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'dorado10d': { label: 'Dorado 10D', dims: ['X1_Center', 'X1', 'Y1', 'Coil_position_1_S', 'X2', 'Y2', 'Coil_position_2_L', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1_L', 'Crash_stop_profile_2_S', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'm11': { label: 'M11 P', dims: ['Epoxy_length_1_L', 'Epoxy_length_2_S', 'Fantail_profile_1', 'Fantail_profile_2', 'Fantail_profile_3', 'Fantail_profile_4', 'Fantail_profile_5', { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'comet': { label: 'ComET', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'marlin10d': { label: 'Marlin 10D', dims: ['X1_Center', 'X1', 'Y1', 'Coil_position_1_S', 'X2', 'Y2', 'Coil_position_2_L', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1_L', 'Crash_stop_profile_2_S', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'rosewood1d': { label: 'Rosewood 1D', dims: ['Coil_inner_profile_1', 'Coil_inner_profile_u', 'Coil_inner_profile_v', 'Coil_inner_profile_w', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Crash_stop_profile_3', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'rosewood2d': { label: 'Rosewood 2D', dims: ['Coil_inner_profile_1', 'Coil_inner_profile_2', 'Coil_inner_profile_UV', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Crash_stop_profile_3', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'skybolt1d': { label: 'Skybolt 1D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Coil_symmetry', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'skybolt2d': { label: 'Skybolt 2D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Coil_symmetry', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'skybolt3d': { label: 'Skybolt 3D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Coil_symmetry', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'skybolt4d': { label: 'Skybolt 4D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', 'Coil_symmetry', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'summit10d': { label: 'Summit 10D', dims: ['X1', 'Y1', 'Bobbin_hole_true', 'X2', 'Y2', 'Bobbin_slote_true', 'X3', 'Y3', 'Coil_position_1', 'X4', 'Y4', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', 'Crash_stop_profile_2', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }, { id: 'Bobbin_parallel', n: 7 }, { id: 'Bobbin_recess_DTM', n: 6 }, { id: 'Bobbin_recess_NDTM', n: 6 }] },
-    'v111d': { label: 'V11 1D', dims: ['Coil_position_1', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'v112d': { label: 'V11 2D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'v114d': { label: 'V11 4D', dims: ['X1', 'Y1', 'Coil_position_1', 'X2', 'Y2', 'Coil_position_2', 'Epoxy_length_1_S', 'Epoxy_length_2_L', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-    'v15cmr4d': { label: 'V15 CMR 4D', dims: ['X1', 'Y1', 'X2', 'Y2', 'Coil_position_1', 'Coil_position_2', 'Epoxy_length_1', 'Epoxy_length_2', 'Crash_stop_profile_1', { id: 'Coil_parallel', n: 7 }, { id: 'Coil_recess_DTM', n: 6 }, { id: 'Coil_recess_NDTM', n: 6 }] },
-};
-
+const _internalProducts = window.PRODUCTS || {};
 window.PRODUCTS = new Proxy(_internalProducts, {
     get: function (target, prop) {
         if (typeof prop === 'symbol') return target[prop];
@@ -1698,6 +1676,7 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
 
     const filtered = window.SERVER_PRODUCTS_LIST.filter(p => {
         if (!dbMode || dbMode === 'all') return true;
+        if (!p.mode) return true;
         let pMode = (p.mode || '').toLowerCase().trim().replace(/\s+/g, '');
         if (pMode === 'buy-off') pMode = 'buyoff';
         if (pMode === 'rovingaudit') pMode = 'roving';
@@ -1706,7 +1685,11 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
 
     // Sort array by length DESC to match longest string first, then map to internal product key
     const sourceKeys = Object.keys(_internalProducts);
-    const sortedKeys = sourceKeys.sort((a, b) => _internalProducts[b].label.length - _internalProducts[a].label.length);
+    const sortedKeys = sourceKeys.sort((a, b) => {
+        const aLen = _internalProducts[a]?.label?.length || 0;
+        const bLen = _internalProducts[b]?.label?.length || 0;
+        return bLen - aLen;
+    });
 
     filtered.forEach(p => {
         let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || sourceKeys[0];
@@ -4498,7 +4481,7 @@ function saveManualDraft() {
         const now = new Date();
         const isFullyComplete = vmiVal !== '' && coilVal !== '' && hiPotVal !== '';
         const evalStatus = isFullyComplete ? getInternalStatus(vals, mk, dType) : 'WAITING';
-        
+
         const draftRec = {
             id: (isFullyComplete ? 'LOCAL_' : 'DRAFT_') + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
             status: evalStatus,

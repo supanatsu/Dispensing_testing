@@ -13,17 +13,17 @@ const LS_KEY_DMR_CFG = 'belton_damper_v3_config';
 let dmpRecords = [];
 
 async function fetchDamperConfigFromDB() {
-  try {
-    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/system/config');
-    if (res.ok) {
-      const dbCfg = await res.json();
-      if (dbCfg && dbCfg[LS_KEY_DMR_CFG]) {
-        localStorage.setItem(LS_KEY_DMR_CFG, dbCfg[LS_KEY_DMR_CFG]);
-      }
+    try {
+        const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/system/config');
+        if (res.ok) {
+            const dbCfg = await res.json();
+            if (dbCfg && dbCfg[LS_KEY_DMR_CFG]) {
+                localStorage.setItem(LS_KEY_DMR_CFG, dbCfg[LS_KEY_DMR_CFG]);
+            }
+        }
+    } catch (e) {
+        console.error("Failed to fetch Damper config from DB", e);
     }
-  } catch (e) {
-    console.error("Failed to fetch Damper config from DB", e);
-  }
 }
 // Call early
 fetchDamperConfigFromDB();
@@ -56,74 +56,52 @@ const VMI_ITEMS = [
 ];
 
 // ─── Dimension Point Definitions (ตาม Format Excel) ─────────────
-// Short Damper:
-//   Point 1 (col R,S ≡ row 1/1 & 1/2) → spec 1.358 ± 0.010
-//   Point 2 (col T,U ≡ row 1/3 & 1/4) → spec 0.03  ± 0.010  (transition zone)
-//   แต่ใน format จริงมี 4 sub-points ต่อ group ตาม pcs
-//   ดังนั้น: Point-1/1, 1/2, 1/3, 1/4 → spec A (1.358±0.010)
-//            Point-2/1, 2/2, 2/3, 2/4 → spec B (0.03 ±0.010)
-// Long Damper:
-//   Top     1/1, 1/2, 1/3, 1/4 → spec A (0.814±0.010)
-//   Bottom  2/1, 2/2, 2/3, 2/4 → spec B (0.03 ±0.010)
-
 const DIM_GROUPS = {
-    short: [
+    datum: [
         {
-            key: 'short_p1',
-            label: 'Short — Point 1 (1/1 ~ 1/4)',
-            subLabel: 'Spec: 1.358 ± 0.010 in.',
-            nom: 1.358,
-            tol: 0.010,
+            key: 'datum',
+            label: 'Datum',
+            subLabel: 'Spec: CL: 1.358',
+            usl: 1.368,
+            ucl: null,
+            cl: 1.358,
+            lcl: null,
+            lsl: 1.348,
             points: ['1/1', '1/2', '1/3', '1/4'],
         },
         {
-            key: 'short_p2',
-            label: 'Short — Point 2 (2/1 ~ 2/4)',
-            subLabel: 'Spec: 0.030 ± 0.010 in.',
-            nom: 0.030,
-            tol: 0.010,
+            key: 'nondatum',
+            label: 'Non-datum',
+            subLabel: 'Spec: CL: 0.814',
+            usl: 0.824,
+            ucl: null,
+            cl: 0.814,
+            lcl: null,
+            lsl: 0.804,
             points: ['2/1', '2/2', '2/3', '2/4'],
         },
-    ],
-    long: [
-        {
-            key: 'long_top',
-            label: 'Long — Top (1/1 ~ 1/4)',
-            subLabel: 'Spec: 0.814 ± 0.010 in.',
-            nom: 0.814,
-            tol: 0.010,
-            points: ['1/1', '1/2', '1/3', '1/4'],
-        },
-        {
-            key: 'long_bot',
-            label: 'Long — Bottom (2/1 ~ 2/4)',
-            subLabel: 'Spec: 0.030 ± 0.010 in.',
-            nom: 0.030,
-            tol: 0.010,
-            points: ['2/1', '2/2', '2/3', '2/4'],
-        },
-    ],
+    ]
 };
 
 const DIM_GROUPS_BASE = JSON.parse(JSON.stringify(DIM_GROUPS));
 
 // ─── Product Catalogue ────────────────────────────────────────
 const PRODUCTS_DEFAULT = {
-    cim3d: { label: 'Cimarron BP 3D', partno: '11511115-14', mc: '—', pcs: 4 },
-    cim4d: { label: 'Cimarron BP 4D', partno: '11511117-25', mc: '33', pcs: 8 },
-    cim5d: { label: 'Cimarron BP 5D', partno: '11511117-25', mc: '33', pcs: 10 },
-    dor10n: { label: 'Dorado 10D NOAR', partno: '—', mc: '—', pcs: 10 },
-    dor10d: { label: 'Dorado 10D', partno: '—', mc: '—', pcs: 10 },
-    dor5dbb: { label: 'Dorado 5D AL BB', partno: '—', mc: '—', pcs: 4 },
-    dor5d: { label: 'Dorado 5D', partno: '—', mc: '—', pcs: 4 },
-    mar10d: { label: 'Marlin 10D', partno: '—', mc: '—', pcs: 10 },
-    sky1d: { label: 'Skybolt 1D', partno: '—', mc: '—', pcs: 4 },
-    sky2d: { label: 'Skybolt 2D', partno: '—', mc: '—', pcs: 4 },
-    sky3d: { label: 'Skybolt 3D', partno: '—', mc: '—', pcs: 6 },
-    sky4d: { label: 'Skybolt 4D', partno: '—', mc: '—', pcs: 8 },
-    sum10d: { label: 'Summit 10D', partno: '—', mc: '—', pcs: 10 },
-    v114d: { label: 'V11 4D', partno: '—', mc: '—', pcs: 4 },
-    v15: { label: 'V15 CMR 4D', partno: '—', mc: '—', pcs: 4 },
+    cim3d: { label: 'Cimarron BP 3D', mc: '—', pcs: 4 },
+    cim4d: { label: 'Cimarron BP 4D', mc: '33', pcs: 8 },
+    cim5d: { label: 'Cimarron BP 5D', mc: '33', pcs: 10 },
+    dor10n: { label: 'Dorado 10D NOAR', mc: '—', pcs: 10 },
+    dor10d: { label: 'Dorado 10D', mc: '—', pcs: 10 },
+    dor5dbb: { label: 'Dorado 5D AL BB', mc: '—', pcs: 4 },
+    dor5d: { label: 'Dorado 5D', mc: '—', pcs: 4 },
+    mar10d: { label: 'Marlin 10D', mc: '—', pcs: 10 },
+    sky1d: { label: 'Skybolt 1D', mc: '—', pcs: 4 },
+    sky2d: { label: 'Skybolt 2D', mc: '—', pcs: 4 },
+    sky3d: { label: 'Skybolt 3D', mc: '—', pcs: 6 },
+    sky4d: { label: 'Skybolt 4D', mc: '—', pcs: 8 },
+    sum10d: { label: 'Summit 10D', mc: '—', pcs: 10 },
+    v114d: { label: 'V11 4D', mc: '—', pcs: 4 },
+    v15: { label: 'V15 CMR 4D', mc: '—', pcs: 4 },
 };
 
 let PRODUCTS = {};
@@ -168,35 +146,35 @@ function loadConfig() {
             });
         }
         PRODUCTS = new Proxy(sourceProducts, {
-            get: function(target, prop) {
+            get: function (target, prop) {
                 if (typeof prop === 'symbol') return target[prop];
                 if (prop in target) return target[prop];
                 if (typeof prop === 'string') {
-                    const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
+                    const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
                     const match = sortedKeys.find(k => prop.includes(target[k].label));
                     if (match) return target[match];
                 }
                 return undefined;
             },
-            ownKeys: function(target) { return Reflect.ownKeys(target); },
-            getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-            set: function(target, prop, value) { target[prop] = value; return true; }
+            ownKeys: function (target) { return Reflect.ownKeys(target); },
+            getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+            set: function (target, prop, value) { target[prop] = value; return true; }
         });
-    } catch { 
+    } catch {
         PRODUCTS = new Proxy(JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)), {
-            get: function(target, prop) {
+            get: function (target, prop) {
                 if (typeof prop === 'symbol') return target[prop];
                 if (prop in target) return target[prop];
                 if (typeof prop === 'string') {
-                    const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
+                    const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
                     const match = sortedKeys.find(k => prop.includes(target[k].label));
                     if (match) return target[match];
                 }
                 return undefined;
             },
-            ownKeys: function(target) { return Reflect.ownKeys(target); },
-            getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-            set: function(target, prop, value) { target[prop] = value; return true; }
+            ownKeys: function (target) { return Reflect.ownKeys(target); },
+            getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
+            set: function (target, prop, value) { target[prop] = value; return true; }
         });
     }
 }
@@ -209,7 +187,8 @@ async function fetchDynamicProducts() {
         const data = await res.json();
         if (data.success) {
             window.SERVER_PRODUCTS_LIST = data.products;
-            populateProductDropdowns();
+            const currentMode = document.getElementById('m-mode')?.value || 'buyoff';
+            populateProductDropdowns(currentMode);
         }
     } catch (e) {
         console.error('Failed to fetch dynamic products:', e);
@@ -226,29 +205,45 @@ function applyDamperConfigForProduct(productKey) {
     const prodOverride = (cfg.productDims && cfg.productDims[productKey]) ? cfg.productDims[productKey] : null;
     const globalDefault = cfg.dims || {};
 
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    const allGroups = [...DIM_GROUPS.datum];
     allGroups.forEach(g => {
-        // Find base defaults
-        const baseGroups = [...DIM_GROUPS_BASE.short, ...DIM_GROUPS_BASE.long];
+        const baseGroups = [...DIM_GROUPS_BASE.datum];
         const baseG = baseGroups.find(x => x.key === g.key);
 
-        let nom = baseG.nom;
-        let tol = baseG.tol;
+        let usl = baseG.usl;
+        let ucl = baseG.ucl;
+        let cl = baseG.cl;
+        let lcl = baseG.lcl;
+        let lsl = baseG.lsl;
 
-        if (prodOverride && prodOverride[g.key]) {
-            if (prodOverride[g.key].nom !== undefined) nom = prodOverride[g.key].nom;
-            if (prodOverride[g.key].tol !== undefined) tol = prodOverride[g.key].tol;
-        } else if (globalDefault[g.key]) {
-            if (globalDefault[g.key].nom !== undefined) nom = globalDefault[g.key].nom;
-            if (globalDefault[g.key].tol !== undefined) tol = globalDefault[g.key].tol;
+        // Map 'datum' -> 'short_p1', 'nondatum' -> 'long_top'
+        let configKey = g.key === 'datum' ? 'short_p1' : 'long_top';
+
+        if (prodOverride && prodOverride[configKey]) {
+            if (prodOverride[configKey].usl !== undefined && prodOverride[configKey].usl !== null) usl = prodOverride[configKey].usl;
+            if (prodOverride[configKey].ucl !== undefined && prodOverride[configKey].ucl !== null) ucl = prodOverride[configKey].ucl;
+            if (prodOverride[configKey].cl !== undefined && prodOverride[configKey].cl !== null) cl = prodOverride[configKey].cl;
+            if (prodOverride[configKey].lcl !== undefined && prodOverride[configKey].lcl !== null) lcl = prodOverride[configKey].lcl;
+            if (prodOverride[configKey].lsl !== undefined && prodOverride[configKey].lsl !== null) lsl = prodOverride[configKey].lsl;
+        } else if (globalDefault[configKey]) {
+            if (globalDefault[configKey].usl !== undefined && globalDefault[configKey].usl !== null) usl = globalDefault[configKey].usl;
+            if (globalDefault[configKey].ucl !== undefined && globalDefault[configKey].ucl !== null) ucl = globalDefault[configKey].ucl;
+            if (globalDefault[configKey].cl !== undefined && globalDefault[configKey].cl !== null) cl = globalDefault[configKey].cl;
+            if (globalDefault[configKey].lcl !== undefined && globalDefault[configKey].lcl !== null) lcl = globalDefault[configKey].lcl;
+            if (globalDefault[configKey].lsl !== undefined && globalDefault[configKey].lsl !== null) lsl = globalDefault[configKey].lsl;
         }
 
-        g.nom = nom;
-        g.tol = tol;
+        g.usl = usl;
+        g.ucl = ucl;
+        g.cl = cl;
+        g.lcl = lcl;
+        g.lsl = lsl;
 
-        const lsl = (g.nom - g.tol).toFixed(3);
-        const usl = (g.nom + g.tol).toFixed(3);
-        g.subLabel = `Spec: ${g.nom.toFixed(4)} ± ${g.tol.toFixed(4)} in. (LSL: ${lsl} ~ USL: ${usl})`;
+        let specs = [];
+        if (g.lsl !== null) specs.push(`LSL: ${g.lsl.toFixed(3)}`);
+        if (g.cl !== null) specs.push(`CL: ${g.cl.toFixed(3)}`);
+        if (g.usl !== null) specs.push(`USL: ${g.usl.toFixed(3)}`);
+        g.subLabel = `Spec: ${specs.join(' | ')}`;
     });
 }
 
@@ -258,7 +253,7 @@ function populateProductDropdowns(modeFilter = null) {
         const el = document.getElementById(id);
         if (!el) return;
         while (el.options.length > 1) el.remove(1);
-        
+
         if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
             Object.keys(PRODUCTS).forEach(k => {
                 const o = document.createElement('option');
@@ -268,11 +263,12 @@ function populateProductDropdowns(modeFilter = null) {
         } else {
             let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
             if (dbMode === 'buyoff') dbMode = 'buy-off';
-            
+
             const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode);
-            
+            filtered.sort((a, b) => a.product_name.localeCompare(b.product_name));
+
             const sourceKeys = Object.keys(PRODUCTS_DEFAULT);
-            const sortedKeys = sourceKeys.sort((a,b) => PRODUCTS_DEFAULT[b].label.length - PRODUCTS_DEFAULT[a].label.length);
+            const sortedKeys = sourceKeys.sort((a, b) => PRODUCTS_DEFAULT[b].label.length - PRODUCTS_DEFAULT[a].label.length);
 
             filtered.forEach(p => {
                 let mk = sortedKeys.find(k => p.product_name.includes(PRODUCTS_DEFAULT[k].label)) || sourceKeys[0];
@@ -377,11 +373,11 @@ function onProductChange() {
     // Auto-fill Part No, M/C
     const partEl = document.getElementById('m-partno');
     const mcEl = document.getElementById('m-mc');
-    if (partEl) partEl.value = p.partno;
-    if (mcEl && !mcEl.value) mcEl.value = (p.mc !== '—') ? p.mc : '';
+    if (partEl) partEl.value = p.partno || '';
+    if (mcEl) mcEl.value = (p.mc !== '—') ? p.mc : '';
 
     if (infoBar) infoBar.textContent =
-        `${p.label} · ${p.pcs} pcs/batch | Short P1: 1.358±0.010 | Short P2: 0.030±0.010 | Long Top: 0.814±0.010 | Long Bot: 0.030±0.010`;
+        `${p.label} · ${p.pcs} pcs/batch | Datum: 1.358±0.010 | Non-datum: 0.814±0.010`;
 
     // Update Frequency
     const qtyInput = document.getElementById('m-qty');
@@ -410,15 +406,15 @@ function buildAllDimGroups(pcs) {
     const container = document.getElementById('dim-groups-container');
     if (!container) return;
 
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    const allGroups = [...DIM_GROUPS.datum];
     container.innerHTML = allGroups.map(g => buildGroupHTML(g, pcs)).join('');
 }
 
 function buildGroupHTML(g, pcs) {
-    const lsl = g.nom - g.tol;
-    const usl = g.nom + g.tol;
-    const isShort = g.key.startsWith('short');
-    const accentColor = isShort ? 'var(--blue)' : '#9B59B6';
+    const lsl = g.lsl;
+    const usl = g.usl;
+    const isDatum = g.key.startsWith('datum');
+    const accentColor = isDatum ? 'var(--blue)' : '#9B59B6';
 
     let inputsHTML = '';
     for (let i = 0; i < pcs; i++) {
@@ -431,7 +427,7 @@ function buildGroupHTML(g, pcs) {
                     type="number"
                     id="${inputId}"
                     step="0.0001"
-                    placeholder="${g.nom.toFixed(4)}"
+                    placeholder="${g.cl !== null && g.cl !== undefined ? g.cl.toFixed(4) : ''}"
                     oninput="calcGroupDim('${g.key}', ${pcs})"
                     onkeydown="pieceEnterNav(event,'${inputId}','${g.key}',${i + 1},${pcs})"
                 >
@@ -478,12 +474,12 @@ function pieceEnterNav(e, curId, groupKey, idx, total) {
 
 // ─── Calc Dimension for one group ────────────────────────────
 function calcGroupDim(groupKey, pcs) {
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    const allGroups = [...DIM_GROUPS.datum];
     const g = allGroups.find(x => x.key === groupKey);
     if (!g) return;
 
-    const lsl = g.nom - g.tol;
-    const usl = g.nom + g.tol;
+    const lsl = g.lsl;
+    const usl = g.usl;
     const vals = [];
 
     for (let i = 1; i <= pcs; i++) {
@@ -511,8 +507,8 @@ function calcGroupDim(groupKey, pcs) {
     const min = Math.min(...vals);
     const allOk = vals.every(v => v >= lsl && v <= usl);
 
-    const isShort = groupKey.startsWith('short');
-    const accentColor = isShort ? 'var(--blue)' : '#9B59B6';
+    const isDatum = groupKey.startsWith('datum');
+    const accentColor = isDatum ? 'var(--blue)' : '#9B59B6';
 
     setEl(`${groupKey}-avg`, fmt(avg, 5), allOk ? accentColor : 'var(--fail)');
     setEl(`${groupKey}-max`, fmt(max, 5));
@@ -528,7 +524,7 @@ function calcGroupDim(groupKey, pcs) {
 }
 
 function autoJudgeOverall() {
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    const allGroups = [...DIM_GROUPS.datum];
     const dimAllPass = allGroups.every(g => {
         const el = document.getElementById(`${g.key}-result`);
         if (!el || el.textContent === '—') return true; // not yet filled = skip
@@ -549,57 +545,6 @@ function saveBatch() {
 
     const mode = document.getElementById('m-mode')?.value || 'buyoff';
 
-    // Collect dimension data from all 4 groups
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
-    const dimData = {};
-    let anyDimMissing = false;
-
-    if (mode === 'buyoff') {
-        for (const g of allGroups) {
-            const lsl = g.nom - g.tol;
-            const usl = g.nom + g.tol;
-            // Auto-clone logic: If pc-1 is filled but the rest are empty, copy pc-1 to all
-            const firstValStr = document.getElementById(`${g.key}-pc-1`)?.value;
-            const firstVal = parseFloat(firstValStr);
-            if (!isNaN(firstVal)) {
-                let othersEmpty = true;
-                for (let i = 2; i <= p.pcs; i++) {
-                    const vStr = document.getElementById(`${g.key}-pc-${i}`)?.value;
-                    if (vStr && vStr.trim() !== '') {
-                        othersEmpty = false;
-                        break;
-                    }
-                }
-                if (othersEmpty) {
-                    for (let i = 2; i <= p.pcs; i++) {
-                        const el = document.getElementById(`${g.key}-pc-${i}`);
-                        if (el) el.value = firstValStr;
-                    }
-                }
-            }
-
-            const vals = [];
-            for (let i = 1; i <= p.pcs; i++) {
-                const v = parseFloat(document.getElementById(`${g.key}-pc-${i}`)?.value);
-                if (!isNaN(v)) vals.push(v);
-            }
-            if (!vals.length || vals.length < p.pcs) { anyDimMissing = true; break; }
-            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-            const allOk = vals.every(v => v >= lsl && v <= usl);
-            dimData[g.key] = {
-                vals,
-                avg: +avg.toFixed(5),
-                max: +(Math.max(...vals)).toFixed(5),
-                min: +(Math.min(...vals)).toFixed(5),
-                result: allOk ? 'Pass' : 'Fail',
-            };
-        }
-
-        if (anyDimMissing) {
-            showToast('กรุณากรอกค่าวัดให้ครบทุก group ก่อน', 'warn'); return;
-        }
-    }
-
     // VMI
     const vmiData = {};
     const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
@@ -608,53 +553,40 @@ function saveBatch() {
     });
     const vmiNG = Object.values(vmiData).some(v => v === 'Fail');
 
-    // Summarize short/long results (fail if ANY group fails)
-    let shortOk = true, longOk = true;
-    let shortAvgMain = null, longAvgMain = null;
-    if (mode === 'buyoff') {
-        shortOk = dimData['short_p1'].result === 'Pass' && dimData['short_p2'].result === 'Pass';
-        longOk = dimData['long_top'].result === 'Pass' && dimData['long_bot'].result === 'Pass';
-        shortAvgMain = dimData['short_p1'].avg;
-        longAvgMain = dimData['long_top'].avg;
-    }
-
     const records = loadRecords();
     const no = records.length + 1;
 
     const rec = {
-        id: Date.now(),
+        id: Date.now().toString(),
         no,
         mode,
         date: document.getElementById('m-date')?.value || todayISO(),
         product: key,
         productLabel: p.label,
-        partno: p.partno,
         mc: document.getElementById('m-mc')?.value || p.mc,
         team: document.getElementById('m-team')?.value || '',
         qcEn: (document.getElementById('m-en')?.value || '').trim(),
         meEn: (document.getElementById('m-me-en')?.value || '').trim(),
         traveler: (document.getElementById('m-traveler')?.value || '').trim(),
+        partno: (document.getElementById('m-partno')?.value || '').trim(),
         ptno: (document.getElementById('m-ptno')?.value || '').trim(),
         qty: (document.getElementById('m-qty')?.value || '').trim(),
-        partno2: (document.getElementById('m-partno2')?.value || '').trim(),
         sendTime: document.getElementById('m-send-time')?.value || '',
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
         pcs: p.pcs,
-        // Dimension data (all 4 groups)
-        dimData,
-        // Backwards-compat summary for charts
-        shortAvg: shortAvgMain,
-        shortMax: dimData['short_p1']?.max || null,
-        shortMin: dimData['short_p1']?.min || null,
-        shortResult: shortOk ? 'Pass' : 'Fail',
-        longAvg: longAvgMain,
-        longMax: dimData['long_top']?.max || null,
-        longMin: dimData['long_top']?.min || null,
-        longResult: longOk ? 'Pass' : 'Fail',
+        dimData: {}, // Waiting for Stage 2
+        datumAvg: null,
+        datumMax: null,
+        datumMin: null,
+        datumResult: null,
+        nondatumAvg: null,
+        nondatumMax: null,
+        nondatumMin: null,
+        nondatumResult: null,
         vmi: vmiData,
         vmiNG,
-        overall: document.getElementById('m-overall')?.value || 'Pass',
+        overall: 'WAITING',
         savedAt: new Date().toISOString(),
     };
 
@@ -663,21 +595,13 @@ function saveBatch() {
     updateKPIs();
     updateBadges();
 
-    // Alert if any fail
-    if (vmiNG || !shortOk || !longOk || rec.overall === 'Fail') {
-        alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${rec.qcEn || '-'}`);
+    if (vmiNG) {
+        alert(`แจ้งเตือน: VMI Fail! \nโปรดตรวจสอบ Product: ${p.label} EN: ${rec.qcEn || '-'}`);
         const alerts = loadAlerts();
         const issues = [];
         const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
         if (vmiNG) issues.push('VMI NG: ' + items.filter(v => vmiData[v.id] === 'Fail').map(v => v.label).join(', '));
-        if (!shortOk) {
-            if (dimData['short_p1']?.result === 'Fail') issues.push(`Short P1 OUT Spec (Avg: ${dimData['short_p1'].avg})`);
-            if (dimData['short_p2']?.result === 'Fail') issues.push(`Short P2 OUT Spec (Avg: ${dimData['short_p2'].avg})`);
-        }
-        if (!longOk) {
-            if (dimData['long_top']?.result === 'Fail') issues.push(`Long Top OUT Spec (Avg: ${dimData['long_top'].avg})`);
-            if (dimData['long_bot']?.result === 'Fail') issues.push(`Long Bot OUT Spec (Avg: ${dimData['long_bot'].avg})`);
-        }
+
         alerts.unshift({
             id: rec.id, ts: rec.savedAt, level: 'ng',
             product: p.label, traveler: rec.traveler, qcEn: rec.qcEn,
@@ -694,7 +618,7 @@ function saveBatch() {
 }
 
 function clearForm() {
-    ['m-mc', 'm-ptno', 'm-traveler', 'm-qc-en', 'm-en', 'm-me-en', 'm-send-time', 'm-recv-time', 'm-qty', 'm-partno2'].forEach(id => {
+    ['m-mc', 'm-partno', 'm-ptno', 'm-traveler', 'm-qc-en', 'm-en', 'm-me-en', 'm-send-time', 'm-recv-time', 'm-qty'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     const dateEl = document.getElementById('m-date');
@@ -702,8 +626,6 @@ function clearForm() {
     const prodEl = document.getElementById('m-product');
     if (prodEl) prodEl.value = '';
     setOverallPF('Pass');
-    const partEl = document.getElementById('m-partno');
-    if (partEl) partEl.value = '';
     const attrEl = document.getElementById('m-attribute');
     if (attrEl) attrEl.value = 'Normal';
 
@@ -721,7 +643,7 @@ function clearForm() {
     if (noMsg) noMsg.style.display = 'block';
 
     const infoBar = document.getElementById('form-spec-label');
-    if (infoBar) infoBar.textContent = 'เลือก Product → ระบบจะโหลด Part No., M/C, จำนวนชิ้น และ Spec อัตโนมัติ';
+    if (infoBar) infoBar.textContent = 'เลือก Product → ระบบจะโหลด M/C, จำนวนชิ้น และ Spec อัตโนมัติ';
 }
 
 // ════════════════════════════════════════════════════════════
@@ -735,8 +657,8 @@ function updateKPIs() {
     const vmiNG = recs.filter(r => r.vmiNG).length;
     const todayR = recs.filter(r => r.date === today).length;
     const yield_ = recs.length ? ((passes / recs.length) * 100).toFixed(1) : null;
-    const sAvgs = recs.map(r => r.shortAvg).filter(v => v && v > 0);
-    const lAvgs = recs.map(r => r.longAvg).filter(v => v && v > 0);
+    const sAvgs = recs.map(r => r.datumAvg).filter(v => v && v > 0);
+    const lAvgs = recs.map(r => r.nondatumAvg).filter(v => v && v > 0);
     const sAvg = sAvgs.length ? sAvgs.reduce((a, b) => a + b, 0) / sAvgs.length : null;
     const lAvg = lAvgs.length ? lAvgs.reduce((a, b) => a + b, 0) / lAvgs.length : null;
 
@@ -746,8 +668,8 @@ function updateKPIs() {
     setKpi('kpi-fail', fails);
     setKpi('kpi-vmi-ng', vmiNG);
     setKpi('kpi-yield', yield_ !== null ? yield_ + '%' : '—%');
-    setKpi('kpi-avg-short', sAvg !== null ? sAvg.toFixed(5) : '—');
-    setKpi('kpi-avg-long', lAvg !== null ? lAvg.toFixed(5) : '—');
+    setKpi('kpi-avg-datum', sAvg !== null ? sAvg.toFixed(5) : '—');
+    setKpi('kpi-avg-nondatum', lAvg !== null ? lAvg.toFixed(5) : '—');
 }
 
 function setKpi(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
@@ -822,7 +744,6 @@ function renderRecords() {
             <td style="font-weight:700;color:var(--text3)">${r.no}</td>
             <td style="font-size:12px;white-space:nowrap">${r.date}</td>
             <td style="font-weight:600;font-size:12px">${r.productLabel}</td>
-            <td style="font-size:11px;color:var(--text3)">${r.partno || '—'}</td>
             <td>${r.mc || '—'}</td>
             <td style="font-size:12px">${r.team || '—'}</td>
             <td style="font-weight:600">${r.qcEn || '—'}</td>
@@ -830,10 +751,8 @@ function renderRecords() {
             <td style="font-size:11px;color:var(--text3)">${r.traveler || '—'}</td>
             <td style="font-size:11px">${r.attribute || '—'}</td>
             <td style="text-align:center">${r.pcs}</td>
-            <td style="font-size:12px">${dimDetail(r, 'short_p1')}</td>
-            <td style="font-size:12px">${dimDetail(r, 'short_p2')}</td>
-            <td style="font-size:12px">${dimDetail(r, 'long_top')}</td>
-            <td style="font-size:12px">${dimDetail(r, 'long_bot')}</td>
+            <td style="font-size:12px">${dimDetail(r, 'datum')}</td>
+            <td style="font-size:12px">${dimDetail(r, 'nondatum')}</td>
             <td>${vmiSum(r)}</td>
             <td>${ovBadge(r.overall)}</td>
             <td>
@@ -850,7 +769,7 @@ function viewRecord(id) {
     const r = loadRecords().find(x => x.id === id);
     if (!r) return;
     const p = PRODUCTS[r.product] || {};
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
+    const allGroups = [...DIM_GROUPS.datum];
 
     let dimHTML = allGroups.map(g => {
         const d = r.dimData?.[g.key];
@@ -878,6 +797,7 @@ function viewRecord(id) {
             <div><span style="color:var(--text3)">Date:</span> <b>${r.date}</b></div>
             <div><span style="color:var(--text3)">Product:</span> <b>${r.productLabel}</b></div>
             <div><span style="color:var(--text3)">Part No.:</span> ${r.partno || '—'}</div>
+            <div><span style="color:var(--text3)">PT No.:</span> ${r.ptno || '—'}</div>
             <div><span style="color:var(--text3)">M/C:</span> ${r.mc || '—'}</div>
             <div><span style="color:var(--text3)">Team:</span> ${r.team || '—'}</div>
             <div><span style="color:var(--text3)">QC EN#:</span> <b>${r.qcEn || '—'}</b></div>
@@ -930,24 +850,20 @@ function exportCSV() {
     const recs = loadRecords();
     if (!recs.length) { showToast('ไม่มีข้อมูล', 'warn'); return; }
     const headers = [
-        'No', 'Date', 'Mode', 'Product', 'PartNo', 'MC', 'Team', 'QC_EN', 'ME_EN', 'Traveler',
+        'No', 'Date', 'Mode', 'Product', 'MC', 'Team', 'QC_EN', 'ME_EN', 'Traveler',
         'SendTime', 'RecvTime', 'Attribute', 'Pcs',
-        'ShortP1_Avg', 'ShortP1_Max', 'ShortP1_Min', 'ShortP1_Result',
-        'ShortP2_Avg', 'ShortP2_Max', 'ShortP2_Min', 'ShortP2_Result',
-        'LongTop_Avg', 'LongTop_Max', 'LongTop_Min', 'LongTop_Result',
-        'LongBot_Avg', 'LongBot_Max', 'LongBot_Min', 'LongBot_Result',
+        'Datum_Avg', 'Datum_Max', 'Datum_Min', 'Datum_Result',
+        'Non_Datum_Avg', 'Non_Datum_Max', 'Non_Datum_Min', 'Non_Datum_Result',
         'VMI_NG', 'Overall',
     ];
     const rows = recs.map(r => {
         const d = r.dimData || {};
         const gd = (k) => d[k] || {};
         return [
-            r.no, r.date, r.mode || 'Buy off', r.productLabel, r.partno, r.mc, r.team, r.qcEn, r.meEn, r.traveler,
+            r.no, r.date, r.mode || 'Buy off', r.productLabel, r.mc, r.team, r.qcEn, r.meEn, r.traveler,
             r.sendTime || '', r.recvTime || '', r.attribute, r.pcs,
-            gd('short_p1').avg || '', gd('short_p1').max || '', gd('short_p1').min || '', gd('short_p1').result || '',
-            gd('short_p2').avg || '', gd('short_p2').max || '', gd('short_p2').min || '', gd('short_p2').result || '',
-            gd('long_top').avg || '', gd('long_top').max || '', gd('long_top').min || '', gd('long_top').result || '',
-            gd('long_bot').avg || '', gd('long_bot').max || '', gd('long_bot').min || '', gd('long_bot').result || '',
+            gd('datum').avg || '', gd('datum').max || '', gd('datum').min || '', gd('datum').result || '',
+            gd('nondatum').avg || '', gd('nondatum').max || '', gd('nondatum').min || '', gd('nondatum').result || '',
             r.vmiNG ? 'YES' : 'NO', r.overall,
         ];
     });
@@ -967,41 +883,40 @@ function renderCharts() {
     if (key) recs = recs.filter(r => r.product === key);
 
     const labels = recs.map(r => `#${r.no} ${r.date.slice(5)}`);
-    const shortAvgs = recs.map(r => r.shortAvg);
-    const longAvgs = recs.map(r => r.longAvg);
+    const datumAvgs = recs.map(r => r.datumAvg);
+    const nondatumAvgs = recs.map(r => r.nondatumAvg);
 
-    // Dynamic specs
-    let sLSL = 1.358 - 0.010, sUSL = 1.358 + 0.010, sNom = 1.358;
-    let lLSL = 0.814 - 0.010, lUSL = 0.814 + 0.010, lNom = 0.814;
-
-    if (key && typeof DAMPER_LIMITS !== 'undefined' && DAMPER_LIMITS[key]) {
-        const bot = DAMPER_LIMITS[key]['bottom'];
-        if (bot) {
-            if (bot.lsl !== null) sLSL = parseFloat(bot.lsl);
-            if (bot.usl !== null) sUSL = parseFloat(bot.usl);
-            if (bot.cl !== null) sNom = parseFloat(bot.cl);
-        }
-        const top = DAMPER_LIMITS[key]['top'];
-        if (top) {
-            if (top.lsl !== null) lLSL = parseFloat(top.lsl);
-            if (top.usl !== null) lUSL = parseFloat(top.usl);
-            if (top.cl !== null) lNom = parseFloat(top.cl);
-        }
+    // Dynamic specs from LocalStorage Config
+    if (key) {
+        applyDamperConfigForProduct(key);
+    } else {
+        applyDamperConfigForProduct('');
     }
 
-    const slbl = document.getElementById('short-lbl');
-    if (slbl) slbl.textContent = `Short P1 • LSL: ${sLSL.toFixed(3)} | Nom: ${sNom.toFixed(3)} | USL: ${sUSL.toFixed(3)}`;
-    const llbl = document.getElementById('long-lbl');
-    if (llbl) llbl.textContent = `Long Top • LSL: ${lLSL.toFixed(3)} | Nom: ${lNom.toFixed(3)} | USL: ${lUSL.toFixed(3)}`;
+    const datumGroup = DIM_GROUPS.datum.find(x => x.key === 'datum');
+    const nondatumGroup = DIM_GROUPS.datum.find(x => x.key === 'nondatum');
 
-    _cShort = buildTrendChart('chart-short', _cShort, labels, shortAvgs, 'Short P1 Avg', [
+    let sLSL = datumGroup.lsl !== null ? datumGroup.lsl : 1.348;
+    let sUSL = datumGroup.usl !== null ? datumGroup.usl : 1.368;
+    let sNom = datumGroup.cl !== null ? datumGroup.cl : 1.358;
+
+    let lLSL = nondatumGroup.lsl !== null ? nondatumGroup.lsl : 0.804;
+    let lUSL = nondatumGroup.usl !== null ? nondatumGroup.usl : 0.824;
+    let lNom = nondatumGroup.cl !== null ? nondatumGroup.cl : 0.814;
+
+    const slbl = document.getElementById('datum-lbl');
+    if (slbl) slbl.textContent = `Datum • LSL: ${sLSL.toFixed(3)} | CL: ${sNom.toFixed(3)} | USL: ${sUSL.toFixed(3)}`;
+    const llbl = document.getElementById('nondatum-lbl');
+    if (llbl) llbl.textContent = `Non-datum • LSL: ${lLSL.toFixed(3)} | CL: ${lNom.toFixed(3)} | USL: ${lUSL.toFixed(3)}`;
+
+    _cShort = buildTrendChart('chart-datum', _cShort, labels, datumAvgs, 'Datum Avg', [
         { label: 'LSL', val: sLSL, color: 'rgba(231,76,60,.8)' },
-        { label: 'Nom', val: sNom, color: 'rgba(39,174,96,.8)' },
+        { label: 'CL', val: sNom, color: 'rgba(39,174,96,.8)' },
         { label: 'USL', val: sUSL, color: 'rgba(231,76,60,.8)' },
     ]);
-    _cLong = buildTrendChart('chart-long', _cLong, labels, longAvgs, 'Long Top Avg', [
+    _cLong = buildTrendChart('chart-nondatum', _cLong, labels, nondatumAvgs, 'Non-datum Avg', [
         { label: 'LSL', val: lLSL, color: 'rgba(231,76,60,.8)' },
-        { label: 'Nom', val: lNom, color: 'rgba(155,89,182,.8)' },
+        { label: 'CL', val: lNom, color: 'rgba(155,89,182,.8)' },
         { label: 'USL', val: lUSL, color: 'rgba(231,76,60,.8)' },
     ]);
 
@@ -1116,17 +1031,17 @@ function triggerAutoEml(rec, issues) {
     let chartImg = '';
     try {
         const labels = recentRecs.map(r => `#${r.no}`);
-        const sAvgs = recentRecs.map(r => r.shortAvg);
-        const lAvgs = recentRecs.map(r => r.longAvg);
+        const sAvgs = recentRecs.map(r => r.datumAvg);
+        const lAvgs = recentRecs.map(r => r.nondatumAvg);
         const tempChart = new Chart(canvas, {
             type: 'line',
             data: {
                 labels,
                 datasets: [
-                    { label: 'Short P1 Avg', data: sAvgs, borderColor: 'rgba(37,99,235,0.9)', backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
-                    { label: 'Long Top Avg', data: lAvgs, borderColor: 'rgba(124,58,237,0.9)', backgroundColor: 'rgba(124,58,237,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
-                    { label: 'Short USL (1.368)', data: Array(labels.length).fill(1.368), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
-                    { label: 'Short LSL (1.348)', data: Array(labels.length).fill(1.348), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
+                    { label: 'Datum Avg', data: sAvgs, borderColor: 'rgba(37,99,235,0.9)', backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
+                    { label: 'Non-datum Avg', data: lAvgs, borderColor: 'rgba(124,58,237,0.9)', backgroundColor: 'rgba(124,58,237,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
+                    { label: 'Datum USL (1.368)', data: Array(labels.length).fill(1.368), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
+                    { label: 'Datum LSL (1.348)', data: Array(labels.length).fill(1.348), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
                 ]
             },
             options: {
@@ -1153,8 +1068,8 @@ function triggerAutoEml(rec, issues) {
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">ME EN#</td><td style="padding:8px 0;color:#1f2937">${rec.meEn || '—'}</td></tr>
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Traveler</td><td style="padding:8px 0;color:#1f2937">${rec.traveler || '—'}</td></tr>
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Date</td><td style="padding:8px 0;color:#1f2937">${rec.date}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Short P1 Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.shortResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.shortAvg ?? '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Long Top Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.longResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.longAvg ?? '—'}</td></tr>
+          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.datumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.datumAvg ?? '—'}</td></tr>
+          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Non-datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.nondatumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.nondatumAvg ?? '—'}</td></tr>
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Defects Found</td><td style="padding:8px 0;color:#e74c3c;font-weight:bold">${issues.join(' | ')}</td></tr>
         </table>
         ${chartImg ? `
@@ -1275,6 +1190,7 @@ async function refreshDataFromServer() {
                         product: vj.product || r.traveler ? r.traveler.split('_')[0] : '',
                         productLabel: vj.productLabel || r.traveler || '',
                         partno: vj.partno || '',
+                        ptno: vj.ptno || '',
                         mc: vj.mc || '',
                         team: r.team || '',
                         qcEn: r.qcEn || '',
@@ -1285,19 +1201,17 @@ async function refreshDataFromServer() {
                         attribute: r.attribute || 'Normal',
                         pcs: (r.short && r.short.vals) ? r.short.vals.length : 0,
                         dimData: vj.dimData || {
-                            short_p1: r.short ? { avg: r.short.avg, max: r.short.max, min: r.short.min, vals: r.short.vals || [], result: r.short.inSpec ? 'Pass' : 'Fail' } : null,
-                            short_p2: null,
-                            long_top: r.long ? { avg: r.long.avg, max: r.long.max, min: r.long.min, vals: r.long.vals || [], result: r.long.inSpec ? 'Pass' : 'Fail' } : null,
-                            long_bot: null,
+                            datum: r.short ? { avg: r.short.avg, max: r.short.max, min: r.short.min, vals: r.short.vals || [], result: r.short.inSpec ? 'Pass' : 'Fail' } : null,
+                            nondatum: r.long ? { avg: r.long.avg, max: r.long.max, min: r.long.min, vals: r.long.vals || [], result: r.long.inSpec ? 'Pass' : 'Fail' } : null,
                         },
-                        shortAvg: r.short ? r.short.avg : null,
-                        shortMax: r.short ? r.short.max : null,
-                        shortMin: r.short ? r.short.min : null,
-                        shortResult: r.short ? (r.short.inSpec ? 'Pass' : 'Fail') : 'Pass',
-                        longAvg: r.long ? r.long.avg : null,
-                        longMax: r.long ? r.long.max : null,
-                        longMin: r.long ? r.long.min : null,
-                        longResult: r.long ? (r.long.inSpec ? 'Pass' : 'Fail') : 'Pass',
+                        datumAvg: r.short ? r.short.avg : null,
+                        datumMax: r.short ? r.short.max : null,
+                        datumMin: r.short ? r.short.min : null,
+                        datumResult: r.short ? (r.short.inSpec ? 'Pass' : 'Fail') : 'Pass',
+                        nondatumAvg: r.long ? r.long.avg : null,
+                        nondatumMax: r.long ? r.long.max : null,
+                        nondatumMin: r.long ? r.long.min : null,
+                        nondatumResult: r.long ? (r.long.inSpec ? 'Pass' : 'Fail') : 'Pass',
                         vmi: r.vmi || {},
                         vmiNG: !r.vmiPass,
                         overall: r.overallPass ? 'Pass' : 'Fail',
@@ -1454,7 +1368,8 @@ async function importExportedCSV(event) {
                     mode: getVal('Mode') || 'buyoff',
                     product: modelKey,
                     productLabel: pLabel,
-                    partno: getVal('PartNo') || '',
+                    partno: getVal('PartNo') || getVal('Part No') || '',
+                    ptno: getVal('PTNo') || getVal('PT Number') || '',
                     mc: getVal('MC') || '',
                     team: getVal('Team') || '',
                     qcEn: getVal('QC_EN') || '',
@@ -1464,22 +1379,20 @@ async function importExportedCSV(event) {
                     recvTime: getVal('RecvTime') || '',
                     attribute: getVal('Attribute') || 'Normal',
                     pcs: parseInt(getVal('Pcs')) || 0,
-                    shortAvg: parseFloat(getVal('ShortP1_Avg')) || null,
-                    shortMax: parseFloat(getVal('ShortP1_Max')) || null,
-                    shortMin: parseFloat(getVal('ShortP1_Min')) || null,
-                    shortResult: getVal('ShortP1_Result') || 'Pass',
-                    longAvg: parseFloat(getVal('LongTop_Avg')) || null,
-                    longMax: parseFloat(getVal('LongTop_Max')) || null,
-                    longMin: parseFloat(getVal('LongTop_Min')) || null,
-                    longResult: getVal('LongTop_Result') || 'Pass',
+                    datumAvg: parseFloat(getVal('Datum_Avg')) || null,
+                    datumMax: parseFloat(getVal('Datum_Max')) || null,
+                    datumMin: parseFloat(getVal('Datum_Min')) || null,
+                    datumResult: getVal('Datum_Result') || 'Pass',
+                    nondatumAvg: parseFloat(getVal('Non_Datum_Avg')) || null,
+                    nondatumMax: parseFloat(getVal('Non_Datum_Max')) || null,
+                    nondatumMin: parseFloat(getVal('Non_Datum_Min')) || null,
+                    nondatumResult: getVal('Non_Datum_Result') || 'Pass',
                     vmiNG: getVal('VMI_NG') === 'YES',
                     overall: getVal('Overall') || 'Pass',
                     savedAt: new Date().toISOString(),
                     dimData: {
-                        short_p1: { avg: parseFloat(getVal('ShortP1_Avg')), max: parseFloat(getVal('ShortP1_Max')), min: parseFloat(getVal('ShortP1_Min')), result: getVal('ShortP1_Result') },
-                        short_p2: { avg: parseFloat(getVal('ShortP2_Avg')), max: parseFloat(getVal('ShortP2_Max')), min: parseFloat(getVal('ShortP2_Min')), result: getVal('ShortP2_Result') },
-                        long_top: { avg: parseFloat(getVal('LongTop_Avg')), max: parseFloat(getVal('LongTop_Max')), min: parseFloat(getVal('LongTop_Min')), result: getVal('LongTop_Result') },
-                        long_bot: { avg: parseFloat(getVal('LongBot_Avg')), max: parseFloat(getVal('LongBot_Max')), min: parseFloat(getVal('LongBot_Min')), result: getVal('LongBot_Result') }
+                        datum: { avg: parseFloat(getVal('Datum_Avg')), max: parseFloat(getVal('Datum_Max')), min: parseFloat(getVal('Datum_Min')), result: getVal('Datum_Result') },
+                        nondatum: { avg: parseFloat(getVal('Non_Datum_Avg')), max: parseFloat(getVal('Non_Datum_Max')), min: parseFloat(getVal('Non_Datum_Min')), result: getVal('Non_Datum_Result') }
                     }
                 };
                 records.push(rec);
@@ -1510,13 +1423,14 @@ function renderPendingTable() {
     }
 
     let html = '<table style="width:100%;text-align:left;">';
-    html += '<thead><tr><th>No</th><th>Date</th><th>Product</th><th>PT Number</th><th>Select</th></tr></thead><tbody>';
+    html += '<thead><tr><th>No</th><th>Date</th><th>Product</th><th>Part Number</th><th>PT Number</th><th>Select</th></tr></thead><tbody>';
     recs.forEach(r => {
         html += `<tr>
             <td>${r.no}</td>
             <td>${r.date}</td>
             <td>${r.productLabel}</td>
             <td>${r.partno || '-'}</td>
+            <td>${r.ptno || '-'}</td>
             <td><button class="btn btn-sm btn-outline" onclick="selectPendingForMerge(${r.id})">Select</button></td>
         </tr>`;
     });
@@ -1527,6 +1441,17 @@ function renderPendingTable() {
 let _selectedMergeId = null;
 function selectPendingForMerge(id) {
     _selectedMergeId = id;
+
+    const recs = loadRecords();
+    const r = recs.find(x => x.id === id);
+    if (r) {
+        document.getElementById('stage2-target-info').style.display = 'block';
+        document.getElementById('stage2-target-details').innerHTML = `
+            <b>Product:</b> ${r.productLabel || r.product} <br>
+            <b>Part No:</b> ${r.partno || '-'} &nbsp;|&nbsp; <b>PT No:</b> ${r.ptno || '-'} &nbsp;|&nbsp; <b>M/C:</b> ${r.mc || '-'} &nbsp;|&nbsp; <b>Date:</b> ${r.date}
+        `;
+    }
+
     showToast('เลือก Record แล้ว ไปที่แถบ Stage 2 เพื่อนำเข้าข้อมูล', 'success');
     const btn = document.querySelector('[data-tab="stage2"]');
     if (btn) btn.click();
@@ -1543,8 +1468,8 @@ function parseStage2Data() {
     const botNums = botText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
 
     let html = `<h4>Extracted Data:</h4>`;
-    html += `<p><b>Top</b>: ${topNums.length} values => ${topNums.join(', ')}</p>`;
-    html += `<p><b>Bottom</b>: ${botNums.length} values => ${botNums.join(', ')}</p>`;
+    html += `<p><b>Datum</b>: ${topNums.length} values => ${topNums.join(', ')}</p>`;
+    html += `<p><b>Non-datum</b>: ${botNums.length} values => ${botNums.join(', ')}</p>`;
     document.getElementById('merge-preview-area').innerHTML = html;
 
     if (topNums.length > 0 && botNums.length > 0) {
@@ -1565,8 +1490,8 @@ function commitStage2Damper() {
     if (!r.dimData) r.dimData = {};
 
     const evalGroup = (key, nums, gDef) => {
-        const lsl = gDef.nom - gDef.tol;
-        const usl = gDef.nom + gDef.tol;
+        const lsl = gDef.lsl;
+        const usl = gDef.usl;
         const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
         const max = Math.max(...nums);
         const min = Math.min(...nums);
@@ -1574,19 +1499,25 @@ function commitStage2Damper() {
         return { vals: nums, avg: +avg.toFixed(5), max: +max.toFixed(5), min: +min.toFixed(5), result: allOk ? 'Pass' : 'Fail' };
     };
 
-    const topDef = DIM_GROUPS.long.find(x => x.key === 'long_top');
-    const botDef = DIM_GROUPS.long.find(x => x.key === 'long_bot');
+    const topDef = DIM_GROUPS.datum.find(x => x.key === 'datum');
+    const botDef = DIM_GROUPS.datum.find(x => x.key === 'nondatum');
 
-    r.dimData['long_top'] = evalGroup('long_top', topNums, topDef);
-    r.dimData['long_bot'] = evalGroup('long_bot', botNums, botDef);
+    r.dimData['datum'] = evalGroup('datum', topNums, topDef);
+    r.dimData['nondatum'] = evalGroup('nondatum', botNums, botDef);
 
-    r.longAvg = r.dimData['long_top'].avg;
-    r.longMax = r.dimData['long_top'].max;
-    r.longMin = r.dimData['long_top'].min;
-    r.longResult = (r.dimData['long_top'].result === 'Pass' && r.dimData['long_bot'].result === 'Pass') ? 'Pass' : 'Fail';
+    r.datumAvg = r.dimData['datum'].avg;
+    r.datumMax = r.dimData['datum'].max;
+    r.datumMin = r.dimData['datum'].min;
+    r.datumResult = r.dimData['datum'].result;
 
-    const shortOk = (r.dimData['short_p1']?.result === 'Pass' && r.dimData['short_p2']?.result === 'Pass');
-    r.overall = (!r.vmiNG && shortOk && r.longResult === 'Pass') ? 'Pass' : 'Fail';
+    r.nondatumAvg = r.dimData['nondatum'].avg;
+    r.nondatumMax = r.dimData['nondatum'].max;
+    r.nondatumMin = r.dimData['nondatum'].min;
+    r.nondatumResult = r.dimData['nondatum'].result;
+
+    const datumOk = r.datumResult === 'Pass';
+    const nondatumOk = r.nondatumResult === 'Pass';
+    r.overall = (!r.vmiNG && datumOk && nondatumOk) ? 'Pass' : 'Fail';
 
     saveRecords(recs);
     _selectedMergeId = null;
@@ -1595,6 +1526,7 @@ function commitStage2Damper() {
     document.getElementById('m-bot-data').value = '';
     document.getElementById('merge-preview-area').innerHTML = '<div style="color:var(--pass);font-weight:bold;padding:10px;background:rgba(39,174,96,0.1);border-radius:6px;">✅ Merge สำเร็จ!</div>';
     document.getElementById('btn-merge-damper').disabled = true;
+    document.getElementById('stage2-target-info').style.display = 'none';
 
     updateKPIs();
     renderRecords();
@@ -1615,31 +1547,18 @@ function clearAllDrafts() {
 
 const originalSaveBatch = saveBatch;
 saveBatch = function () {
-    const allGroups = [...DIM_GROUPS.short, ...DIM_GROUPS.long];
-    let anyMissing = false;
-    for (const g of allGroups) {
-        if (!document.getElementById(`${g.key}-pc-1`) || !document.getElementById(`${g.key}-pc-1`).value) {
-            anyMissing = true;
-        }
+    // Stage 1 always saves as Waiting because dims are done in Stage 2
+    const oldOverall = document.getElementById('m-overall').value;
+    setOverallPF('Waiting');
+    try {
+        const oldDatum = [...DIM_GROUPS.datum];
+        DIM_GROUPS.datum = [];
+        originalSaveBatch();
+        DIM_GROUPS.datum = oldDatum;
+        renderPendingTable();
+    } finally {
+        setOverallPF(oldOverall);
     }
-
-    if (anyMissing) {
-        showConfirm('ข้อมูลไม่ครบ', 'ต้องการบันทึกเป็น Waiting (Stage 1) เพื่อรอ Merge ข้อมูลทีหลังหรือไม่?', () => {
-            const oldOverall = document.getElementById('m-overall').value;
-            setOverallPF('Waiting');
-            try {
-                const oldGroups = [...DIM_GROUPS.long];
-                DIM_GROUPS.long = [];
-                originalSaveBatch();
-                DIM_GROUPS.long = oldGroups;
-                renderPendingTable();
-            } finally {
-                setOverallPF(oldOverall);
-            }
-        });
-        return;
-    }
-    originalSaveBatch();
 }
 
 // Hook tab switch to render pending table
@@ -1680,6 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-group"><label>Traveler</label><input type="text" id="e-dmp-traveler" class="form-input"></div>
                 
                 <div class="form-group"><label>Part No.</label><input type="text" id="e-dmp-partno" class="form-input"></div>
+                <div class="form-group"><label>PT No.</label><input type="text" id="e-dmp-ptno" class="form-input"></div>
                 <div class="form-group"><label>Fixture / MC</label><input type="text" id="e-dmp-mc" class="form-input"></div>
                 <div class="form-group"><label>Team</label><input type="text" id="e-dmp-team" class="form-input"></div>
                 
@@ -1690,8 +1610,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div style="font-size:13px;font-weight:700;margin-bottom:8px">Damper Values (Average)</div>
             <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;padding:12px;background:var(--bg2);border-radius:8px">
-                <div class="form-group"><label>Short P1 Avg</label><input type="number" step="0.0001" id="e-dmp-short" class="form-input"></div>
-                <div class="form-group"><label>Long Top Avg</label><input type="number" step="0.0001" id="e-dmp-long" class="form-input"></div>
+                <div class="form-group"><label>Datum Avg</label><input type="number" step="0.0001" id="e-dmp-datum" class="form-input"></div>
+                <div class="form-group"><label>Non-datum Avg</label><input type="number" step="0.0001" id="e-dmp-nondatum" class="form-input"></div>
             </div>
 
             <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
@@ -1723,14 +1643,15 @@ window.editRecord = function (id) {
     document.getElementById('e-dmp-product').value = r.productLabel || r.product || '';
     document.getElementById('e-dmp-traveler').value = r.traveler || '';
     document.getElementById('e-dmp-partno').value = r.partno || '';
+    document.getElementById('e-dmp-ptno').value = r.ptno || '';
     document.getElementById('e-dmp-mc').value = r.mc || '';
     document.getElementById('e-dmp-team').value = r.team || '';
     document.getElementById('e-dmp-qcEn').value = r.qcEn || '';
     document.getElementById('e-dmp-meEn').value = r.meEn || '';
     document.getElementById('e-dmp-attr').value = r.attribute || '';
 
-    document.getElementById('e-dmp-short').value = r.dimData?.short_p1?.avg || '';
-    document.getElementById('e-dmp-long').value = r.dimData?.long_top?.avg || '';
+    document.getElementById('e-dmp-datum').value = r.datumAvg || '';
+    document.getElementById('e-dmp-nondatum').value = r.nondatumAvg || '';
 
     document.getElementById('e-dmp-overall').value = r.overall === 'Pass' ? 'Pass' : 'Fail';
 
@@ -1748,6 +1669,7 @@ window.saveEditRecord = async function () {
     r.productLabel = document.getElementById('e-dmp-product').value;
     r.traveler = document.getElementById('e-dmp-traveler').value;
     r.partno = document.getElementById('e-dmp-partno').value;
+    r.ptno = document.getElementById('e-dmp-ptno').value;
     r.mc = document.getElementById('e-dmp-mc').value;
     r.team = document.getElementById('e-dmp-team').value;
     r.qcEn = document.getElementById('e-dmp-qcEn').value;
@@ -1755,12 +1677,12 @@ window.saveEditRecord = async function () {
     r.attribute = document.getElementById('e-dmp-attr').value;
     r.overall = document.getElementById('e-dmp-overall').value;
 
-    const sAvg = parseFloat(document.getElementById('e-dmp-short').value);
-    const lAvg = parseFloat(document.getElementById('e-dmp-long').value);
+    const sAvg = parseFloat(document.getElementById('e-dmp-datum').value);
+    const lAvg = parseFloat(document.getElementById('e-dmp-nondatum').value);
 
     if (r.dimData) {
-        if (r.dimData.short_p1 && !isNaN(sAvg)) r.dimData.short_p1.avg = sAvg;
-        if (r.dimData.long_top && !isNaN(lAvg)) r.dimData.long_top.avg = lAvg;
+        if (!isNaN(sAvg)) r.datumAvg = sAvg;
+        if (!isNaN(lAvg)) r.nondatumAvg = lAvg;
     }
 
     saveRecords(recs);

@@ -448,7 +448,8 @@ async function fetchDynamicProducts() {
     const data = await res.json();
     if (data.success) {
       window.SERVER_PRODUCTS_LIST = data.products;
-      populateProductDropdowns();
+      const currentMode = document.getElementById('m-mode')?.value || 'buyoff';
+      populateProductDropdowns(currentMode);
     }
   } catch (e) {
     console.error('Failed to fetch dynamic products:', e);

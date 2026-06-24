@@ -402,8 +402,8 @@
                     </svg>
                 </div>
                 <div class="kpi-info">
-                    <div class="kpi-val" id="kpi-avg-short" style="color:var(--blue)">—</div>
-                    <div class="kpi-lbl">Avg Short P1</div>
+                    <div class="kpi-val" id="kpi-avg-datum" style="color:var(--blue)">—</div>
+                    <div class="kpi-lbl">Avg Datum</div>
                 </div>
             </div>
             <div class="kpi-card">
@@ -414,8 +414,8 @@
                     </svg>
                 </div>
                 <div class="kpi-info">
-                    <div class="kpi-val" id="kpi-avg-long" style="color:#9B59B6">—</div>
-                    <div class="kpi-lbl">Avg Long Top</div>
+                    <div class="kpi-val" id="kpi-avg-nondatum" style="color:#9B59B6">—</div>
+                    <div class="kpi-lbl">Avg Non-datum</div>
                 </div>
             </div>
         </div>
@@ -448,7 +448,7 @@
                                 </span>
                             </h3>
                             <div class="card-sub" id="form-spec-label">
-                                เลือก Product → ระบบจะโหลด Part No., M/C, จำนวนชิ้น และ Spec อัตโนมัติ
+                                เลือก Product → ระบบจะโหลด M/C, จำนวนชิ้น และ Spec อัตโนมัติ
                             </div>
                         </div>
                     </div>
@@ -489,14 +489,15 @@
                             <!-- 3. Part number -->
                             <div class="form-group">
                                 <label>3. Part number</label>
-                                <input type="text" id="m-partno" class="form-input" placeholder="e.g. 111111111-1"
-                                    style="color:var(--text3);cursor:not-allowed">
+                                <input type="text" id="m-partno" class="form-input" placeholder="e.g. 12345"
+                                    style="letter-spacing:1px">
                             </div>
 
                             <!-- 4. PT no. -->
                             <div class="form-group">
                                 <label>4. PT no.</label>
-                                <input type="text" id="m-ptno" class="form-input" placeholder="e.g. PT260426334">
+                                <input type="text" id="m-ptno" class="form-input" placeholder="e.g. PT-01"
+                                    style="letter-spacing:1px">
                             </div>
 
                             <!-- 5. M/c no. -->
@@ -506,40 +507,36 @@
                                     style="letter-spacing:1px">
                             </div>
 
-                            <!-- 6. date -->
+                            <!-- 5. date -->
                             <div class="form-group">
                                 <label>6. date <span style="color:var(--fail)">*</span></label>
                                 <input type="date" id="m-date" class="form-input">
                             </div>
 
-                            <!-- 7. sending time -->
+                            <!-- 6. sending time -->
                             <div class="form-group">
                                 <label>7. sending time</label>
                                 <input type="time" id="m-send-time" class="form-input">
                             </div>
 
-                            <!-- 8. receive time -->
+                            <!-- 7. receive time -->
                             <div class="form-group">
                                 <label>8. receive time</label>
                                 <input type="time" id="m-recv-time" class="form-input">
                             </div>
 
-                            <!-- 9. En. -->
+                            <!-- 8. En. -->
                             <div class="form-group">
                                 <label>9. En. <span style="color:var(--fail)">*</span></label>
                                 <input type="text" id="m-en" class="form-input" placeholder="e.g. 36928"
                                     style="letter-spacing:1px">
                             </div>
 
-                            <!-- 10. part no. -->
-                            <div class="form-group">
-                                <label>10. part no.</label>
-                                <input type="text" id="m-partno2" class="form-input" placeholder="">
-                            </div>
+
 
                             <!-- 11. Attibute -->
                             <div class="form-group">
-                                <label>11. Attibute</label>
+                                <label>10. Attibute</label>
                                 <select id="m-attribute" class="form-select">
                                     <option value="Normal">Normal</option>
                                     <option value="Re-submit">Re-submit</option>
@@ -567,21 +564,7 @@
                             <div class="vmi-grid" id="vmi-grid"></div>
                         </div>
 
-                        <!-- ── Dimension Input (4 groups, dynamic) ── -->
-                        <div id="dim-section" style="display:none;margin-top:16px">
-                            <div class="sec-label" style="margin-bottom:16px">
-                                📐 Damper Dimension Measurement
-                                <span
-                                    style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">
-                                    Short: P1 (1.358±0.010 in.) &amp; P2 (0.030±0.010 in.) &nbsp;|&nbsp; Long: Top
-                                    (0.814±0.010 in.) &amp; Bot (0.030±0.010 in.)
-                                </span>
-                            </div>
 
-                            <!-- 4 dimension group blocks injected here by JS -->
-                            <div id="dim-groups-container"></div>
-
-                        </div><!-- /dim-section -->
 
                         <!-- ── Overall Result ── -->
                         <div id="overall-section"
@@ -625,196 +608,199 @@
                     </div>
 
                 </div><!-- /card -->
-            </div><!-- end card -->
-
-            <!-- PENDING DRAFTS SECTION -->
-            <div id="panel-manual-pending" style="margin-top:16px;padding-top:0;">
-                <div class="card" style="border-top:3px solid var(--primary);">
-                    <div class="card-hdr" style="background:rgba(108,92,231,0.04);">
-                        <h3 style="color:var(--primary);">PENDING RECORDS <span
-                                style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Stage 2)</span>
-                            <span class="badge" id="badge-pending"
-                                style="background:var(--primary);margin-left:8px;">0</span>
-                        </h3>
-                        <div class="btn-row">
-                            <button class="btn btn-outline btn-sm" onclick="renderPendingTable()">Refresh</button>
-                            <button class="btn btn-danger btn-sm" onclick="clearAllDrafts()">Clear All Waiting</button>
+                <!-- PENDING DRAFTS SECTION -->
+                <div id="panel-manual-pending" style="margin-top:16px;padding-top:0;">
+                    <div class="card" style="border-top:3px solid var(--primary);">
+                        <div class="card-hdr" style="background:rgba(108,92,231,0.04);">
+                            <h3 style="color:var(--primary);">PENDING RECORDS <span
+                                    style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Stage
+                                    2)</span>
+                                <span class="badge" id="badge-pending"
+                                    style="background:var(--primary);margin-left:8px;">0</span>
+                            </h3>
+                            <div class="btn-row">
+                                <button class="btn btn-outline btn-sm" onclick="renderPendingTable()">Refresh</button>
+                                <button class="btn btn-danger btn-sm" onclick="clearAllDrafts()">Clear All
+                                    Waiting</button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="card-body" style="padding-bottom:0">
-                        <div id="pending-table-wrap">
-                            <div class="empty" style="padding:20px">
-                                <p>ยังไม่มี Pending Records - กด "Save" เพื่อเริ่มต้น</p>
+                        <div class="card-body" style="padding-bottom:0">
+                            <div id="pending-table-wrap">
+                                <div class="empty" style="padding:20px">
+                                    <p>ยังไม่มี Pending Records - กด "Save" เพื่อเริ่มต้น</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+            </div><!-- end panel-manual -->
+
+            <!-- ========================================== -->
+            <!-- TAB: STAGE 2 BULK MERGE                    -->
+            <!-- ========================================== -->
+            <div class="tab-panel" id="panel-stage2">
+                <div class="card" style="border-top:3px solid var(--blue);margin-top:0;">
+                    <div class="card-hdr" style="background:rgba(9,132,227,0.04);">
+                        <h3 style="color:var(--blue);">STAGE 2 — BULK TEXT DATA MERGE</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="stage2-target-info"
+                            style="margin-bottom: 16px; padding: 12px; background: rgba(9,132,227,0.1); border: 1px solid rgba(9,132,227,0.3); border-radius: 8px; display: none;">
+                            <h4 style="margin:0 0 8px 0; color: var(--blue);">📌 Target Record Selected</h4>
+                            <div id="stage2-target-details" style="font-size: 13px; color: var(--text2);">
+                                <!-- Details injected via JS -->
+                            </div>
+                        </div>
+
+                        <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+                            <div class="form-group">
+                                <label>Datum Data</label>
+                                <textarea id="m-top-data" class="form-input" rows="6"
+                                    placeholder="e.g. 0.814, 0.815, 0.813, 0.814"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Non-datum Data</label>
+                                <textarea id="m-bot-data" class="form-input" rows="6"
+                                    placeholder="e.g. 0.030, 0.031, 0.029, 0.030"></textarea>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:10px" class="btn-row">
+                            <button class="btn btn-outline" onclick="parseStage2Data()">Preview & Extract</button>
+                            <button class="btn btn-primary" id="btn-merge-damper" onclick="commitStage2Damper()"
+                                disabled>Merge to Target Record</button>
+                        </div>
+
+                        <div id="merge-preview-area" style="margin-top:14px"></div>
+                    </div>
+                </div>
             </div>
 
-        </div><!-- end panel-manual -->
-
-        <!-- ========================================== -->
-        <!-- TAB: STAGE 2 BULK MERGE                    -->
-        <!-- ========================================== -->
-        <div class="tab-panel" id="panel-stage2">
-            <div class="card" style="border-top:3px solid var(--blue);margin-top:0;">
-                <div class="card-hdr" style="background:rgba(9,132,227,0.04);">
-                    <h3 style="color:var(--blue);">STAGE 2 — BULK TEXT DATA MERGE</h3>
-                </div>
-                <div class="card-body">
-                    <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-                        <div class="form-group">
-                            <label>Top Data (วางข้อมูลสำหรับ Long - Top)</label>
-                            <textarea id="m-top-data" class="form-input" rows="6"
-                                placeholder="วางข้อมูลจาก Excel/Machine"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Bottom Data (วางข้อมูลสำหรับ Long - Bot)</label>
-                            <textarea id="m-bot-data" class="form-input" rows="6"
-                                placeholder="วางข้อมูลจาก Excel/Machine"></textarea>
-                        </div>
-                    </div>
-
-                    <div style="margin-top:10px" class="btn-row">
-                        <button class="btn btn-outline" onclick="parseStage2Data()">Preview & Extract</button>
-                        <button class="btn btn-primary" id="btn-merge-damper" onclick="commitStage2Damper()"
-                            disabled>Merge to Target Record</button>
-                    </div>
-
-                    <div id="merge-preview-area" style="margin-top:14px"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ═══════════════════════════════════════════
+            <!-- ═══════════════════════════════════════════
      TAB 2 : ABOUT DATA
 ═══════════════════════════════════════════ -->
-        <div class="tab-panel" id="panel-records">
-            <div class="card">
-                <div class="card-hdr">
-                    <div>
-                        <h3>About Data — Damper Install Records</h3>
-                        <div class="card-sub" id="records-count-label">Loading...</div>
+            <div class="tab-panel" id="panel-records">
+                <div class="card">
+                    <div class="card-hdr">
+                        <div>
+                            <h3>About Data — Damper Install Records</h3>
+                            <div class="card-sub" id="records-count-label">Loading...</div>
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 Export CSV</button>
+                            <button class="btn btn-success btn-sm"
+                                onclick="document.getElementById('import-csv-file').click()">↑ Import CSV</button>
+                            <input type="file" id="import-csv-file" accept=".csv, .xlsx, .xls" style="display:none;"
+                                onchange="importExportedCSV(event)" multiple>
+                            <button class="btn btn-danger btn-sm" onclick="clearAllRecords()">🗑️ Clear All</button>
+                        </div>
                     </div>
-                    <div class="btn-row">
-                        <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 Export CSV</button>
-                        <button class="btn btn-success btn-sm"
-                            onclick="document.getElementById('import-csv-file').click()">↑ Import CSV</button>
-                        <input type="file" id="import-csv-file" accept=".csv, .xlsx, .xls" style="display:none;"
-                            onchange="importExportedCSV(event)" multiple>
-                        <button class="btn btn-danger btn-sm" onclick="clearAllRecords()">🗑️ Clear All</button>
-                    </div>
-                </div>
-                <div class="card-body" style="padding:12px 16px">
-                    <div class="filter-row" style="flex-wrap:wrap;gap:8px">
-                        <input type="text" id="flt-search" class="form-input"
-                            placeholder="Search Traveler, EN#, Product..." style="max-width:220px"
-                            oninput="renderRecords()">
-                        <select id="flt-product" class="form-select" onchange="renderRecords()" style="max-width:200px">
-                            <option value="">All Products</option>
-                        </select>
-                        <select id="flt-result" class="form-select" onchange="renderRecords()" style="max-width:130px">
-                            <option value="">All Results</option>
-                            <option value="Pass">Pass</option>
-                            <option value="Fail">Fail</option>
-                        </select>
-                        <input type="date" id="flt-from" onchange="renderRecords()" class="form-input"
-                            style="max-width:140px">
-                        <input type="date" id="flt-to" onchange="renderRecords()" class="form-input"
-                            style="max-width:140px">
-                        <button class="btn btn-outline btn-sm" onclick="resetFilter()">Reset</button>
-                    </div>
+                    <div class="card-body" style="padding:12px 16px">
+                        <div class="filter-row" style="flex-wrap:wrap;gap:8px">
+                            <input type="text" id="flt-search" class="form-input"
+                                placeholder="Search Traveler, EN#, Product..." style="max-width:220px"
+                                oninput="renderRecords()">
+                            <select id="flt-product" class="form-select" onchange="renderRecords()"
+                                style="max-width:200px">
+                                <option value="">All Products</option>
+                            </select>
+                            <select id="flt-result" class="form-select" onchange="renderRecords()"
+                                style="max-width:130px">
+                                <option value="">All Results</option>
+                                <option value="Pass">Pass</option>
+                                <option value="Fail">Fail</option>
+                            </select>
+                            <input type="date" id="flt-from" onchange="renderRecords()" class="form-input"
+                                style="max-width:140px">
+                            <input type="date" id="flt-to" onchange="renderRecords()" class="form-input"
+                                style="max-width:140px">
+                            <button class="btn btn-outline btn-sm" onclick="resetFilter()">Reset</button>
+                        </div>
 
-                    <div class="tbl-wrap" style="margin-top:10px">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th onclick="sortTable('no')">No. ▲▼</th>
-                                    <th onclick="sortTable('date')">Date ▲▼</th>
-                                    <th onclick="sortTable('productLabel')">Product ▲▼</th>
-                                    <th>Part No.</th>
-                                    <th onclick="sortTable('mc')">M/C ▲▼</th>
-                                    <th onclick="sortTable('team')">Team ▲▼</th>
-                                    <th>QC EN#</th>
-                                    <th>ME EN#</th>
-                                    <th>Traveler</th>
-                                    <th>Attr.</th>
-                                    <th>Pcs</th>
-                                    <th>Short P1<br><span style="font-size:9px;font-weight:400">(1.358±0.010)</span>
-                                    </th>
-                                    <th>Short P2<br><span style="font-size:9px;font-weight:400">(0.030±0.010)</span>
-                                    </th>
-                                    <th>Long Top<br><span style="font-size:9px;font-weight:400">(0.814±0.010)</span>
-                                    </th>
-                                    <th>Long Bot<br><span style="font-size:9px;font-weight:400">(0.030±0.010)</span>
-                                    </th>
-                                    <th>VMI</th>
-                                    <th onclick="sortTable('overall')">Overall ▲▼</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="records-body">
-                                <tr>
-                                    <td colspan="18" style="text-align:center;padding:32px;color:var(--text3)">
-                                        <div style="font-size:28px;margin-bottom:8px">📋</div>ไม่มีข้อมูล
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="tbl-wrap" style="margin-top:10px">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th onclick="sortTable('no')">No. ▲▼</th>
+                                        <th onclick="sortTable('date')">Date ▲▼</th>
+                                        <th onclick="sortTable('productLabel')">Product ▲▼</th>
+                                        <th onclick="sortTable('mc')">M/C ▲▼</th>
+                                        <th onclick="sortTable('team')">Team ▲▼</th>
+                                        <th>QC EN#</th>
+                                        <th>ME EN#</th>
+                                        <th>Traveler</th>
+                                        <th>Attr.</th>
+                                        <th>Pcs</th>
+                                        <th>Datum</th>
+                                        <th>Non-datum</th>
+                                        <th>VMI</th>
+                                        <th onclick="sortTable('overall')">Overall ▲▼</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="records-body">
+                                    <tr>
+                                        <td colspan="18" style="text-align:center;padding:32px;color:var(--text3)">
+                                            <div style="font-size:28px;margin-bottom:8px">📋</div>ไม่มีข้อมูล
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- ═══════════════════════════════════════════
+            <!-- ═══════════════════════════════════════════
      TAB 3 : VISUALIZATION
 ═══════════════════════════════════════════ -->
-        <div class="tab-panel" id="panel-viz">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-                <label style="font-size:12px;font-weight:700;color:var(--text2)">Filter Product:</label>
-                <select id="viz-product" class="form-select" style="max-width:200px" onchange="renderCharts()">
-                    <option value="">All Products</option>
-                </select>
+            <div class="tab-panel" id="panel-viz">
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+                    <label style="font-size:12px;font-weight:700;color:var(--text2)">Filter Product:</label>
+                    <select id="viz-product" class="form-select" style="max-width:200px" onchange="renderCharts()">
+                        <option value="">All Products</option>
+                    </select>
+                </div>
+                <div class="split-2">
+                    <div class="card">
+                        <div class="card-hdr">
+                            <h3>Datum Trend (Avg)</h3>
+                            <span id="datum-lbl" style="font-size:11px;color:var(--text3)">—</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-holder"><canvas id="chart-datum"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-hdr">
+                            <h3>Non-datum Trend (Avg)</h3>
+                            <span id="nondatum-lbl" style="font-size:11px;color:var(--text3)">—</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-holder"><canvas id="chart-nondatum"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="split-2">
+                    <div class="card">
+                        <div class="card-hdr">
+                            <h3>Pass / Fail by Product</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-holder" style="height:200px"><canvas id="chart-product"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-hdr">
+                            <h3>VMI Defect Summary</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-holder" style="height:200px"><canvas id="chart-vmi"></canvas></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="split-2">
-                <div class="card">
-                    <div class="card-hdr">
-                        <h3>Short Damper P1 Trend (Avg)</h3>
-                        <span id="short-lbl" style="font-size:11px;color:var(--text3)">—</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-holder"><canvas id="chart-short"></canvas></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-hdr">
-                        <h3>Long Damper Top Trend (Avg)</h3>
-                        <span id="long-lbl" style="font-size:11px;color:var(--text3)">—</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-holder"><canvas id="chart-long"></canvas></div>
-                    </div>
-                </div>
-            </div>
-            <div class="split-2">
-                <div class="card">
-                    <div class="card-hdr">
-                        <h3>Pass / Fail by Product</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-holder" style="height:200px"><canvas id="chart-product"></canvas></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-hdr">
-                        <h3>VMI Defect Summary</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-holder" style="height:200px"><canvas id="chart-vmi"></canvas></div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         </div>
 
