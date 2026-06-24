@@ -1180,6 +1180,12 @@ async function saveRecord() {
 
   await refreshDataFromServer();
   clearForm();
+
+  // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จสิ้น
+  const recordsBtn = document.querySelector('.nav-btn[data-tab="records"]');
+  if (recordsBtn) {
+      switchTab('records', recordsBtn);
+  }
 }
 
 function setOverallPF(val) {

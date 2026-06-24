@@ -4418,7 +4418,7 @@ function getTextDataDims(mk) {
 // Saves a record with only Parallel/DTM/NDTM filled.
 // Status = PENDING_DATA. Batch requirement: up to 4/PT/Oven.
 // ============================================================
-function saveManualDraft() {
+async function saveManualDraft() {
     const dType = document.getElementById('m-datatype').value;
     const mk = document.getElementById('m-model').value;
     const fix = document.getElementById('m-fix1').value.trim();
@@ -4504,7 +4504,15 @@ function saveManualDraft() {
 
     if (added > 0) {
         saveDB();
-        if (isBackendOnline) syncWithServer(true);
+        
+        if (window.BLoader) window.BLoader.show('กำลังบันทึกลงฐานข้อมูลถาวร...');
+        try {
+            if (isBackendOnline) await syncWithServer(false);
+        } catch(e) {
+            console.error('MySQL Sync Error:', e);
+        }
+        if (window.BLoader) window.BLoader.hide();
+        
         renderAboutTable();
         renderPendingTable();
         updatePendingBadge();
@@ -4542,7 +4550,13 @@ function saveManualDraft() {
         // 🔴 เอาคำสั่งล้าง m-fix1 ออกแล้วครับ!
 
         updateValidationBanner(mk);
-        showToast(`✅ บันทึก Log เข้า Pending สำเร็จ (${added} ชิ้น) — พร้อมกรอกชิ้นต่อไป`, 'success');
+        showToast(`✅ บันทึกลง MySQL ถาวรสำเร็จ (${added} ชิ้น)`, 'success');
+        
+        // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
+        const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
+        if (aboutBtn) {
+            switchTab('about', aboutBtn);
+        }
     } else {
         showToast('⚠️ ไม่สามารถบันทึกได้ (กลุ่ม PT/Oven นี้ครบ 4 ชิ้นแล้ว)', 'warn');
     }
@@ -5107,11 +5121,15 @@ function populateMergeDropdown() {
     const el = document.getElementById('merge-model');
     if (!el) return;
     const prev = el.value;
-    el.innerHTML = '<option value="">— เลือก Product —</option>' +
-        Object.entries(PRODUCTS)
-            .map(([k, v]) => `<option value="${k}">${v.label}</option>`)
-            .join('');
-    if (el.querySelector(`option[value="${prev}"]`)) el.value = prev;
+    
+    // ใช้ getProductOptions('all', false, true) เพื่อดึง Product แบบเดียวกับ Manual Input
+    el.innerHTML = getProductOptions('all', false, true);
+    
+    if (el.querySelector(`option[value="${prev}"]`)) {
+        el.value = prev;
+    } else {
+        el.value = '';
+    }
 }
 
 // ─── Hook into existing switchTab to refresh pending panel ───
@@ -5119,7 +5137,7 @@ const _origSwitchTab = typeof switchTab === 'function' ? switchTab : null;
 if (_origSwitchTab) {
     window.switchTab = function (tab, btn) {
         _origSwitchTab(tab, btn);
-        if (tab === 'manual') {
+        if (tab === 'manual' || tab === 'stage2') {
             renderPendingTable();
             populateMergeDropdown();
             updatePendingBadge();

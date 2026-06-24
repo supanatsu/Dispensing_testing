@@ -216,8 +216,7 @@ function applyDamperConfigForProduct(productKey) {
         let lcl = baseG.lcl;
         let lsl = baseG.lsl;
 
-        // Map 'datum' -> 'short_p1', 'nondatum' -> 'long_top'
-        let configKey = g.key === 'datum' ? 'short_p1' : 'long_top';
+        let configKey = g.key;
 
         if (prodOverride && prodOverride[configKey]) {
             if (prodOverride[configKey].usl !== undefined && prodOverride[configKey].usl !== null) usl = prodOverride[configKey].usl;
@@ -249,7 +248,7 @@ function applyDamperConfigForProduct(productKey) {
 
 // ─── Populate Dropdowns ───────────────────────────────────────
 function populateProductDropdowns(modeFilter = null) {
-    ['m-product', 'flt-product', 'viz-product'].forEach(id => {
+    ['m-product', 'flt-product', 'viz-product', 'merge-product'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         while (el.options.length > 1) el.remove(1);
@@ -538,7 +537,7 @@ function autoJudgeOverall() {
 // ════════════════════════════════════════════════════════════
 //  Save Batch
 // ════════════════════════════════════════════════════════════
-function saveBatch() {
+async function saveBatch() {
     const key = document.getElementById('m-product')?.value;
     if (!key) { showToast('กรุณาเลือก Product ก่อน', 'warn'); return; }
     const p = PRODUCTS[key];
@@ -610,11 +609,28 @@ function saveBatch() {
         saveAlerts(alerts);
         updateBadges();
         triggerAutoEml(rec, issues);
+    } else {
+        triggerAutoEml(rec, []);
     }
 
-    if (isServerOnline) syncWithServer();
+    if (window.BLoader) window.BLoader.show('กำลังบันทึกลงฐานข้อมูลถาวร...');
+    try {
+        if (isServerOnline) await syncWithServer();
+    } catch(e) {
+        console.error('MySQL Sync Error:', e);
+    }
+    if (window.BLoader) window.BLoader.hide();
+    
     clearForm();
-    showToast(`✅ บันทึก Batch #${no} — ${p.label} (${p.pcs} pcs) สำเร็จ`, 'success');
+    showToast(`✅ บันทึกลง MySQL สำเร็จ — Batch #${no} — ${p.label} (${p.pcs} pcs)`, 'success');
+    
+    // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
+    const aboutBtn = document.querySelector('.nav-btn[data-tab="records"]');
+    if (aboutBtn) {
+        switchTab('records', aboutBtn);
+    } else {
+        switchTab('records', null);
+    }
 }
 
 function clearForm() {
@@ -1019,7 +1035,8 @@ function triggerAutoEml(rec, issues) {
     const cfg = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
     const to = cfg.email || 'supanatt04@gmail.com';
     const p = PRODUCTS[rec.product];
-    const subj = `[DAMPER FAIL] Damper Install — ${p?.label || rec.productLabel} | QC EN: ${rec.qcEn}`;
+    const isFail = issues && issues.length > 0;
+    const subj = `[DAMPER ${isFail ? 'FAIL' : 'PASS'}] Damper Install — ${p?.label || rec.productLabel} | QC EN: ${rec.qcEn}`;
 
     // Build offscreen Chart.js trend image (last 20 records)
     const recentRecs = loadRecords().slice(-20);
@@ -1057,8 +1074,8 @@ function triggerAutoEml(rec, issues) {
 
     const html = `
     <div style="font-family:'Calibri','Candara','Segoe UI',sans-serif;color:#333;max-width:700px;margin:0 auto;border:1.5px solid #d1d5db;border-radius:8px;overflow:hidden;">
-      <div style="background:#7c3aed;padding:18px 24px;color:white;">
-        <h2 style="margin:0;font-size:20px;font-weight:700;">🔴 CRITICAL FAIL — Damper Install</h2>
+      <div style="background:${isFail ? '#7c3aed' : '#10b981'};padding:18px 24px;color:white;">
+        <h2 style="margin:0;font-size:20px;font-weight:700;">${isFail ? '🔴 CRITICAL FAIL' : '✅ RECORD SAVED'} — Damper Install</h2>
         <p style="margin:4px 0 0;opacity:0.9;font-size:13px;">Belton Automated Real-time Quality Alert System</p>
       </div>
       <div style="padding:24px;">
@@ -1070,16 +1087,17 @@ function triggerAutoEml(rec, issues) {
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Date</td><td style="padding:8px 0;color:#1f2937">${rec.date}</td></tr>
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.datumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.datumAvg ?? '—'}</td></tr>
           <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Non-datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.nondatumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.nondatumAvg ?? '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Defects Found</td><td style="padding:8px 0;color:#e74c3c;font-weight:bold">${issues.join(' | ')}</td></tr>
+          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Defects Found</td><td style="padding:8px 0;color:${isFail ? '#e74c3c' : '#1f2937'};font-weight:bold">${issues && issues.length ? issues.join(' | ') : 'None'}</td></tr>
         </table>
         ${chartImg ? `
         <div style="margin:24px 0;text-align:center;">
           <p style="font-size:12px;color:#6b7280;margin-bottom:8px;font-weight:bold">📊 Damper Dimension Trend (Last 20 Records)</p>
           <img src="${chartImg}" alt="Defect Trend" style="max-width:100%;border:1px solid #e5e7eb;border-radius:6px;">
         </div>` : ''}
+        ${isFail ? `
         <div style="background:#fef9ee;border-left:4px solid #7c3aed;padding:12px 16px;margin-top:20px;font-size:13px;border-radius:0 4px 4px 0;">
           <span style="font-weight:700;color:#374151;">⚠️ Action Required:</span> Damper dimension out of spec. Halt production and perform corrective action immediately!
-        </div>
+        </div>` : ''}
       </div>
     </div>`;
     downloadEmlBlob(to, subj, html);
@@ -1458,10 +1476,36 @@ function selectPendingForMerge(id) {
 }
 
 function parseStage2Data() {
-    if (!_selectedMergeId) {
-        showToast('กรุณาเลือก Pending Record ก่อน (แถบ Manual Input)', 'warn');
+    const mk = document.getElementById('merge-product').value;
+    const ptFilter = document.getElementById('merge-pt').value.trim();
+    const mcFilter = document.getElementById('merge-mc').value.trim();
+
+    if (!mk) {
+        showToast('กรุณาเลือก Target Product ก่อน', 'warn');
         return;
     }
+
+    const recs = loadRecords();
+    const candidates = recs.filter(r => 
+        (r.overall === 'WAITING' || r.overall === 'Waiting') &&
+        r.product === mk &&
+        (ptFilter === '' || r.ptno === ptFilter) &&
+        (mcFilter === '' || r.mc === mcFilter)
+    ).sort((a, b) => new Date(a.date + 'T' + a.recvTime) - new Date(b.date + 'T' + b.recvTime));
+
+    if (candidates.length === 0) {
+        showToast('❌ ไม่พบ WAITING Drafts ที่ตรงกับเงื่อนไข — กรุณา Save Batch ใน Stage 1 ก่อน', 'error');
+        return;
+    }
+
+    _selectedMergeId = candidates[0].id;
+    
+    const r = candidates[0];
+    document.getElementById('stage2-target-info').style.display = 'block';
+    document.getElementById('stage2-target-details').innerHTML = `
+        <strong>Traveler:</strong> ${r.traveler || '-'} <br>
+        <strong>Product:</strong> ${r.productLabel} | <strong>PT:</strong> ${r.ptno} | <strong>M/C:</strong> ${r.mc}
+    `;
     const topText = document.getElementById('m-top-data').value;
     const botText = document.getElementById('m-bot-data').value;
     const topNums = topText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
@@ -1478,7 +1522,7 @@ function parseStage2Data() {
     }
 }
 
-function commitStage2Damper() {
+async function commitStage2Damper() {
     if (!_selectedMergeId || !window._stage2Data) return;
     const recs = loadRecords();
     const idx = recs.findIndex(r => r.id === _selectedMergeId);
@@ -1531,9 +1575,23 @@ function commitStage2Damper() {
     updateKPIs();
     renderRecords();
     renderPendingTable();
-    showToast('บันทึกข้อมูลเรียบร้อย', 'success');
+    if (window.BLoader) window.BLoader.show('กำลังอัปเดตและบันทึกลงฐานข้อมูลถาวร...');
+    try {
+        if (isServerOnline) await syncWithServer();
+    } catch(e) {
+        console.error('MySQL Sync Error:', e);
+    }
+    if (window.BLoader) window.BLoader.hide();
 
-    if (typeof syncWithServer === 'function') syncWithServer();
+    showToast('✅ Merge + บันทึกลง MySQL สำเร็จ', 'success');
+
+    // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
+    const aboutBtn = document.querySelector('.nav-btn[data-tab="records"]');
+    if (aboutBtn) {
+        switchTab('records', aboutBtn);
+    } else {
+        switchTab('records', null);
+    }
 }
 
 function clearAllDrafts() {

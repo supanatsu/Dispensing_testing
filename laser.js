@@ -865,6 +865,12 @@ async function _doSubmitDrafts() {
   if (isServerOnline) {
     setTimeout(refreshDataFromServer, 500);
   }
+
+  // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อ Submit เสร็จสิ้น
+  const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
+  if (aboutBtn) {
+      switchTab('about', aboutBtn);
+  }
 }
 
 function updateDraftPanel() {

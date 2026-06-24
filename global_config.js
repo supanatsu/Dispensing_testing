@@ -394,10 +394,8 @@ const LS_KEY_DMR_CFG = 'belton_damper_v3_config';
 
 // Default spec values matching damper_install.js DIM_GROUPS
 const DMR_DIM_DEFAULTS = {
-    short_p1: { usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348 },
-    short_p2: { usl: 0.040, ucl: null, cl: 0.030, lcl: null, lsl: 0.020 },
-    long_top: { usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804 },
-    long_bot: { usl: 0.040, ucl: null, cl: 0.030, lcl: null, lsl: 0.020 },
+    datum: { usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348 },
+    nondatum: { usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804 }
 };
 
 function loadGlobalDamperConfig() {
@@ -415,7 +413,7 @@ function loadGlobalDamperConfig() {
         const prodOverride = (cfg.productDims && cfg.productDims[selectedKey]) ? cfg.productDims[selectedKey] : {};
         const globalDefault = cfg.dims || {};
         dims = {};
-        const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+        const keys = ['datum', 'nondatum'];
         const fields = ['usl', 'ucl', 'cl', 'lcl', 'lsl'];
         keys.forEach(k => {
             dims[k] = {};
@@ -434,7 +432,7 @@ function loadGlobalDamperConfig() {
         dims = cfg.dims || {};
     }
 
-    const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+    const keys = ['datum', 'nondatum'];
     const fields = ['usl', 'ucl', 'cl', 'lcl', 'lsl'];
     keys.forEach(k => {
         fields.forEach(f => {
@@ -477,7 +475,7 @@ function saveGlobalDamperConfig() {
     if (!cfg.dims) cfg.dims = {};
     if (!cfg.productDims) cfg.productDims = {};
 
-    const keys = ['short_p1', 'short_p2', 'long_top', 'long_bot'];
+    const keys = ['datum', 'nondatum'];
     let changed = false;
 
     let targetObj;
