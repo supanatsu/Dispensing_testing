@@ -4938,6 +4938,13 @@ function refreshMergePreview() {
         return;
     }
 
+    const requiredBatch = parseInt(document.getElementById('merge-batch').value) || 4;
+    if (candidates.length < requiredBatch) {
+        previewArea.innerHTML = `<p style="color:var(--fail);font-size:12px;">❌ ${PRODUCTS[mk].label} ต้องบันทึกให้ครบ ${requiredBatch} Drafts ก่อนถึงจะ Merge ได้ (ตอนนี้มี ${candidates.length}/${requiredBatch})</p>`;
+        mergeBtn.disabled = true;
+        return;
+    }
+
     if (parsedRows.length === 0) {
         previewArea.innerHTML = '<p style="color:var(--text3);font-size:12px;">วางข้อมูลในช่อง Textarea เพื่อ Preview</p>';
         return;
@@ -5021,6 +5028,12 @@ function bulkTextMerge() {
 
     if (candidates.length === 0) {
         showToast('❌ ไม่พบ WAITING Drafts — กรุณา Save Draft ใน Stage 1 ก่อน', 'error');
+        return;
+    }
+
+    const requiredBatch = parseInt(document.getElementById('merge-batch').value) || 4;
+    if (candidates.length < requiredBatch) {
+        showToast(`❌ ${PRODUCTS[mk].label} ต้องการ Draft ครบ ${requiredBatch} ชิ้นก่อน Merge (ปัจจุบันมี ${candidates.length}/${requiredBatch})`, 'error');
         return;
     }
 

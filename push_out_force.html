@@ -852,10 +852,10 @@
             <div id="m-status-msg" style="font-size:12px;color:var(--text3)"></div>
             <div style="margin-left:auto" class="btn-row">
               <button class="btn btn-outline" onclick="clearForm()">↺ ล้างจอ</button>
-              <button class="btn btn-primary" id="btn-save" onclick="saveRecord()" style="padding:10px 24px;font-size:14px;font-weight:800;
+              <button class="btn btn-primary" id="btn-save-draft" onclick="addDraft()" style="padding:10px 24px;font-size:14px;font-weight:800;
                        background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);
                        box-shadow:0 3px 10px rgba(30,58,138,.35);min-width:180px">
-                💾 Save Record
+                💾 Save Draft
               </button>
             </div>
           </div>
@@ -865,6 +865,20 @@
             <kbd
               style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;font-size:11px">Enter</kbd>
             ในช่องค่าวัด เพื่อเลื่อนไปช่องถัดไปอัตโนมัติ
+          </div>
+
+          <div class="card" id="draft-panel" style="border-top:3px solid #1e3a8a; margin-top:16px; display:none;">
+            <div class="card-hdr"
+              style="background:rgba(30,58,138,0.04); color:#1e3a8a; display:flex; justify-content:space-between; align-items:center;">
+              <h3 id="draft-title">Pending Drafts Progress (0/0)</h3>
+              <div>
+                <button class="btn btn-outline btn-sm" onclick="clearDrafts()" style="margin-right:8px;">ล้าง
+                  Draft</button>
+                <button class="btn btn-primary btn-sm" id="btn-submit-drafts" onclick="_doSubmitDrafts()" disabled>💾
+                  Submit Batch</button>
+              </div>
+            </div>
+            <div style="padding:16px;" id="draft-container"></div>
           </div>
         </div>
       </div>

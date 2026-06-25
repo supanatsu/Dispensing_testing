@@ -726,27 +726,26 @@ function saveDraft() {
 
   DRAFT_STATE.headerData = header;
   
-  // User requested: for products with > 1 qty, all drafts should have identical data.
-  // Generate all remaining drafts at once using the current input.
-  const draftsToCreate = DRAFT_STATE.requiredQty - DRAFT_STATE.drafts.length;
-  for (let i = 0; i < draftsToCreate; i++) {
-    DRAFT_STATE.drafts.push({
-      ...defects,
-      attr: header.attr,
-      ptno: header.ptno,
-      partno: header.partno,
-      remark: header.remark,
-      draftIndex: DRAFT_STATE.drafts.length + 1
-    });
-  }
+  DRAFT_STATE.drafts.push({
+    ...defects,
+    attr: header.attr,
+    ptno: header.ptno,
+    partno: header.partno,
+    remark: header.remark,
+    draftIndex: DRAFT_STATE.drafts.length + 1
+  });
 
   const recvEl = document.getElementById('m-recvtime');
   if (recvEl) recvEl.value = new Date().toTimeString().slice(0, 5);
 
-  showToast(
-    `บันทึกรวดเดียวครบ ${DRAFT_STATE.requiredQty} ชิ้นเรียบร้อย กรุณากด Submit`,
-    'success'
-  );
+  const savedCount = DRAFT_STATE.drafts.length;
+  const remaining = DRAFT_STATE.requiredQty - savedCount;
+  
+  if (remaining > 0) {
+    showToast(`บันทึกชิ้นที่ ${savedCount} สำเร็จ (เหลืออีก ${remaining} ชิ้น)`, 'success');
+  } else {
+    showToast(`บันทึกครบ ${DRAFT_STATE.requiredQty} ชิ้นแล้ว กรุณากด Submit`, 'success');
+  }
 
   clearDefectFieldsOnly();
   updateDraftPanel();
@@ -763,11 +762,7 @@ function submitDraft() {
   const { drafts, headerData, requiredQty, productKey } = DRAFT_STATE;
 
   if (drafts.length < requiredQty) {
-    showConfirm(
-      'Submit ยังไม่ครบ?',
-      `ยังได้ ${drafts.length}/${requiredQty} ชิ้น ต้องการ Submit ข้อมูลที่บันทึกไว้หรือไม่?`,
-      () => _doSubmitDrafts()
-    );
+    showToast(`ไม่สามารถ Submit ได้: กรุณาบันทึกข้อมูลให้ครบ ${requiredQty} ชิ้น (ปัจจุบันมี ${drafts.length} ชิ้น)`, 'warn');
     return;
   }
 
@@ -2984,7 +2979,7 @@ async function refreshDataFromServer() {
     }
 
     // ─── 3. ดึง Config ──────────────────────────────────────────────────────
-    const resCfg = await fetch(`${BACKEND_URL}/api/system/spc_limits?mode=laser`);
+    const resCfg = await fetch(`${BACKEND_URL}/api/config/laser`);
     if (resCfg.ok) {
       const cdata = await resCfg.json();
       if (cdata.success && cdata.limits) {
@@ -3197,6 +3192,28 @@ function renderAlertLog() {}
 function checkAndAlert(rec, showToastFlag) {
   if (rec.overall === 'Fail') {
     alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail)! \nโปรดตรวจสอบ Part No: ${rec.partno || '-'} เครื่อง: ${rec.machine || '-'}`);
+    
+    // Generate alert log entry
+    let fails = [];
+    if (typeof DEFECT_FIELDS !== 'undefined') {
+      DEFECT_FIELDS.forEach(f => { if (rec[f.id] === 'Fail') fails.push(f.label); });
+    }
+    if (rec.z1_missing === 'Fail') fails.unshift('Z1 Missing');
+    if (rec.z2_missing === 'Fail') fails.unshift('Z2 Missing');
+    if (rec.vmi === 'Fail') fails.push('VMI');
+    
+    const alertObj = {
+      id: rec.id,
+      ts: rec.ts || new Date().toISOString(),
+      level: 'ng',
+      product: rec.product_label || rec.product,
+      machine: rec.machine || '',
+      fixture: rec.fixture || '',
+      defects: fails,
+      msg: 'Laser Inspection Failed: ' + fails.join(', ')
+    };
+    ALERT_LOG.unshift(alertObj);
+    localStorage.setItem(ALERT_KEY, JSON.stringify(ALERT_LOG));
   }
 }
 

@@ -384,10 +384,14 @@ function onProductChange() {
         try {
             const raw = localStorage.getItem('belton_damper_v3_config');
             let cfg = raw ? JSON.parse(raw) : {};
+            const prodCfg = (cfg.productDims && key && cfg.productDims[key]) ? cfg.productDims[key] : {};
+            const fBuyoff = prodCfg.freqBuyoff !== undefined ? prodCfg.freqBuyoff : cfg.freqBuyoff;
+            const fRoving = prodCfg.freqRoving !== undefined ? prodCfg.freqRoving : cfg.freqRoving;
+            
             if (mode === 'buyoff' || mode === 'oba') {
-                qtyInput.value = cfg.freqBuyoff ? `${cfg.freqBuyoff}/Shift/Oven` : '';
+                qtyInput.value = fBuyoff ? `${fBuyoff}/Shift/Oven` : '';
             } else if (mode.includes('roving')) {
-                qtyInput.value = cfg.freqRoving ? `${cfg.freqRoving}/Shift/Oven` : '';
+                qtyInput.value = fRoving ? `${fRoving}/Shift/Oven` : '';
             } else {
                 qtyInput.value = '';
             }
@@ -585,7 +589,7 @@ async function saveBatch() {
         nondatumResult: null,
         vmi: vmiData,
         vmiNG,
-        overall: 'WAITING',
+        overall: mode === 'roving' ? (vmiNG ? 'Fail' : 'Pass') : 'WAITING',
         savedAt: new Date().toISOString(),
     };
 
@@ -1183,7 +1187,7 @@ async function refreshDataFromServer() {
     window.BLoader?.showIfSlow('กำลังดึงข้อมูล');
     try {
         try {
-            const confRes = await fetch(`${BACKEND_URL}/api/system/spc_limits?mode=damper`);
+            const confRes = await fetch(`${BACKEND_URL}/api/config/damper`);
             const confData = await confRes.json();
             if (confData.success && confData.limits) {
                 if (!window.DAMPER_LIMITS) window.DAMPER_LIMITS = {};
@@ -1605,7 +1609,14 @@ function clearAllDrafts() {
 
 const originalSaveBatch = saveBatch;
 saveBatch = function () {
-    // Stage 1 always saves as Waiting because dims are done in Stage 2
+    const mode = document.getElementById('m-mode')?.value || 'buyoff';
+    
+    if (mode === 'roving') {
+        originalSaveBatch();
+        return;
+    }
+
+    // Stage 1 always saves as Waiting because dims are done in Stage 2 (for Buy Off)
     const oldOverall = document.getElementById('m-overall').value;
     setOverallPF('Waiting');
     try {

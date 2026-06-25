@@ -571,12 +571,12 @@ async function refreshDataFromServer() {
     try {
       //  Fetch DB Limits 
       try {
-        const confRes = await fetch(`${BACKEND_URL}/api/pof/config`);
+        const confRes = await fetch(`${BACKEND_URL}/api/config/pof`);
         const confData = await confRes.json();
         if (confData.success && confData.limits) {
           confData.limits.forEach(lim => {
             const prod = lim.product_key;
-            let typeKey = (lim.dimension_name === 'long' || lim.dimension_name === 'short') ? 'sl' : 'bobbin';
+            let typeKey = (lim.type_parameter === 'long_fantail' || lim.type_parameter === 'short_fantail') ? 'sl' : 'bobbin';
             if (PRODUCTS_DEFAULT[prod] && PRODUCTS_DEFAULT[prod].spc) {
               ['buyoff', 'roving', 'new_buyoff', 'new_roving', 'oba', 'special'].forEach(m => {
                 if (PRODUCTS_DEFAULT[prod].spc[m] && PRODUCTS_DEFAULT[prod].spc[m][typeKey]) {
@@ -839,10 +839,8 @@ function onProductChange() {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
       const pCfg = allCfg[prodKey] || allCfg['default'];
       if (pCfg) {
-        if (modeKey === 'buyoff' || modeKey === 'oba') {
-          qtyInput.value = pCfg.freq_buyoff ? `${pCfg.freq_buyoff}/Shift/Oven` : '';
-        } else if (modeKey.includes('roving')) {
-          qtyInput.value = pCfg.freq_roving ? `${pCfg.freq_roving}/Shift/Oven` : '';
+        if (modeKey === 'buyoff' || modeKey === 'oba' || modeKey.includes('roving')) {
+          qtyInput.value = pCfg.freq ? `${pCfg.freq}/Shift/Oven` : '';
         } else {
           qtyInput.value = '';
         }
@@ -963,19 +961,51 @@ function updateGauge(avg, spc) {
 // 
 //  Save Record  MySQL DB via API (or localStorage offline)
 // 
-async function saveRecord() {
+let DRAFT_STATE = {
+  drafts: [],
+  requiredQty: 0,
+  headerData: null
+};
+
+async function addDraft() {
   const prodKey = document.getElementById('m-product')?.value;
   const modeKey = document.getElementById('m-mode')?.value || 'buyoff';
   const typeKey = 'sl';
 
   if (!prodKey) { showToast('กรุณาเลือก Product', 'warn'); return; }
 
+  const qtyInput = document.getElementById('m-qty')?.value || '';
+  const parsedQty = parseInt(qtyInput, 10);
+  const requiredQty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+
+  if (DRAFT_STATE.drafts.length === 0) {
+    DRAFT_STATE.requiredQty = requiredQty;
+    DRAFT_STATE.headerData = {
+      prodKey, modeKey, typeKey,
+      date: document.getElementById('m-date')?.value || todayISO(),
+      condition: document.getElementById('m-condition')?.value || 'NTC',
+      oven: document.getElementById('m-oven')?.value.trim() || '',
+      team: document.getElementById('m-team')?.value || '',
+      en: document.getElementById('m-en')?.value.trim() || '',
+      traveler: document.getElementById('m-ptno')?.value.trim() || '',
+      ptno: document.getElementById('m-ptno')?.value.trim() || '',
+      time: document.getElementById('m-time')?.value.trim() || '',
+      sample_date: document.getElementById('m-sample-date')?.value.trim() || '',
+      lot: document.getElementById('m-lot')?.value.trim() || '',
+      qtyInput: qtyInput
+    };
+  } else {
+    // Validate header fields haven't changed
+    if (prodKey !== DRAFT_STATE.headerData.prodKey) {
+      showToast('ไม่สามารถเปลี่ยน Product ระหว่างที่ทำ Draft ได้', 'warn');
+      return;
+    }
+  }
+
   const l1 = parseFloat(document.getElementById('m-long1')?.value);
   const s2 = parseFloat(document.getElementById('m-short2')?.value);
-
   const p = PRODUCTS[prodKey];
   const hasBobbin = p?.types?.includes('bobbin');
-
   const b1 = hasBobbin ? parseFloat(document.getElementById('m-bobbin1')?.value) : NaN;
   const b2 = hasBobbin ? parseFloat(document.getElementById('m-bobbin2')?.value) : NaN;
 
@@ -987,172 +1017,230 @@ async function saveRecord() {
   const spc = getSPC(prodKey, modeKey, typeKey);
   if (!spc) { showToast('ไม่พบ SPC config สำหรับ product/mode/type นี้', 'error'); return; }
 
-  // Use separate Long/Short specs from new config if available
   const longSpc = window._pofSpcLong || spc;
   const shortSpc = window._pofSpcShort || spc;
 
   const vals = [l1, s2];
-  if (hasBobbin) { vals.push(b1, b2); }
+  if (hasBobbin) vals.push(b1, b2);
 
   const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
   const max = Math.max(...vals);
   const min = Math.min(...vals);
   const range = max - min;
 
-  // Evaluate Long and Short separately
   const longOk = l1 >= longSpc.spec;
   const shortOk = s2 >= shortSpc.spec;
   const inSpec = longOk && shortOk;
   const inTrigger = avg >= (longSpc.trigger ?? longSpc.ucl ?? spc.trigger);
   const inCL = avg >= spc.lcl && avg <= spc.ucl;
 
-  const qtyInput = document.getElementById('m-qty')?.value || '';
-  const parsedQty = parseInt(qtyInput, 10);
-  const copies = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
-
   const outSpec = document.getElementById('m-out-spec')?.value || (inSpec ? 'IN' : 'OUT');
   const overall = document.getElementById('m-overall')?.value || (inSpec ? 'Pass' : 'Fail');
+
+  // Push to drafts
+  const draftItem = {
+    id: Date.now(),
+    l1, s2, b1, b2, avg, max, min, range,
+    inSpec, inTrigger, inCL, outSpec, overall,
+    spc, longSpc, shortSpc,
+    remark: document.getElementById('m-remark')?.value.trim() || '',
+    eblock_long: window.EP_VALS?.ebl_long ?? null,
+    eblock_short: window.EP_VALS?.ebs_long ?? null,
+    eblock_avg: document.getElementById('m-eblock-avg')?.value !== '' ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
+    ebl_long: window.EP_VALS?.ebl_long, ebl_center: window.EP_VALS?.ebl_center, ebl_short: window.EP_VALS?.ebl_short,
+    ebs_long: window.EP_VALS?.ebs_long, ebs_center: window.EP_VALS?.ebs_center, ebs_short: window.EP_VALS?.ebs_short,
+    coil_short: document.getElementById('m-coil-short')?.value ? parseFloat(document.getElementById('m-coil-short').value) : null,
+    coil_center: document.getElementById('m-coil-center')?.value ? parseFloat(document.getElementById('m-coil-center').value) : null,
+    coil_long: document.getElementById('m-coil-long')?.value ? parseFloat(document.getElementById('m-coil-long').value) : null,
+    bobbin_short: document.getElementById('m-bobbin-short')?.value ? parseFloat(document.getElementById('m-bobbin-short').value) : null,
+    bobbin_center: document.getElementById('m-bobbin-center')?.value ? parseFloat(document.getElementById('m-bobbin-center').value) : null,
+    bobbin_long: document.getElementById('m-bobbin-long')?.value ? parseFloat(document.getElementById('m-bobbin-long').value) : null
+  };
+
+  DRAFT_STATE.drafts.push(draftItem);
+  
+  // Clear measurement inputs
+  document.getElementById('m-long1').value = '';
+  document.getElementById('m-short2').value = '';
+  if (hasBobbin) {
+    document.getElementById('m-bobbin1').value = '';
+    document.getElementById('m-bobbin2').value = '';
+  }
+  document.getElementById('m-long1').focus();
+
+  updateDraftUI();
+  showToast(`บันทึก Draft ${DRAFT_STATE.drafts.length}/${DRAFT_STATE.requiredQty}`);
+}
+
+function updateDraftUI() {
+  const panel = document.getElementById('draft-panel');
+  const container = document.getElementById('draft-container');
+  const title = document.getElementById('draft-title');
+  const btnSubmit = document.getElementById('btn-submit-drafts');
+
+  if (!panel || !container || !title) return;
+
+  if (DRAFT_STATE.drafts.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  title.textContent = `Pending Drafts Progress (${DRAFT_STATE.drafts.length}/${DRAFT_STATE.requiredQty})`;
+  
+  let html = `<table class="draft-table"><thead><tr><th>No.</th><th>Long1</th><th>Short2</th><th>Bobbin1</th><th>Bobbin2</th><th>Avg</th><th>Result</th><th>Action</th></tr></thead><tbody>`;
+
+  DRAFT_STATE.drafts.forEach((d, idx) => {
+    html += `<tr><td>${idx + 1}</td><td>${d.l1}</td><td>${d.s2}</td><td>${isNaN(d.b1) ? '-' : d.b1}</td><td>${isNaN(d.b2) ? '-' : d.b2}</td><td>${fmt(d.avg, 2)}</td><td style="color:${d.overall === 'Pass' ? 'var(--pass)' : 'var(--fail)'}">${d.overall}</td><td><button class="btn btn-outline btn-sm" onclick="removeDraft(${idx})">ลบ</button></td></tr>`;
+  });
+  html += `</tbody></table>`;
+
+  container.innerHTML = html;
+
+  if (DRAFT_STATE.drafts.length >= DRAFT_STATE.requiredQty) {
+    btnSubmit.disabled = false;
+  } else {
+    btnSubmit.disabled = true;
+  }
+}
+
+function removeDraft(idx) {
+  DRAFT_STATE.drafts.splice(idx, 1);
+  updateDraftUI();
+}
+
+function clearDrafts() {
+  DRAFT_STATE.drafts = [];
+  DRAFT_STATE.headerData = null;
+  updateDraftUI();
+}
+
+async function _doSubmitDrafts() {
+  if (DRAFT_STATE.drafts.length < DRAFT_STATE.requiredQty) {
+    showToast('ข้อมูล Draft ยังไม่ครบ', 'warn');
+    return;
+  }
+
+  const h = DRAFT_STATE.headerData;
+  const p = PRODUCTS[h.prodKey];
 
   const newRecords = [];
   const mysqlRecords = [];
 
-  for (let i = 0; i < copies; i++) {
+  DRAFT_STATE.drafts.forEach((d, i) => {
     const no = _recordsCache.length + 1 + i;
     const recId = Date.now() + i;
 
     const rec = {
-      id: recId,
-      no,
-      date: document.getElementById('m-date')?.value || todayISO(),
-      mode: modeKey,
-      modeLabel: MODES[modeKey]?.label || modeKey,
-      coilType: typeKey,
-      product: prodKey,
+      id: recId, no,
+      date: h.date,
+      mode: h.modeKey,
+      modeLabel: MODES[h.modeKey]?.label || h.modeKey,
+      coilType: h.typeKey,
+      product: h.prodKey,
       productLabel: p.label,
       unit: p.unit,
-      condition: document.getElementById('m-condition')?.value || 'NTC',
-      oven: document.getElementById('m-oven')?.value.trim() || '',
-      team: document.getElementById('m-team')?.value || '',
-      en: document.getElementById('m-en')?.value.trim() || '',
-      traveler: document.getElementById('m-ptno')?.value.trim() || '',
-      ptno: document.getElementById('m-ptno')?.value.trim() || '',
-      time: document.getElementById('m-time')?.value.trim() || '',
-      sample_date: document.getElementById('m-sample-date')?.value.trim() || '',
-      lot: document.getElementById('m-lot')?.value.trim() || '',
-      qty: qtyInput,
-      remark: document.getElementById('m-remark')?.value.trim() || '',
-      long1: l1, short2: s2, bobbin1: b1, bobbin2: b2, avg, max, min, range,
-      spc_ucl: spc.ucl,
-      spc_cl: spc.cl,
-      spc_lcl: spc.lcl,
-      spc_trig: spc.trigger,
-      spc_spec: spc.spec,
-      spec_result: outSpec,
-      eblock_long: EP_VALS.ebl_long ?? null,
-      eblock_short: EP_VALS.ebs_long ?? null,
-      eblock_avg: document.getElementById('m-eblock-avg')?.value !== '' ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
-      ebl_long: EP_VALS.ebl_long, ebl_center: EP_VALS.ebl_center, ebl_short: EP_VALS.ebl_short,
-      ebs_long: EP_VALS.ebs_long, ebs_center: EP_VALS.ebs_center, ebs_short: EP_VALS.ebs_short,
-      coil_short: document.getElementById('m-coil-short')?.value ? parseFloat(document.getElementById('m-coil-short').value) : null,
-      coil_center: document.getElementById('m-coil-center')?.value ? parseFloat(document.getElementById('m-coil-center').value) : null,
-      coil_long: document.getElementById('m-coil-long')?.value ? parseFloat(document.getElementById('m-coil-long').value) : null,
-      bobbin_short: document.getElementById('m-bobbin-short')?.value ? parseFloat(document.getElementById('m-bobbin-short').value) : null,
-      bobbin_center: document.getElementById('m-bobbin-center')?.value ? parseFloat(document.getElementById('m-bobbin-center').value) : null,
-      bobbin_long: document.getElementById('m-bobbin-long')?.value ? parseFloat(document.getElementById('m-bobbin-long').value) : null,
-      trigger: inTrigger ? 'IN' : 'OUT',
-      out_cl: inCL ? 'IN' : 'OUT',
+      condition: h.condition,
+      oven: h.oven,
+      team: h.team,
+      en: h.en,
+      traveler: h.traveler,
+      ptno: h.ptno,
+      time: h.time,
+      sample_date: h.sample_date,
+      lot: h.lot,
+      qty: h.qtyInput,
+      remark: d.remark,
+      long1: d.l1, short2: d.s2, bobbin1: d.b1, bobbin2: d.b2, 
+      avg: d.avg, max: d.max, min: d.min, range: d.range,
+      spc_ucl: d.spc.ucl,
+      spc_cl: d.spc.cl,
+      spc_lcl: d.spc.lcl,
+      spc_trig: d.spc.trigger,
+      spc_spec: d.spc.spec,
+      spec_result: d.outSpec,
+      eblock_long: d.eblock_long, eblock_short: d.eblock_short, eblock_avg: d.eblock_avg,
+      ebl_long: d.ebl_long, ebl_center: d.ebl_center, ebl_short: d.ebl_short,
+      ebs_long: d.ebs_long, ebs_center: d.ebs_center, ebs_short: d.ebs_short,
+      coil_short: d.coil_short, coil_center: d.coil_center, coil_long: d.coil_long,
+      bobbin_short: d.bobbin_short, bobbin_center: d.bobbin_center, bobbin_long: d.bobbin_long,
+      trigger: d.inTrigger ? 'IN' : 'OUT',
+      out_cl: d.inCL ? 'IN' : 'OUT',
       trend: 'IN',
       nine_pt: 'IN',
-      overall,
-      savedAt: new Date().toISOString(),
+      overall: d.overall,
+      savedAt: new Date().toISOString()
     };
-
     newRecords.push(rec);
 
     mysqlRecords.push({
-      no: rec.no,
-      mode: rec.mode,
-      coil_type: rec.coilType,
-      product: rec.product,
-      product_label: rec.productLabel,
-      unit: rec.unit,
-      condition: rec.condition || 'NTC',
-      date: rec.date,
-      oven: rec.oven,
-      team: rec.team,
-      en: rec.en,
-      traveler: rec.traveler,
-      ptno: rec.ptno,
-      test_time: rec.time,
-      sample_build_date: rec.sample_date,
-      lot: rec.lot,
-      qty: rec.qty,
-      remark: rec.remark || '',
-      long1: rec.long1,
-      short2: rec.short2,
-      bobbin1: rec.bobbin1,
-      bobbin2: rec.bobbin2,
-      avg: rec.avg,
-      max: rec.max,
-      min: rec.min,
-      range: rec.range,
-      spec_result: rec.spec_result,
-      trigger: rec.trigger,
-      out_cl: rec.out_cl,
-      trend: rec.trend,
-      nine_pt: rec.nine_pt,
-      overall: rec.overall,
-      spc_ucl: rec.spc_ucl,
-      spc_cl: rec.spc_cl,
-      spc_lcl: rec.spc_lcl,
-      spc_trig: rec.spc_trig,
-      spc_spec: rec.spc_spec,
-      eblock_long: rec.eblock_long,
-      eblock_short: rec.eblock_short,
-      eblock_avg: rec.eblock_avg,
-      coil_short: rec.coil_short,
-      coil_center: rec.coil_center,
-      coil_long: rec.coil_long,
-      bobbin_short: rec.bobbin_short,
-      bobbin_center: rec.bobbin_center,
-      bobbin_long: rec.bobbin_long,
-      savedAt: rec.savedAt,
+      no: rec.no, mode: rec.mode, coil_type: rec.coilType,
+      product: rec.product, product_label: rec.productLabel, unit: rec.unit,
+      condition: rec.condition, date: rec.date, oven: rec.oven,
+      team: rec.team, en: rec.en, traveler: rec.traveler, ptno: rec.ptno,
+      test_time: rec.time, sample_build_date: rec.sample_date, lot: rec.lot,
+      qty: rec.qty, remark: rec.remark,
+      long1: rec.long1, short2: rec.short2, bobbin1: rec.bobbin1, bobbin2: rec.bobbin2,
+      avg: rec.avg, max: rec.max, min: rec.min, range: rec.range,
+      spec_result: rec.spec_result, trigger: rec.trigger, out_cl: rec.out_cl,
+      trend: rec.trend, nine_pt: rec.nine_pt, overall: rec.overall,
+      spc_ucl: rec.spc_ucl, spc_cl: rec.spc_cl, spc_lcl: rec.spc_lcl,
+      spc_trig: rec.spc_trig, spc_spec: rec.spc_spec,
+      eblock_long: rec.eblock_long, eblock_short: rec.eblock_short, eblock_avg: rec.eblock_avg,
+      coil_short: rec.coil_short, coil_center: rec.coil_center, coil_long: rec.coil_long,
+      bobbin_short: rec.bobbin_short, bobbin_center: rec.bobbin_center, bobbin_long: rec.bobbin_long,
+      savedAt: rec.savedAt
     });
-  }
+  });
 
   _recordsCache.push(...newRecords);
   localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
 
   // Only generate 1 alert even if there are N records, using the first record's data
-  const isAlert = !inSpec || newRecords[0].trigger === 'OUT';
+  const isAlert = newRecords.some(r => r.spec_result === 'OUT' || r.trigger === 'OUT');
   if (isAlert) {
-    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${newRecords[0].en || '-'}`);
+    const failedRec = newRecords.find(r => r.spec_result === 'OUT' || r.trigger === 'OUT') || newRecords[0];
+    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${failedRec.en || '-'}`);
 
     const alertObj = {
-      id: newRecords[0].id,
-      ts: newRecords[0].savedAt,
-      level: inSpec ? 'warn' : 'ng',
+      id: failedRec.id,
+      ts: failedRec.savedAt,
+      level: failedRec.spec_result === 'OUT' ? 'ng' : 'warn',
       product: p.label,
-      mode: modeKey,
-      modeLabel: newRecords[0].modeLabel,
-      coilType: typeKey,
-      en: newRecords[0].en,
-      traveler: newRecords[0].traveler,
-      oven: newRecords[0].oven,
-      avg: avg.toFixed(2),
-      min: min.toFixed(2),
-      spec_result: outSpec,
-      trigger: newRecords[0].trigger,
-      msg: !inSpec
-        ? `Out of Spec: Min = ${min.toFixed(2)} ${p.unit} (Spec  ${spc.spec})`
-        : `Out of Trigger: Avg = ${avg.toFixed(2)} ${p.unit} (Trigger  ${spc.trigger})`,
+      mode: h.modeKey,
+      modeLabel: failedRec.modeLabel,
+      coilType: h.typeKey,
+      en: failedRec.en,
+      traveler: failedRec.traveler,
+      oven: failedRec.oven,
+      avg: failedRec.avg.toFixed(2),
+      min: failedRec.min.toFixed(2),
+      spec_result: failedRec.spec_result,
+      trigger: failedRec.trigger,
+      msg: failedRec.spec_result === 'OUT'
+        ? `Out of Spec: Min = ${failedRec.min.toFixed(2)} ${p.unit} (Spec  ${failedRec.spc_spec})`
+        : `Out of Trigger: Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (Trigger  ${failedRec.spc_trig})`,
     };
     _alertsCache.unshift(alertObj);
     localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(_alertsCache));
-    triggerAutoEml(newRecords[0], spc);
+    if (typeof triggerAutoEml === 'function') triggerAutoEml(failedRec, failedRec.spc_spec); // Adjust spc passing if needed
+    renderAlerts();
+    if (typeof updateBadge === 'function') updateBadge();
   }
 
-  //   MySQL 
+  // Clear Form
+  clearForm();
+  clearDrafts();
+  
+  showToast('บันทึกข้อมูลเรียบร้อย (POF)', 'success');
+
+  // Change tab
+  const recordsBtn = document.querySelector('.nav-btn[data-tab="records"]');
+  if (recordsBtn) {
+      switchTab('records', recordsBtn);
+  }
+  
+  // MySQL 
   if (isServerOnline) {
     try {
       const body = {
@@ -1160,31 +1248,27 @@ async function saveRecord() {
         alerts: _alertsCache,
       };
 
-      const res = await fetch(`${BACKEND_URL}/api/pof/sync`, {
+      fetch(`${BACKEND_URL}/api/pof/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+      })
+      .then(res => res.json())
+      .then(r => {
+        if (r.success) {
+          console.log(`ส่งขึ้น MySQL แล้ว (Record #${newRecords[0]?.no})`);
+        } else {
+          showToast(`บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้: ${r.message}`, 'warn');
+        }
+      })
+      .catch(() => {
+        showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
       });
-      const r = await res.json();
-      if (r.success) {
-        showToast(`บันทึกข้อมูลสำเร็จ & ส่งขึ้น MySQL แล้ว (Record #${no})`, 'success');
-      } else {
-        showToast(`บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้: ${r.message}`, 'warn');
-      }
     } catch {
       showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
     }
   } else {
     showToast(`บันทึกข้อมูลลงเครื่องสำเร็จ (โหมดออฟไลน์)`, 'warn');
-  }
-
-  await refreshDataFromServer();
-  clearForm();
-
-  // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จสิ้น
-  const recordsBtn = document.querySelector('.nav-btn[data-tab="records"]');
-  if (recordsBtn) {
-      switchTab('records', recordsBtn);
   }
 }
 

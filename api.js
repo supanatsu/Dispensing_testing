@@ -98,3 +98,6 @@ const BACKEND_URL = API_BASE;
     }
   };
 })();
+
+// Dynamically load shared_products.js from backend
+document.write('<script src="' + API_BASE + '/shared_products.js?v=' + Date.now() + '"></script>');

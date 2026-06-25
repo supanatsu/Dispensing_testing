@@ -8,10 +8,10 @@ const LS_KEY_LASER_CFG = 'belton_laser_config_v1';
 
 // We pull the default POF products to populate the UI if no config exists
 const POF_PRODUCTS_DEFAULT = {
-    cim3d: { label: 'Cimarron BP 3D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } } } },
+    cim3d: { label: 'Cimarron BP 3D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } }, roving: { sl: { spec: 25, trigger: 92.35, ucl: 217.11, cl: 167.21, lcl: 117.31, rucl: 25, rcl: 12.5 } } } },
     cim4d: { label: 'Cimarron BP 4D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 2.5, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } } } },
     cim5d: { label: 'Cimarron BP 5D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 64.5, ucl: 215, cl: 154.80, lcl: 94.60, rucl: 25, rcl: 12.5 }, bobbin: { spec: 25, trigger: 37.59, ucl: 343.03, cl: 272.85, lcl: 202.67, rucl: 5, rcl: 2.5 } } } },
-    comet: { label: 'ComET', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } } } },
+    comet: { label: 'ComET', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 80, ucl: 220, cl: 160, lcl: 100, rucl: 30, rcl: 15 } } } },
     dor5d: { label: 'Dorado 5D', unit: 'Lbs', types: ['sl'], spc: { buyoff: { sl: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 250, cl: 150, lcl: 80, rucl: 30, rcl: 15 } } } },
     dor5dbb: { label: 'Dorado 5D AL BB', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 } }, roving: { sl: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 100, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 } } } },
     dor10d: { label: 'Dorado 10D', unit: 'Lbs', types: ['sl', 'bobbin'], spc: { buyoff: { sl: { spec: 25, trigger: 60, ucl: 253, cl: 165, lcl: 77, rucl: 30, rcl: 15 }, bobbin: { spec: 2.5, trigger: 3.4, ucl: 15.53, cl: 9.94, lcl: 4.34, rucl: 5, rcl: 2.5 } }, roving: { sl: { spec: 25, trigger: 60, ucl: 319, cl: 244, lcl: 169, rucl: 30, rcl: 15 }, bobbin: { spec: 25, trigger: 103.3, ucl: 500.92, cl: 344.33, lcl: 187.73, rucl: 5, rcl: 2.5 } } } },
@@ -384,7 +384,36 @@ function saveGlobalPofConfig() {
     };
 
     localStorage.setItem(LS_KEY_POF_CFG, JSON.stringify(cfg));
-    alert('บันทึก SPC Parameters สำหรับ ' + key + ' สำเร็จ\n(รีเฟรชหน้า Push Out Force เพื่อใช้งานค่าใหม่)');
+    
+    // Push to MySQL
+    const limits = [];
+    const buildLim = (dt, tp, src) => {
+        if (!src) return;
+        limits.push({
+            product_key: key, data_type: dt, type_parameter: tp, frequency: null, 
+            usl: src.spec !== undefined ? src.spec : null,
+            ucl: src.ucl !== undefined ? src.ucl : null,
+            cl:  src.cl !== undefined ? src.cl : null,
+            lcl: src.lcl !== undefined ? src.lcl : null,
+            lsl: null // POF usually doesn't use lsl, it's mostly usl/spec
+        });
+    };
+
+    buildLim('buyoff', 'long_fantail', updates.buyoff.sl); // assuming 'sl' maps to long_fantail/short_fantail
+    buildLim('buyoff', 'bobbin', updates.buyoff.bobbin);
+    buildLim('roving', 'long_fantail', updates.roving.sl);
+    buildLim('roving', 'bobbin', updates.roving.bobbin);
+
+    fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limits })
+    }).then(() => {
+        alert('บันทึก SPC Parameters สำหรับ ' + key + ' สำเร็จ (ลง MySQL)\n(รีเฟรชหน้า Push Out Force เพื่อใช้งานค่าใหม่)');
+    }).catch(e => {
+        console.error(e);
+        alert('บันทึก SPC Parameters สำหรับ ' + key + ' สำเร็จ (Local) แต่บันทึกลง MySQL ไม่สำเร็จ\n(รีเฟรชหน้า Push Out Force เพื่อใช้งานค่าใหม่)');
+    });
 }
 
 // ========================
@@ -536,14 +565,47 @@ function saveGlobalDamperConfig() {
         localStorage.setItem(LS_KEY_DMR_CFG, cfgStr);
 
         // Sync with DB
-        fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
+        const limits = [];
+        keys.forEach(k => {
+            const fVals = targetObj[k] || {};
+            limits.push({
+                product_key: selectedKey || 'DEFAULT',
+                process_mode: 'buyoff',
+                data_type: 'dim',
+                damper_type: k,
+                frequency: targetObj.freqBuyoff || null,
+                usl: fVals.usl !== undefined ? fVals.usl : null,
+                ucl: fVals.ucl !== undefined ? fVals.ucl : null,
+                cl:  fVals.cl  !== undefined ? fVals.cl  : null,
+                lcl: fVals.lcl !== undefined ? fVals.lcl : null,
+                lsl: fVals.lsl !== undefined ? fVals.lsl : null
+            });
+            limits.push({
+                product_key: selectedKey || 'DEFAULT',
+                process_mode: 'roving',
+                data_type: 'dim',
+                damper_type: k,
+                frequency: targetObj.freqRoving || null,
+                usl: fVals.usl !== undefined ? fVals.usl : null,
+                ucl: fVals.ucl !== undefined ? fVals.ucl : null,
+                cl:  fVals.cl  !== undefined ? fVals.cl  : null,
+                lcl: fVals.lcl !== undefined ? fVals.lcl : null,
+                lsl: fVals.lsl !== undefined ? fVals.lsl : null
+            });
+        });
+
+        fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [LS_KEY_DMR_CFG]: cfgStr })
-        }).catch(e => console.error("Sync Damper to DB failed", e));
-
-        alert('บันทึก Damper Specifications สำเร็จ\n(รีเฟรชหน้า Damper Install เพื่อใช้งานค่าใหม่)');
-        loadGlobalDamperConfig();
+            body: JSON.stringify({ limits })
+        }).then(() => {
+            alert('บันทึก Damper Specifications สำเร็จ (ลง MySQL)\n(รีเฟรชหน้า Damper Install เพื่อใช้งานค่าใหม่)');
+            loadGlobalDamperConfig();
+        }).catch(e => {
+            console.error("Sync Damper to DB failed", e);
+            alert('บันทึก Damper Specifications สำเร็จ (Local) แต่บันทึกลง MySQL ไม่สำเร็จ\n(รีเฟรชหน้า Damper Install เพื่อใช้งานค่าใหม่)');
+            loadGlobalDamperConfig();
+        });
     } else {
         alert('กรุณากรอกข้อมูลที่ต้องการบันทึก');
     }

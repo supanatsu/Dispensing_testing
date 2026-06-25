@@ -51,7 +51,7 @@ app.get('/shared_products.js', async (req, res) => {
       if (row.ucl !== null) specData.ucl = row.ucl;
       if (row.usl !== null) specData.usl = row.usl;
 
-      if (mode === 'buyoff') {
+      if (mode === 'buyoff' || mode === 'buy-off') {
         if (!buyoffObj[key]) buyoffObj[key] = {};
         buyoffObj[key][dim] = specData;
       } else if (mode === 'roving') {
@@ -59,7 +59,6 @@ app.get('/shared_products.js', async (req, res) => {
         rovingObj[key][dim] = specData;
       }
     }
-
     jsContent += `window.SPEC_BUYOFF = ${JSON.stringify(buyoffObj, null, 4)};\n\n`;
     jsContent += `window.SPEC_ROVING = ${JSON.stringify(rovingObj, null, 4)};\n`;
 
@@ -504,7 +503,7 @@ app.post('/api/pof/sync', async (req, res) => {
       } else {
         await connection.query(
           `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
             dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
@@ -513,7 +512,7 @@ app.post('/api/pof/sync', async (req, res) => {
       }
     }
 
-    const alerts = payload.alerts || db_data.alerts || [];
+    const alerts = payload.alerts || db_data.alerts || payload.alert_log || db_data.alert_log || [];
     if (alerts && alerts.length > 0) {
       for (const a of alerts) {
         await connection.query(
@@ -1177,7 +1176,7 @@ app.post('/api/laser/sync', async (req, res) => {
         );
       }
     }
-    const alerts = payload.alerts || db_data.alerts || [];
+    const alerts = payload.alerts || db_data.alerts || payload.alert_log || db_data.alert_log || [];
     if (alerts && alerts.length > 0) {
       for (const a of alerts) {
         await connection.query(
@@ -1554,6 +1553,13 @@ app.get('/api/system/config', async (req, res) => {
     const [rows] = await pool.query('SELECT config_key, config_value FROM system_config');
     let config = {};
     rows.forEach(r => config[r.config_key] = r.config_value);
+
+    // Also fetch alert recipients config
+    const [emailRows] = await pool.query('SELECT email, password FROM alert_recipients WHERE is_sender = TRUE LIMIT 1');
+    if (emailRows.length > 0) {
+      config.SENDER_EMAIL = emailRows[0].email || '';
+      config.SENDER_PASS = emailRows[0].password || '';
+    }
     res.json(config);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1562,13 +1568,27 @@ app.get('/api/system/config', async (req, res) => {
 
 // บันทึกการตั้งค่าระบบ
 app.post('/api/system/config', async (req, res) => {
-  const configs = req.body; // { EMAIL_USER: '...', EMAIL_PASS: '...' }
+  const configs = req.body; 
   try {
     for (const [key, val] of Object.entries(configs)) {
+      if (key === 'SENDER_EMAIL' || key === 'SENDER_PASS') {
+        continue; // Handled separately below
+      }
+      // Save everything else to system_config generic table
       await pool.query(
         'INSERT INTO system_config (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value=?',
         [key, val, val]
       );
+    }
+
+    if (configs.SENDER_EMAIL !== undefined) {
+      // Upsert into alert_recipients where is_sender = true
+      const [existing] = await pool.query('SELECT id FROM alert_recipients WHERE is_sender = TRUE LIMIT 1');
+      if (existing.length > 0) {
+        await pool.query('UPDATE alert_recipients SET email=?, password=? WHERE id=?', [configs.SENDER_EMAIL, configs.SENDER_PASS || '', existing[0].id]);
+      } else {
+        await pool.query('INSERT INTO alert_recipients (email, password, is_sender, active) VALUES (?, ?, TRUE, TRUE)', [configs.SENDER_EMAIL, configs.SENDER_PASS || '']);
+      }
     }
     res.json({ success: true });
   } catch (error) {
@@ -1670,13 +1690,13 @@ app.post('/api/dispensing/send-alert', async (req, res) => {
       html += `<h3>Trend Chart:</h3><img src="${imageBase64}" style="max-width: 100%; border: 1px solid #ccc; border-radius: 8px;" alt="Trend Chart" />`;
     }
 
-    // ดึงบัญชีผู้ส่งจากฐานข้อมูล (system_config)
-    const [sysRows] = await pool.query("SELECT config_key, config_value FROM system_config WHERE config_key IN ('SENDER_EMAIL', 'SENDER_PASS')");
+    // ดึงบัญชีผู้ส่งจากฐานข้อมูล (alert_recipients)
+    const [sysRows] = await pool.query("SELECT email, password FROM alert_recipients WHERE is_sender = TRUE LIMIT 1");
     let senderEmail = '', senderPass = '';
-    sysRows.forEach(r => {
-      if (r.config_key === 'SENDER_EMAIL') senderEmail = r.config_value;
-      if (r.config_key === 'SENDER_PASS') senderPass = r.config_value;
-    });
+    if (sysRows.length > 0) {
+      senderEmail = sysRows[0].email;
+      senderPass = sysRows[0].password;
+    }
 
     // ส่งอีเมลโดยใช้ PowerShell (หลบ Firewall)
     await sendEmailViaPowerShell(toList, `[${status}] Alert - Dispensing ${product} - ${fixture}`, html, senderEmail, senderPass);
@@ -1980,45 +2000,96 @@ app.get('/api/system/products', async (req, res) => {
   }
 });
 
-app.get('/api/system/spc_limits', async (req, res) => {
+app.get('/api/config/dispensing', async (req, res) => {
   try {
-    const { mode, product } = req.query;
-    let query = 'SELECT * FROM spc_config_limits WHERE process_mode = ?';
-    let params = [mode || 'buyoff'];
-    if (product) {
-      query += ' AND product_key = ?';
-      params.push(product);
-    }
-    query += ' ORDER BY product_key, dimension_name';
-
-    const [rows] = await pool.query(query, params);
+    const [rows] = await pool.query('SELECT * FROM dispensing_config ORDER BY product_key, dimension_name');
     res.json({ success: true, limits: rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-app.post('/api/system/spc_limits/batch', async (req, res) => {
+app.post('/api/config/dispensing/batch', async (req, res) => {
   try {
     const { limits } = req.body;
     if (!limits || !limits.length) return res.json({ success: true });
-
     for (const lim of limits) {
       await pool.query(
-        `INSERT INTO spc_config_limits 
-                 (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl, frequency, laser_qty, laser_fixture, laser_shift)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE
-                 lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl), frequency=VALUES(frequency),
-                 laser_qty=VALUES(laser_qty), laser_fixture=VALUES(laser_fixture), laser_shift=VALUES(laser_shift)`,
-        [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl, lim.frequency, lim.laser_qty, lim.laser_fixture, lim.laser_shift]
+        `INSERT INTO dispensing_config (process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl)`,
+        [lim.process_mode, lim.product_key, lim.dimension_name, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl]
       );
     }
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/config/pof', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM pof_config ORDER BY product_key, data_type, type_parameter');
+    res.json({ success: true, limits: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/config/pof/batch', async (req, res) => {
+  try {
+    const { limits } = req.body;
+    if (!limits || !limits.length) return res.json({ success: true });
+    for (const lim of limits) {
+      await pool.query(
+        `INSERT INTO pof_config (product_key, data_type, type_parameter, frequency, usl, ucl, cl, lcl, lsl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE frequency=VALUES(frequency), usl=VALUES(usl), ucl=VALUES(ucl), cl=VALUES(cl), lcl=VALUES(lcl), lsl=VALUES(lsl)`,
+        [lim.product_key, lim.data_type, lim.type_parameter, lim.frequency, lim.usl, lim.ucl, lim.cl, lim.lcl, lim.lsl]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/config/damper', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM damper_config ORDER BY product_key, data_type, process_mode, damper_type');
+    res.json({ success: true, limits: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/config/damper/batch', async (req, res) => {
+  try {
+    const { limits } = req.body;
+    if (!limits || !limits.length) return res.json({ success: true });
+    for (const lim of limits) {
+      await pool.query(
+        `INSERT INTO damper_config (product_key, process_mode, data_type, damper_type, frequency, usl, ucl, cl, lcl, lsl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE frequency=VALUES(frequency), usl=VALUES(usl), ucl=VALUES(ucl), cl=VALUES(cl), lcl=VALUES(lcl), lsl=VALUES(lsl)`,
+        [lim.product_key, lim.process_mode, lim.data_type, lim.damper_type, lim.frequency, lim.usl, lim.ucl, lim.cl, lim.lcl, lim.lsl]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/config/laser', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM laser_config ORDER BY product_key, data_type');
+    res.json({ success: true, limits: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/config/laser/batch', async (req, res) => {
+  try {
+    const { limits } = req.body;
+    if (!limits || !limits.length) return res.json({ success: true });
+    for (const lim of limits) {
+      await pool.query(
+        `INSERT INTO laser_config (product_key, data_type, qty_eblock, qty_bobbin, frequency, laser_fixture, laser_shift)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE qty_eblock=VALUES(qty_eblock), qty_bobbin=VALUES(qty_bobbin), frequency=VALUES(frequency), laser_fixture=VALUES(laser_fixture), laser_shift=VALUES(laser_shift)`,
+        [lim.product_key, lim.data_type, lim.qty_eblock, lim.qty_bobbin, lim.frequency, lim.laser_fixture, lim.laser_shift]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3001;

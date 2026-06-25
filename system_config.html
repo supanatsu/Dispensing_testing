@@ -1322,9 +1322,34 @@
             }
 
             parsed.configs = currentSysCfg;
-
             localStorage.setItem(lsKey, JSON.stringify(parsed));
-            alert(`✅ บันทึก Config ของ Dispensing สำเร็จ`);
+
+            // Push to MySQL
+            const limits = [];
+            Object.keys(currentSysCfg[cfgKey]).forEach(dim => {
+                const vals = currentSysCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype === 'Roving Audit' ? 'roving' : 'buyoff',
+                    product_key: mod,
+                    dimension_name: dim,
+                    usl: vals.usl !== undefined ? vals.usl : null,
+                    ucl: vals.ucl !== undefined ? vals.ucl : null,
+                    cl: vals.cl !== undefined ? vals.cl : null,
+                    lcl: vals.lcl !== undefined ? vals.lcl : null,
+                    lsl: vals.lsl !== undefined ? vals.lsl : null
+                });
+            });
+
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                alert(`✅ บันทึก Config ของ Dispensing สำเร็จ (อัปเดตลง MySQL แล้ว)`);
+            }).catch(e => {
+                console.error(e);
+                alert(`✅ บันทึก Config ของ Dispensing สำเร็จ (Local) แต่ไม่สามารถเชื่อมต่อ MySQL ได้`);
+            });
         }
 
         function resetSysModelConfig() {
