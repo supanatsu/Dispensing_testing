@@ -400,43 +400,14 @@ function startClock() {
 function loadConfig() {
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-    let sourceProducts = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
+    PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
     if (saved.products) {
       Object.keys(saved.products).forEach(k => {
-        if (sourceProducts[k]) sourceProducts[k] = { ...sourceProducts[k], ...saved.products[k] };
+        if (PRODUCTS[k]) Object.assign(PRODUCTS[k], saved.products[k]);
       });
     }
-    PRODUCTS = new Proxy(sourceProducts, {
-      get: function (target, prop) {
-        if (typeof prop === 'symbol') return target[prop];
-        if (prop in target) return target[prop];
-        if (typeof prop === 'string') {
-          const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
-          const match = sortedKeys.find(k => prop.includes(target[k].label));
-          if (match) return target[match];
-        }
-        return undefined;
-      },
-      ownKeys: function (target) { return Reflect.ownKeys(target); },
-      getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-      set: function (target, prop, value) { target[prop] = value; return true; }
-    });
   } catch {
-    PRODUCTS = new Proxy(JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)), {
-      get: function (target, prop) {
-        if (typeof prop === 'symbol') return target[prop];
-        if (prop in target) return target[prop];
-        if (typeof prop === 'string') {
-          const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
-          const match = sortedKeys.find(k => prop.includes(target[k].label));
-          if (match) return target[match];
-        }
-        return undefined;
-      },
-      ownKeys: function (target) { return Reflect.ownKeys(target); },
-      getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-      set: function (target, prop, value) { target[prop] = value; return true; }
-    });
+    PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
   }
 }
 
@@ -525,9 +496,49 @@ function populateProductDropdowns(modeFilter = null) {
 
 //  Helpers 
 function loadRecords() { return _recordsCache; }
-function saveRecords(a) { _recordsCache = a; localStorage.setItem(LS_KEY_POF, JSON.stringify(a)); }
+function saveRecords(a) { _recordsCache = a; }
 function loadAlerts() { return _alertsCache; }
-function saveAlerts(a) { _alertsCache = a; localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(a)); }
+function saveAlerts(a) { _alertsCache = a; }
+
+async function saveRecordToServer(mysqlRecords) {
+  if (!isServerOnline) return;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/pof/records`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: mysqlRecords }),
+    });
+    const r = await res.json();
+    if (!r.success) showToast(`MySQL error: ${r.message}`, 'warn');
+  } catch (e) {
+    showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
+  }
+}
+
+async function sendSystemAlert(level, msg, rec, p) {
+  if (!isServerOnline) return;
+  try {
+    await fetch(`${BACKEND_URL}/api/pof/alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        level,
+        msg,
+        product: rec.product,
+        product_label: p.label,
+        en: rec.en,
+        traveler: rec.traveler,
+        oven: rec.oven,
+        avg: rec.avg,
+        min: rec.min,
+        spec_result: rec.spec_result,
+        mode: rec.mode,
+      }),
+    });
+  } catch (e) {
+    console.warn('sendSystemAlert (POF) failed', e);
+  }
+}
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function fmt(v, d = 2) { return (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toFixed(d); }
 
@@ -646,7 +657,6 @@ async function refreshDataFromServer() {
             savedAt: r.savedAt || '',
           };
         });
-        localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
       }
 
       //  Load Alerts  DB 
@@ -669,22 +679,13 @@ async function refreshDataFromServer() {
           trigger: a.trigger || '',
           msg: a.remark || a.msg || '',
         }));
-        localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(_alertsCache));
       }
     } catch (err) {
       console.error('Failed to load live data from server:', err);
-      // Fallback to localStorage
-      try {
-        _recordsCache = JSON.parse(localStorage.getItem(LS_KEY_POF) || '[]');
-        _alertsCache = JSON.parse(localStorage.getItem(LS_KEY_ALERTS) || '[]');
-      } catch { _recordsCache = []; _alertsCache = []; }
+      // Keep existing in-memory caches on error
     }
   } else {
-    //  Offline:  localStorage 
-    try {
-      _recordsCache = JSON.parse(localStorage.getItem(LS_KEY_POF) || '[]');
-      _alertsCache = JSON.parse(localStorage.getItem(LS_KEY_ALERTS) || '[]');
-    } catch { _recordsCache = []; _alertsCache = []; }
+    // Offline: caches remain as-is from last successful fetch
   }
 
   updateKPIs();
@@ -1058,7 +1059,7 @@ async function addDraft() {
   };
 
   DRAFT_STATE.drafts.push(draftItem);
-  
+
   // Clear measurement inputs
   document.getElementById('m-long1').value = '';
   document.getElementById('m-short2').value = '';
@@ -1087,7 +1088,7 @@ function updateDraftUI() {
 
   panel.style.display = 'block';
   title.textContent = `Pending Drafts Progress (${DRAFT_STATE.drafts.length}/${DRAFT_STATE.requiredQty})`;
-  
+
   let html = `<table class="draft-table"><thead><tr><th>No.</th><th>Long1</th><th>Short2</th><th>Bobbin1</th><th>Bobbin2</th><th>Avg</th><th>Result</th><th>Action</th></tr></thead><tbody>`;
 
   DRAFT_STATE.drafts.forEach((d, idx) => {
@@ -1151,7 +1152,7 @@ async function _doSubmitDrafts() {
       lot: h.lot,
       qty: h.qtyInput,
       remark: d.remark,
-      long1: d.l1, short2: d.s2, bobbin1: d.b1, bobbin2: d.b2, 
+      long1: d.l1, short2: d.s2, bobbin1: d.b1, bobbin2: d.b2,
       avg: d.avg, max: d.max, min: d.min, range: d.range,
       spc_ucl: d.spc.ucl,
       spc_cl: d.spc.cl,
@@ -1194,82 +1195,47 @@ async function _doSubmitDrafts() {
   });
 
   _recordsCache.push(...newRecords);
-  localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
 
-  // Only generate 1 alert even if there are N records, using the first record's data
+  // Alert check
   const isAlert = newRecords.some(r => r.spec_result === 'OUT' || r.trigger === 'OUT');
   if (isAlert) {
     const failedRec = newRecords.find(r => r.spec_result === 'OUT' || r.trigger === 'OUT') || newRecords[0];
-    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail/Out of Spec)! \nโปรดตรวจสอบ Product: ${p.label} EN: ${failedRec.en || '-'}`);
+    const alertMsg = failedRec.spec_result === 'OUT'
+      ? `Out of Spec: Min = ${failedRec.min.toFixed(2)} ${p.unit} (Spec ≥ ${failedRec.spc_spec})`
+      : `Out of Trigger: Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (Trigger ≥ ${failedRec.spc_trig})`;
 
     const alertObj = {
-      id: failedRec.id,
-      ts: failedRec.savedAt,
+      id: failedRec.id, ts: failedRec.savedAt,
       level: failedRec.spec_result === 'OUT' ? 'ng' : 'warn',
-      product: p.label,
-      mode: h.modeKey,
-      modeLabel: failedRec.modeLabel,
-      coilType: h.typeKey,
-      en: failedRec.en,
-      traveler: failedRec.traveler,
-      oven: failedRec.oven,
-      avg: failedRec.avg.toFixed(2),
-      min: failedRec.min.toFixed(2),
-      spec_result: failedRec.spec_result,
-      trigger: failedRec.trigger,
-      msg: failedRec.spec_result === 'OUT'
-        ? `Out of Spec: Min = ${failedRec.min.toFixed(2)} ${p.unit} (Spec  ${failedRec.spc_spec})`
-        : `Out of Trigger: Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (Trigger  ${failedRec.spc_trig})`,
+      product: p.label, mode: h.modeKey, modeLabel: failedRec.modeLabel,
+      coilType: h.typeKey, en: failedRec.en, traveler: failedRec.traveler,
+      oven: failedRec.oven, avg: failedRec.avg.toFixed(2), min: failedRec.min.toFixed(2),
+      spec_result: failedRec.spec_result, trigger: failedRec.trigger, msg: alertMsg,
     };
     _alertsCache.unshift(alertObj);
-    localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(_alertsCache));
-    if (typeof triggerAutoEml === 'function') triggerAutoEml(failedRec, failedRec.spc_spec); // Adjust spc passing if needed
     renderAlerts();
     if (typeof updateBadge === 'function') updateBadge();
+    if (typeof triggerAutoEml === 'function') triggerAutoEml(failedRec, failedRec.spc_spec);
+
+    // Send alert to MySQL
+    await sendSystemAlert(alertObj.level, alertMsg, failedRec, p);
   }
 
   // Clear Form
   clearForm();
   clearDrafts();
-  
+
   showToast('บันทึกข้อมูลเรียบร้อย (POF)', 'success');
 
   // Change tab
   const recordsBtn = document.querySelector('.nav-btn[data-tab="records"]');
   if (recordsBtn) {
-      switchTab('records', recordsBtn);
+    switchTab('records', recordsBtn);
   }
-  
-  // MySQL 
-  if (isServerOnline) {
-    try {
-      const body = {
-        records: mysqlRecords,
-        alerts: _alertsCache,
-      };
 
-      fetch(`${BACKEND_URL}/api/pof/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      .then(res => res.json())
-      .then(r => {
-        if (r.success) {
-          console.log(`ส่งขึ้น MySQL แล้ว (Record #${newRecords[0]?.no})`);
-        } else {
-          showToast(`บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้: ${r.message}`, 'warn');
-        }
-      })
-      .catch(() => {
-        showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
-      });
-    } catch {
-      showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
-    }
-  } else {
-    showToast(`บันทึกข้อมูลลงเครื่องสำเร็จ (โหมดออฟไลน์)`, 'warn');
-  }
+  // Save records to MySQL (direct POST, no sync loop)
+  await saveRecordToServer(mysqlRecords);
+  await refreshDataFromServer();
 }
 
 function setOverallPF(val) {
@@ -1633,7 +1599,6 @@ function deleteRecord(id) {
     } else {
       _recordsCache = _recordsCache.filter(r => r.id !== id);
       _recordsCache.forEach((r, idx) => { r.no = idx + 1; });
-      localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
       showToast('ลบข้อมูลในเครื่องสำเร็จ (ออฟไลน์)', 'success');
     }
     await refreshDataFromServer();
@@ -2929,11 +2894,7 @@ async function confirmImport() {
     });
   }
 
-  //  localStorage
-  localStorage.setItem(LS_KEY_POF, JSON.stringify(_recordsCache));
-  localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(_alertsCache));
-
-  // Sync  MySQL  online
+  //  Sync  MySQL  online
   let dbStatus = 'บันทึกข้อมูลสำเร็จ (โหมดออฟไลน์)';
   if (isServerOnline && newApiRecords.length) {
     try {
@@ -2947,6 +2908,7 @@ async function confirmImport() {
     } catch {
       dbStatus = 'บันทึกสำเร็จแต่เกิดข้อผิดพลาดในการเชื่อมต่อ MySQL ระหว่างการ Sync';
     }
+    await refreshDataFromServer();
   }
 
   // 
@@ -3203,4 +3165,3 @@ document.addEventListener('keydown', function (e) {
     }
   }
 });
-

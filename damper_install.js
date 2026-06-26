@@ -139,43 +139,14 @@ function startClock() {
 function loadConfig() {
     try {
         const saved = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-        let sourceProducts = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
+        PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
         if (saved.products) {
             Object.keys(saved.products).forEach(k => {
-                if (sourceProducts[k]) sourceProducts[k] = { ...sourceProducts[k], ...saved.products[k] };
+                if (PRODUCTS[k]) Object.assign(PRODUCTS[k], saved.products[k]);
             });
         }
-        PRODUCTS = new Proxy(sourceProducts, {
-            get: function (target, prop) {
-                if (typeof prop === 'symbol') return target[prop];
-                if (prop in target) return target[prop];
-                if (typeof prop === 'string') {
-                    const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
-                    const match = sortedKeys.find(k => prop.includes(target[k].label));
-                    if (match) return target[match];
-                }
-                return undefined;
-            },
-            ownKeys: function (target) { return Reflect.ownKeys(target); },
-            getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-            set: function (target, prop, value) { target[prop] = value; return true; }
-        });
     } catch {
-        PRODUCTS = new Proxy(JSON.parse(JSON.stringify(PRODUCTS_DEFAULT)), {
-            get: function (target, prop) {
-                if (typeof prop === 'symbol') return target[prop];
-                if (prop in target) return target[prop];
-                if (typeof prop === 'string') {
-                    const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
-                    const match = sortedKeys.find(k => prop.includes(target[k].label));
-                    if (match) return target[match];
-                }
-                return undefined;
-            },
-            ownKeys: function (target) { return Reflect.ownKeys(target); },
-            getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); },
-            set: function (target, prop, value) { target[prop] = value; return true; }
-        });
+        PRODUCTS = JSON.parse(JSON.stringify(PRODUCTS_DEFAULT));
     }
 }
 
@@ -387,7 +358,7 @@ function onProductChange() {
             const prodCfg = (cfg.productDims && key && cfg.productDims[key]) ? cfg.productDims[key] : {};
             const fBuyoff = prodCfg.freqBuyoff !== undefined ? prodCfg.freqBuyoff : cfg.freqBuyoff;
             const fRoving = prodCfg.freqRoving !== undefined ? prodCfg.freqRoving : cfg.freqRoving;
-            
+
             if (mode === 'buyoff' || mode === 'oba') {
                 qtyInput.value = fBuyoff ? `${fBuyoff}/Shift/Oven` : '';
             } else if (mode.includes('roving')) {
@@ -598,36 +569,30 @@ async function saveBatch() {
     updateKPIs();
     updateBadges();
 
+    const failIssues = [];
     if (vmiNG) {
-        alert(`แจ้งเตือน: VMI Fail! \nโปรดตรวจสอบ Product: ${p.label} EN: ${rec.qcEn || '-'}`);
-        const alerts = loadAlerts();
-        const issues = [];
         const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
-        if (vmiNG) issues.push('VMI NG: ' + items.filter(v => vmiData[v.id] === 'Fail').map(v => v.label).join(', '));
-
+        failIssues.push('VMI NG: ' + items.filter(v => vmiData[v.id] === 'Fail').map(v => v.label).join(', '));
+        const alerts = loadAlerts();
         alerts.unshift({
             id: rec.id, ts: rec.savedAt, level: 'ng',
             product: p.label, traveler: rec.traveler, qcEn: rec.qcEn,
-            msg: issues.join(' | ')
+            msg: failIssues.join(' | ')
         });
         saveAlerts(alerts);
         updateBadges();
-        triggerAutoEml(rec, issues);
-    } else {
-        triggerAutoEml(rec, []);
     }
 
     if (window.BLoader) window.BLoader.show('กำลังบันทึกลงฐานข้อมูลถาวร...');
-    try {
-        if (isServerOnline) await syncWithServer();
-    } catch(e) {
-        console.error('MySQL Sync Error:', e);
-    }
+    await saveRecordToServer(rec);
+    if (failIssues.length) await sendSystemAlert('ng', failIssues.join(' | '), rec, failIssues);
+    triggerAutoEml(rec, failIssues);
     if (window.BLoader) window.BLoader.hide();
-    
+    await refreshDataFromServer();
+
     clearForm();
     showToast(`✅ บันทึกลง MySQL สำเร็จ — Batch #${no} — ${p.label} (${p.pcs} pcs)`, 'success');
-    
+
     // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
     const aboutBtn = document.querySelector('.nav-btn[data-tab="records"]');
     if (aboutBtn) {
@@ -1308,10 +1273,47 @@ async function syncWithServer() {
 // ------------------------------------------------------------------------------------------
 //  Utilities
 // ------------------------------------------------------------------------------------------
-function loadRecords() { try { return JSON.parse(localStorage.getItem(LS_KEY_DMR) || '[]'); } catch { return []; } }
-function saveRecords(a) { localStorage.setItem(LS_KEY_DMR, JSON.stringify(a)); }
+function loadRecords() { return dmpRecords; }
+function saveRecords(a) { dmpRecords = a; }
 function loadAlerts() { try { return JSON.parse(localStorage.getItem(LS_KEY_ALERTS) || '[]'); } catch { return []; } }
 function saveAlerts(a) { localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(a)); }
+
+async function saveRecordToServer(rec) {
+    if (!isServerOnline) return;
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/damper/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: [rec] }),
+        });
+        const r = await res.json();
+        if (!r.success) showToast(`MySQL error: ${r.message}`, 'warn');
+    } catch (e) {
+        showToast('บันทึกสำเร็จแต่ส่ง MySQL ไม่ได้ (Network Error)', 'warn');
+    }
+}
+
+async function sendSystemAlert(level, msg, rec, issues) {
+    if (!isServerOnline) return;
+    try {
+        await fetch(`${BACKEND_URL}/api/damper/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                level, msg,
+                product: rec.product,
+                product_label: rec.productLabel,
+                qc_en: rec.qcEn,
+                traveler: rec.traveler,
+                mode: rec.mode,
+                overall: rec.overall,
+                issues,
+            }),
+        });
+    } catch (e) {
+        console.warn('sendSystemAlert (damper) failed', e);
+    }
+}
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function fmt(v, d = 5) { return (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toFixed(d); }
 
@@ -1490,7 +1492,7 @@ function parseStage2Data() {
     }
 
     const recs = loadRecords();
-    const candidates = recs.filter(r => 
+    const candidates = recs.filter(r =>
         (r.overall === 'WAITING' || r.overall === 'Waiting') &&
         r.product === mk &&
         (ptFilter === '' || r.ptno === ptFilter) &&
@@ -1503,7 +1505,7 @@ function parseStage2Data() {
     }
 
     _selectedMergeId = candidates[0].id;
-    
+
     const r = candidates[0];
     document.getElementById('stage2-target-info').style.display = 'block';
     document.getElementById('stage2-target-details').innerHTML = `
@@ -1582,7 +1584,7 @@ async function commitStage2Damper() {
     if (window.BLoader) window.BLoader.show('กำลังอัปเดตและบันทึกลงฐานข้อมูลถาวร...');
     try {
         if (isServerOnline) await syncWithServer();
-    } catch(e) {
+    } catch (e) {
         console.error('MySQL Sync Error:', e);
     }
     if (window.BLoader) window.BLoader.hide();
@@ -1610,7 +1612,7 @@ function clearAllDrafts() {
 const originalSaveBatch = saveBatch;
 saveBatch = function () {
     const mode = document.getElementById('m-mode')?.value || 'buyoff';
-    
+
     if (mode === 'roving') {
         originalSaveBatch();
         return;

@@ -445,12 +445,13 @@
                         <div
                             style="margin-bottom:20px; padding:16px; background:rgba(139,92,246,0.05); border-radius:8px; border:1px solid rgba(139,92,246,0.2);">
                             <div class="form-grid"
-                                style="grid-template-columns:1fr 1fr 1fr auto; align-items:end; margin-bottom:0; gap: 12px;">
+                                style="grid-template-columns:1fr 1fr auto; align-items:end; margin-bottom:0; gap: 12px;">
                                 <div class="form-group">
                                     <label
                                         style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก
                                         Product</label>
-                                    <select id="gc-pof-product" class="form-select" onchange="loadGlobalPofConfig()"
+                                    <select id="gc-pof-product" class="form-select"
+                                        onchange="filterPofCategoryByProduct(); loadGlobalPofConfig()"
                                         style="font-weight:600; width:100%;">
                                         <option value="">— ค่าเริ่มต้น (Default ทุกรุ่น) —</option>
                                     </select>
@@ -459,23 +460,13 @@
                                     <label
                                         style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Data
                                         Type (ประเภท)</label>
-                                    <select id="gc-pof-datatype" class="form-select" onchange="loadGlobalPofConfig()"
+                                    <select id="gc-pof-datatype" class="form-select"
+                                        onchange="filterPofRows(); loadGlobalPofConfig()"
                                         style="font-weight:600; width:100%;">
                                         <option value="buyoff">Buy off</option>
                                         <option value="roving">Roving</option>
                                         <option value="oba">OBA</option>
                                         <option value="special">Special</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label
-                                        style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Category
-                                        (หมวดหมู่)</label>
-                                    <select id="gc-pof-category" class="form-select" onchange="loadGlobalPofConfig()"
-                                        style="font-weight:600; width:100%;">
-                                        <option value="long">Long Fantail</option>
-                                        <option value="short">Short Fantail</option>
-                                        <option value="bobbin">Bobbin</option>
                                     </select>
                                 </div>
                                 <div class="form-group"
@@ -575,12 +566,10 @@
                                             </tr>
 
                                             <!-- Bobbin (hidden by default) -->
-                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-buyoff"
-                                                style="display:none;">
+                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-buyoff">
                                                 <td colspan="6">🟣 Bobbin</td>
                                             </tr>
-                                            <tr id="gc-pof-bobbin-wrap-buyoff"
-                                                style="display:none; border-bottom:1px solid #f1f5f9;">
+                                            <tr id="gc-pof-bobbin-wrap-buyoff" style="border-bottom:1px solid #f1f5f9;">
                                                 <td style="color:#8b5cf6;">Bobbin POF</td>
                                                 <td><input type="number" step="0.01" id="gc-pof-buyoff-bobbin-lsl"
                                                         class="form-input"></td>
@@ -656,12 +645,10 @@
                                             </tr>
 
                                             <!-- Bobbin (hidden by default) -->
-                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-roving"
-                                                style="display:none;">
+                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-roving">
                                                 <td colspan="6">🟣 Bobbin</td>
                                             </tr>
-                                            <tr id="gc-pof-bobbin-wrap-roving"
-                                                style="display:none; border-bottom:1px solid #f1f5f9;">
+                                            <tr id="gc-pof-bobbin-wrap-roving" style="border-bottom:1px solid #f1f5f9;">
                                                 <td style="color:#8b5cf6;">Bobbin POF</td>
                                                 <td><input type="number" step="0.01" id="gc-pof-roving-bobbin-lsl"
                                                         class="form-input"></td>
@@ -737,12 +724,10 @@
                                             </tr>
 
                                             <!-- Bobbin (hidden by default) -->
-                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-oba"
-                                                style="display:none;">
+                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-oba">
                                                 <td colspan="6">🟣 Bobbin</td>
                                             </tr>
-                                            <tr id="gc-pof-bobbin-wrap-oba"
-                                                style="display:none; border-bottom:1px solid #f1f5f9;">
+                                            <tr id="gc-pof-bobbin-wrap-oba" style="border-bottom:1px solid #f1f5f9;">
                                                 <td style="color:#8b5cf6;">Bobbin POF</td>
                                                 <td><input type="number" step="0.01" id="gc-pof-oba-bobbin-lsl"
                                                         class="form-input"></td>
@@ -818,12 +803,11 @@
                                             </tr>
 
                                             <!-- Bobbin (hidden by default) -->
-                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-special"
-                                                style="display:none;">
+                                            <tr class="pof-separator-row" id="gc-pof-bobbin-sep-special">
                                                 <td colspan="6">🟣 Bobbin</td>
                                             </tr>
                                             <tr id="gc-pof-bobbin-wrap-special"
-                                                style="display:none; border-bottom:1px solid #f1f5f9;">
+                                                style="border-bottom:1px solid #f1f5f9;">
                                                 <td style="color:#8b5cf6;">Bobbin POF</td>
                                                 <td><input type="number" step="0.01" id="gc-pof-special-bobbin-lsl"
                                                         class="form-input"></td>
@@ -941,6 +925,125 @@
                             </div><!-- /gc-pof-form -->
                         </div>
                     </div>
+
+                    <!-- ══════ POF SPC RULES ══════ -->
+                    <div
+                        style="background:var(--bg2); padding:20px; border-radius:8px; border-left:4px solid #f59e0b; margin-top:16px;">
+                        <h3
+                            style="color:var(--text); margin-top:0; margin-bottom:6px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                            <svg fill="none" viewBox="0 0 24 24" width="18" height="18">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                    stroke="#f59e0b" />
+                            </svg>
+                            POF SPC Rules — กฎการตรวจจับ Out of Control
+                        </h3>
+                        <p style="color:var(--text-muted); font-size:12px; margin:0 0 16px 0;">
+                            เปิด/ปิด Western Electric Rules ที่ใช้ตรวจสอบ X-bar Chart ใน POF module
+                        </p>
+
+                        <!-- Rule 1 -->
+                        <div
+                            style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; margin-bottom:10px;">
+                            <label
+                                style="position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0;">
+                                <input type="checkbox" id="pof-rule1-chk" checked onchange="onPofRuleToggle('rule1')"
+                                    style="opacity:0; width:0; height:0;">
+                                <span id="pof-rule1-slider"
+                                    style="position:absolute; inset:0; border-radius:24px; cursor:pointer; transition:background .2s; background:#dc2626;">
+                                    <span
+                                        style="position:absolute; width:18px; height:18px; left:3px; top:3px; background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.2); transition:transform .2s; transform:translateX(20px);"></span>
+                                </span>
+                            </label>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px;">🔴
+                                    Rule 1 — Out of Control (UCL / LCL)</div>
+                                <div style="font-size:11px; color:var(--text-muted);">จุดข้อมูลอยู่นอก UCL หรือ LCL —
+                                    ถือว่า Out of Control ทันที</div>
+                            </div>
+                            <span id="pof-rule1-badge"
+                                style="padding:3px 10px; border-radius:12px; font-size:10px; font-weight:700; background:rgba(22,163,74,.12); color:#16a34a; flex-shrink:0;">เปิดใช้งาน</span>
+                        </div>
+
+                        <!-- Rule 2 -->
+                        <div
+                            style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; margin-bottom:10px;">
+                            <label
+                                style="position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0;">
+                                <input type="checkbox" id="pof-rule2-chk" checked onchange="onPofRuleToggle('rule2')"
+                                    style="opacity:0; width:0; height:0;">
+                                <span id="pof-rule2-slider"
+                                    style="position:absolute; inset:0; border-radius:24px; cursor:pointer; transition:background .2s; background:#2563eb;">
+                                    <span
+                                        style="position:absolute; width:18px; height:18px; left:3px; top:3px; background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.2); transition:transform .2s; transform:translateX(20px);"></span>
+                                </span>
+                            </label>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px;">🔵
+                                    Rule 2 — 9-Point Trend Up / Down</div>
+                                <div style="font-size:11px; color:var(--text-muted);">9 จุดติดต่อกันอยู่ฝั่งเดียวกันของ
+                                    CL (ทั้งหมด &gt; CL หรือ &lt; CL)</div>
+                            </div>
+                            <span id="pof-rule2-badge"
+                                style="padding:3px 10px; border-radius:12px; font-size:10px; font-weight:700; background:rgba(22,163,74,.12); color:#16a34a; flex-shrink:0;">เปิดใช้งาน</span>
+                        </div>
+
+                        <!-- Rule 3 -->
+                        <div
+                            style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; margin-bottom:16px;">
+                            <label
+                                style="position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0;">
+                                <input type="checkbox" id="pof-rule3-chk" checked onchange="onPofRuleToggle('rule3')"
+                                    style="opacity:0; width:0; height:0;">
+                                <span id="pof-rule3-slider"
+                                    style="position:absolute; inset:0; border-radius:24px; cursor:pointer; transition:background .2s; background:#b45309;">
+                                    <span
+                                        style="position:absolute; width:18px; height:18px; left:3px; top:3px; background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.2); transition:transform .2s; transform:translateX(20px);"></span>
+                                </span>
+                            </label>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px;">🟡
+                                    Rule 3 — 6-Point Monotone Increase / Decrease</div>
+                                <div style="font-size:11px; color:var(--text-muted);">6
+                                    จุดติดต่อกันเพิ่มขึ้นหรือลดลงอย่างต่อเนื่อง</div>
+                            </div>
+                            <span id="pof-rule3-badge"
+                                style="padding:3px 10px; border-radius:12px; font-size:10px; font-weight:700; background:rgba(22,163,74,.12); color:#16a34a; flex-shrink:0;">เปิดใช้งาน</span>
+                        </div>
+
+                        <!-- Reference cards -->
+                        <div
+                            style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:16px;">
+                            <div
+                                style="padding:12px 14px; border-radius:8px; border:1px solid rgba(220,38,38,.25); background:rgba(220,38,38,.04);">
+                                <div style="font-size:11px; font-weight:800; color:#dc2626; margin-bottom:5px;">🔴 RULE
+                                    1 — Out of Control</div>
+                                <div style="font-size:11px; color:var(--text); line-height:1.6;">จุดเดียวก็พอ<br>ถ้า x
+                                    &lt; LCL <strong>หรือ</strong> x &gt; UCL</div>
+                            </div>
+                            <div
+                                style="padding:12px 14px; border-radius:8px; border:1px solid rgba(37,99,235,.25); background:rgba(37,99,235,.04);">
+                                <div style="font-size:11px; font-weight:800; color:#2563eb; margin-bottom:5px;">🔵 RULE
+                                    2 — 9-Point Trend</div>
+                                <div style="font-size:11px; color:var(--text); line-height:1.6;">9
+                                    จุดติดต่อกัน<br>อยู่ฝั่งเดียวกันของ CL</div>
+                            </div>
+                            <div
+                                style="padding:12px 14px; border-radius:8px; border:1px solid rgba(180,83,9,.25); background:rgba(180,83,9,.04);">
+                                <div style="font-size:11px; font-weight:800; color:#b45309; margin-bottom:5px;">🟡 RULE
+                                    3 — 6-Point Monotone</div>
+                                <div style="font-size:11px; color:var(--text); line-height:1.6;">6
+                                    จุดติดต่อกัน<br>เพิ่ม/ลดอย่างต่อเนื่อง</div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button class="btn btn-primary" onclick="savePofRules()"
+                                style="background:#f59e0b; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(245,158,11,0.25);">💾
+                                บันทึก POF Rules</button>
+                        </div>
+                    </div><!-- /pof-rules -->
+
                 </div>
 
                 <!-- DAMPER CONFIG PANEL -->
@@ -1021,33 +1124,55 @@
                                         Damper Type</th>
                                     <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">
                                         Point</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">USL</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">UCL</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">CL</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LCL</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">LSL</th>
+                                    <th
+                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
+                                        USL</th>
+                                    <th
+                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
+                                        UCL</th>
+                                    <th
+                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
+                                        CL</th>
+                                    <th
+                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
+                                        LCL</th>
+                                    <th
+                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
+                                        LSL</th>
                                 </tr>
                             </thead>
                             <tbody id="gc-dmp-tbody">
                                 <tr style="border-bottom: 1px solid #f1f5f9;">
-                                    <td colspan="2" style="padding: 12px 16px; font-weight:700; color:#0ea5e9; vertical-align:middle; border-right:1px solid #f1f5f9;">
+                                    <td colspan="2"
+                                        style="padding: 12px 16px; font-weight:700; color:#0ea5e9; vertical-align:middle; border-right:1px solid #f1f5f9;">
                                         1. Datum
                                     </td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-usl" class="form-input" placeholder="1.368"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-ucl" class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-cl" class="form-input" placeholder="1.358"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lcl" class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lsl" class="form-input" placeholder="1.348"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-usl"
+                                            class="form-input" placeholder="1.368"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-ucl"
+                                            class="form-input"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-cl"
+                                            class="form-input" placeholder="1.358"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lcl"
+                                            class="form-input"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lsl"
+                                            class="form-input" placeholder="1.348"></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid #f1f5f9;">
-                                    <td colspan="2" style="padding: 12px 16px; font-weight:700; color:#d946ef; vertical-align:middle; border-right:1px solid #f1f5f9;">
+                                    <td colspan="2"
+                                        style="padding: 12px 16px; font-weight:700; color:#d946ef; vertical-align:middle; border-right:1px solid #f1f5f9;">
                                         2. Non-datum
                                     </td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-usl" class="form-input" placeholder="0.824"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-ucl" class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-cl" class="form-input" placeholder="0.814"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lcl" class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lsl" class="form-input" placeholder="0.804"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-usl"
+                                            class="form-input" placeholder="0.824"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-ucl"
+                                            class="form-input"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-cl"
+                                            class="form-input" placeholder="0.814"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lcl"
+                                            class="form-input"></td>
+                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lsl"
+                                            class="form-input" placeholder="0.804"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1482,8 +1607,10 @@
             try { saved = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
             const cfg = (saved[prodKey] || {});
 
-            // Detect if product has bobbin
-            const hasBobbin = ['cim4d', 'cim5d', 'dor5dbb', 'dor10d', 'mar10d', 'ros2d', 'sum10d'].includes(prodKey);
+            // Detect if product has bobbin — ใช้ global POF_BOBBIN_PRODUCTS
+            const hasBobbin = !prodKey || prodKey === 'default'
+                ? true  // ไม่ได้เลือก product = แสดง bobbin ไว้ก่อน
+                : POF_BOBBIN_PRODUCTS.has(prodKey);
             const showBobbin = (id) => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = hasBobbin ? '' : 'none';
@@ -1777,13 +1904,14 @@
                             const list = window.MODULE_PRODUCTS[modName];
                             const filtered = list.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode);
 
-                            const sysKeys = Object.keys(window.PRODUCTS);
-                            const sortedKeys = sysKeys.sort((a, b) => window.PRODUCTS[b].label.length - window.PRODUCTS[a].label.length);
-
+                            // dedupe by product_name — DB มีหลาย rows ต่อ product (long/short/bobbin)
+                            // ใช้ product_name เป็น value ตรงๆ ทุก module เพื่อให้ filterPofCategoryByProduct เปรียบได้
+                            const seen = new Set();
                             filtered.forEach(p => {
-                                let mk = sortedKeys.find(k => p.product_name.includes(window.PRODUCTS[k].label)) || sysKeys[0];
+                                if (seen.has(p.product_name)) return;
+                                seen.add(p.product_name);
                                 const o = document.createElement('option');
-                                o.value = isDispensing ? p.product_name : mk;
+                                o.value = p.product_name;
                                 o.textContent = p.product_name;
                                 el.appendChild(o);
                             });
@@ -1811,54 +1939,139 @@
             // Init epoxy pickers with defaults
             initEpoxyPickers();
         });
+        // ──────────────────────────────────────────────────────────
+        //  POF: ซ่อน/แสดง Bobbin option ตาม types[] ของ product
+        // ──────────────────────────────────────────────────────────
+        // รายชื่อ product ที่มี Bobbin (ตาม DB จริง)
+        const POF_BOBBIN_PRODUCTS = new Set([
+            'Cimarron BP 4D', 'Cimarron BP 5D',
+            'Dorado 5D AL BB',
+            'Dorado 10D', 'Dorado 10D_NOAR',
+            'DR 10D', 'DR 10D NOAR', 'DR 10D NOAR-AAD',
+            'Marlin 10D', 'Rosewood 2D', 'Summit 10D'
+        ]);
+
+        function filterPofCategoryByProduct() {
+            const productKey = document.getElementById('gc-pof-product')?.value || '';
+
+            // ถ้าไม่ได้เลือก product (default) → แสดง bobbin ไว้ก่อน
+            const hasBobbin = !productKey || productKey === 'default'
+                ? true
+                : POF_BOBBIN_PRODUCTS.has(productKey);
+
+            // แสดง/ซ่อน bobbin rows ในทุก data-type table
+            ['buyoff', 'roving', 'oba', 'special'].forEach(mode => {
+                const sepEl = document.getElementById(`gc-pof-bobbin-sep-${mode}`);
+                const rowEl = document.getElementById(`gc-pof-bobbin-wrap-${mode}`);
+                if (sepEl) sepEl.style.display = hasBobbin ? '' : 'none';
+                if (rowEl) rowEl.style.display = hasBobbin ? '' : 'none';
+            });
+        }
+
+        // ──────────────────────────────────────────────────────────
+        //  POF SPC Rules — toggle + save/load
+        // ──────────────────────────────────────────────────────────
+        const POF_RULES_LS_KEY = 'belton_pof_spc_rules';
+
+        function onPofRuleToggle(ruleId) {
+            const chk = document.getElementById(`pof-${ruleId}-chk`);
+            const badge = document.getElementById(`pof-${ruleId}-badge`);
+            const slider = document.getElementById(`pof-${ruleId}-slider`);
+            if (!chk || !badge) return;
+
+            const colors = { rule1: '#dc2626', rule2: '#2563eb', rule3: '#b45309' };
+            if (chk.checked) {
+                badge.style.background = 'rgba(22,163,74,.12)';
+                badge.style.color = '#16a34a';
+                badge.textContent = 'เปิดใช้งาน';
+                if (slider) slider.style.background = colors[ruleId] || '#10b981';
+                // move knob right
+                const knob = slider?.querySelector('span');
+                if (knob) knob.style.transform = 'translateX(20px)';
+            } else {
+                badge.style.background = 'rgba(100,116,139,.12)';
+                badge.style.color = '#64748b';
+                badge.textContent = 'ปิดใช้งาน';
+                if (slider) slider.style.background = '#cbd5e1';
+                const knob = slider?.querySelector('span');
+                if (knob) knob.style.transform = 'translateX(0px)';
+            }
+        }
+
+        function savePofRules() {
+            const payload = {};
+            ['rule1', 'rule2', 'rule3'].forEach(k => {
+                const chk = document.getElementById(`pof-${k}-chk`);
+                payload[k] = { enabled: chk ? chk.checked : true };
+            });
+            localStorage.setItem(POF_RULES_LS_KEY, JSON.stringify(payload));
+
+            // พยายาม sync ขึ้น DB
+            const apiBase = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+            fetch(apiBase + '/api/system/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: POF_RULES_LS_KEY, value: JSON.stringify(payload) })
+            }).catch(() => { });
+
+            // Toast
+            if (typeof showToast === 'function') {
+                showToast('บันทึก POF Rules สำเร็จ ✅', 'success');
+            } else {
+                alert('บันทึก POF Rules สำเร็จ');
+            }
+        }
+
+        function loadPofRules() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(POF_RULES_LS_KEY) || '{}');
+                ['rule1', 'rule2', 'rule3'].forEach(k => {
+                    const chk = document.getElementById(`pof-${k}-chk`);
+                    if (chk && saved[k] !== undefined) {
+                        chk.checked = !!saved[k].enabled;
+                        onPofRuleToggle(k);
+                    }
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        // โหลด rules เมื่อหน้าพร้อม
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPofRules();
+            // ซ่อน bobbin เริ่มต้นถ้ายังไม่เลือก product (แสดงไว้ก่อน)
+        });
+
         function filterPofRows() {
             const dt = document.getElementById('gc-pof-datatype')?.value || 'buyoff';
-            const cat = document.getElementById('gc-pof-category')?.value || 'long';
 
             if (typeof window.populateFilteredDropdown === 'function') {
                 window.populateFilteredDropdown('pof', 'gc-pof-product', dt);
             }
 
+            // แสดงเฉพาะ table ที่ตรงกับ Data Type ที่เลือก
+            // Long / Short / Bobbin แสดงพร้อมกันทั้งหมดใน table เดียว
             const buyoffHdr = document.getElementById('hdr-pof-buyoff');
             const buyoffWrap = document.getElementById('wrap-pof-buyoff');
-            if (buyoffHdr) buyoffHdr.style.display = (dt === 'Buy-off' || dt === 'buyoff') ? '' : 'none';
-            if (buyoffWrap) buyoffWrap.style.display = (dt === 'Buy-off' || dt === 'buyoff') ? '' : 'none';
+            if (buyoffHdr) buyoffHdr.style.display = (dt === 'buyoff') ? '' : 'none';
+            if (buyoffWrap) buyoffWrap.style.display = (dt === 'buyoff') ? '' : 'none';
 
             const rovingHdr = document.getElementById('hdr-pof-roving');
             const rovingWrap = document.getElementById('wrap-pof-roving');
-            if (rovingHdr) rovingHdr.style.display = (dt === 'Roving' || dt === 'roving') ? '' : 'none';
-            if (rovingWrap) rovingWrap.style.display = (dt === 'Roving' || dt === 'roving') ? '' : 'none';
+            if (rovingHdr) rovingHdr.style.display = (dt === 'roving') ? '' : 'none';
+            if (rovingWrap) rovingWrap.style.display = (dt === 'roving') ? '' : 'none';
 
             const obaHdr = document.getElementById('hdr-pof-oba');
             const obaWrap = document.getElementById('wrap-pof-oba');
-            if (obaHdr) obaHdr.style.display = (dt === 'OBA' || dt === 'oba') ? '' : 'none';
-            if (obaWrap) obaWrap.style.display = (dt === 'OBA' || dt === 'oba') ? '' : 'none';
+            if (obaHdr) obaHdr.style.display = (dt === 'oba') ? '' : 'none';
+            if (obaWrap) obaWrap.style.display = (dt === 'oba') ? '' : 'none';
 
             const specialHdr = document.getElementById('hdr-pof-special');
             const specialWrap = document.getElementById('wrap-pof-special');
-            if (specialHdr) specialHdr.style.display = (dt === 'Special' || dt === 'special') ? '' : 'none';
-            if (specialWrap) specialWrap.style.display = (dt === 'Special' || dt === 'special') ? '' : 'none';
+            if (specialHdr) specialHdr.style.display = (dt === 'special') ? '' : 'none';
+            if (specialWrap) specialWrap.style.display = (dt === 'special') ? '' : 'none';
 
-            // Filter rows by category
-            const showCat = (tableId) => {
-                const wrap = document.getElementById(tableId);
-                if (!wrap) return;
-                const rows = wrap.querySelectorAll('tbody tr');
-                let currentCat = '';
-                rows.forEach(r => {
-                    const txt = r.innerText.toLowerCase();
-                    if (txt.includes('long fantail')) currentCat = 'long';
-                    else if (txt.includes('short fantail')) currentCat = 'short';
-                    else if (txt.includes('bobbin')) currentCat = 'bobbin';
-
-                    if (currentCat === cat) r.style.display = '';
-                    else r.style.display = 'none';
-                });
-            };
-            showCat('wrap-pof-buyoff');
-            showCat('wrap-pof-roving');
-            showCat('wrap-pof-oba');
-            showCat('wrap-pof-special');
+            // อัปเดต bobbin rows ตาม product ที่เลือก
+            filterPofCategoryByProduct();
         }
     </script>
 </body>

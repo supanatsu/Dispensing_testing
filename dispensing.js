@@ -11,104 +11,116 @@ const customCanvasBackgroundColor = {
 };
 Chart.register(customCanvasBackgroundColor);
 
-const _internalProducts = window.PRODUCTS || {};
-window.PRODUCTS = new Proxy(_internalProducts, {
-    get: function (target, prop) {
-        if (typeof prop === 'symbol') return target[prop];
-        if (prop in target) return target[prop];
-        if (typeof prop === 'string') {
-            const sortedKeys = Object.keys(target).sort((a, b) => target[b].label.length - target[a].label.length);
-            const match = sortedKeys.find(k => prop.includes(target[k].label));
-            if (match) return target[match];
-        }
-        return undefined;
-    },
-    ownKeys: function (target) { return Reflect.ownKeys(target); },
-    getOwnPropertyDescriptor: function (target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); }
+// ══════════════════════════════════════════════════════════════════════
+// _internalProducts — Live Proxy อ่าน window.PRODUCTS ณ ขณะที่ถูกเรียก
+// (ไม่ capture ตอน parse เพราะ shared_products.js โหลด async)
+// ══════════════════════════════════════════════════════════════════════
+const _internalProducts = new Proxy({}, {
+    get(_, prop) { return (window.PRODUCTS || {})[prop]; },
+    ownKeys() { return Object.keys(window.PRODUCTS || {}); },
+    has(_, key) { return key in (window.PRODUCTS || {}); },
+    getOwnPropertyDescriptor(_, key) {
+        if (key in (window.PRODUCTS || {})) return { enumerable: true, configurable: true };
+    }
 });
 
+// ══════════════════════════════════════════════════════════════════════
+// normalizeProductStr + getProductConfig
+// Ultra-robust fuzzy resolver: dropdown value → canonical PRODUCTS key
+// รองรับ: "Skybolt 1D MM", "skybolt1d", "sky1dmm", "Skybolt-1D-mm" ฯลฯ
+// ══════════════════════════════════════════════════════════════════════
+function normalizeProductStr(str) {
+    return (str || '')
+        .toLowerCase()
+        .replace(/[\s\-_]+/g, '')       // ลบ space / hyphen / underscore
+        .replace(/\binch(es)?\b/g, '')  // ลบ "inch"
+        .replace(/\bmm\b/g, '')         // ลบ "mm"
+        .replace(/\bnoar\b/g, '')       // ลบ "noar"
+        .replace(/\baad\b/g, '')        // ลบ "aad"
+        .replace(/\balbb?\b/g, '')      // ลบ "alb/albb"
+        .replace(/\bpof\b/g, '')        // ลบ suffix "(POF)"
+        .replace(/[()]/g, '')           // ลบวงเล็บ
+        .replace(/[^a-z0-9]/g, '');     // เก็บเฉพาะ alphanumeric
+}
+
+function getProductConfig(selectedValue) {
+    const products = window.PRODUCTS || {};
+
+    // 1. Exact key match (fast path)
+    if (selectedValue && products[selectedValue]) {
+        return { key: selectedValue, cfg: products[selectedValue] };
+    }
+
+    const normSelected = normalizeProductStr(selectedValue);
+    if (!normSelected) return null;
+
+    // 2. Normalized key match
+    for (const [k, v] of Object.entries(products)) {
+        if (normalizeProductStr(k) === normSelected) return { key: k, cfg: v };
+    }
+
+    // 3. Normalized label match
+    for (const [k, v] of Object.entries(products)) {
+        if (normalizeProductStr(v.label || '') === normSelected) return { key: k, cfg: v };
+    }
+
+    // 4. Substring match (longest key first)
+    const entries = Object.entries(products).sort((a, b) => b[0].length - a[0].length);
+    for (const [k, v] of entries) {
+        const normKey = normalizeProductStr(k);
+        const normLabel = normalizeProductStr(v.label || '');
+        if (normKey && (normSelected.includes(normKey) || normKey.includes(normSelected))) return { key: k, cfg: v };
+        if (normLabel && (normSelected.includes(normLabel) || normLabel.includes(normSelected))) return { key: k, cfg: v };
+    }
+
+    console.warn(`[getProductConfig] ไม่พบ product สำหรับ: "${selectedValue}"`);
+    return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// fetchDynamicProducts
+// โหลด 2 สิ่งพร้อมกัน:
+//   1. dispensing_product  → SERVER_PRODUCTS_LIST (สำหรับ dropdown display)
+//   2. master_products     → window.PRODUCTS      (สำหรับ dims + spec lookup)
+// ══════════════════════════════════════════════════════════════════════
 window.SERVER_PRODUCTS_LIST = [];
 
 async function fetchDynamicProducts() {
     try {
+        // ── โหลด master_products ก่อน (window.PRODUCTS ต้องพร้อมก่อน populateDropdowns)
+        if (!window.PRODUCTS || Object.keys(window.PRODUCTS).length === 0) {
+            try {
+                const mpRes = await fetch(`${API_BASE}/api/system/products`);
+                const mpData = await mpRes.json();
+                if (mpData.success && mpData.products && mpData.products.length > 0) {
+                    const built = {};
+                    mpData.products.forEach(p => {
+                        built[p.product_key] = {
+                            label: p.product_name,
+                            dims: p.dims ? (typeof p.dims === 'string' ? JSON.parse(p.dims) : p.dims) : []
+                        };
+                    });
+                    window.PRODUCTS = built;
+                    console.log(`[fetchDynamicProducts] window.PRODUCTS โหลดจาก /api/system/products แล้ว (${Object.keys(built).length} products)`);
+                }
+            } catch (mpErr) {
+                console.warn('[fetchDynamicProducts] ไม่สามารถโหลด master_products:', mpErr);
+            }
+        }
+
+        // ── โหลด dispensing_product สำหรับ dropdown display
         const res = await fetch(`${API_BASE}/api/dispensing/products_list`);
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.products) {
             window.SERVER_PRODUCTS_LIST = data.products;
-            populateDropdowns();
         }
     } catch (e) {
-        console.error('Failed to fetch dynamic products:', e);
+        console.error('[fetchDynamicProducts] Failed:', e);
+    } finally {
+        // เรียก populateDropdowns เสมอ — แม้ API บางตัวจะ fail
+        populateDropdowns();
     }
 }
-
-window.SPEC_BUYOFF = {
-    cmr3d: { Coil_outer_profile_u: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_v: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_w: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr4d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_v: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_w: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr5d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_v: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_w: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    comet: { X1: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y1: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, X2: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y2: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, Coil_position_1: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Coil_position_2: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Epoxy_length_1: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Epoxy_length_2: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Crash_stop_profile_1: { lsl: -0.06, lcl: -0.03, cl: 0.00, ucl: 0.03, usl: 0.06 }, Coil_parallel: { usl: 0.152 }, Coil_recess_DTM: { usl: 0.25 }, Coil_recess_NDTM: { usl: 0.25 } },
-    dorado5d: { X1: { lsl: 0.7640, lcl: 0.7650, cl: 0.7690, ucl: 0.7730, usl: 0.7740 }, Y1: { lsl: 0.2270, lcl: 0.2280, cl: 0.2320, ucl: 0.2360, usl: 0.2370 }, X2: { lsl: 0.7640, lcl: 0.7650, cl: 0.7690, ucl: 0.7730, usl: 0.7740 }, Y2: { lsl: 0.2270, lcl: 0.2280, cl: 0.2320, ucl: 0.2360, usl: 0.2370 }, Coil_position_1_S: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.90, usl: 0.975 }, Crash_stop_profile_1_L: { lsl: 0.3775, lcl: 0.378, cl: 0.38, ucl: 0.382, usl: 0.3825 }, Crash_stop_profile_2_S: { lsl: -0.0025, lcl: -0.002, cl: 0.00, ucl: 0.002, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    dorado10d: { X1_Center: { lsl: 0.6140, lcl: 0.6150, cl: 0.6200, ucl: 0.6250, usl: 0.6260 }, X1: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y1: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, X2: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y2: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, Coil_position_1_S: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.95, cl: 0.995, usl: 1.07 }, Crash_stop_profile_1_L: { lsl: 0.3775, lcl: 0.378, cl: 0.38, ucl: 0.382, usl: 0.3825 }, Crash_stop_profile_2_S: { lsl: -0.0025, lcl: -0.002, cl: 0.00, ucl: 0.002, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    marlin10d: { X1_Center: { lsl: 0.6550, cl: 0.6600, usl: 0.6650 }, X1: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y1: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X2: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y2: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Coil_position_1_S: { lsl: 0.00, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1_L: { lsl: 0.1345, cl: 0.1375, usl: 0.1395 }, Crash_stop_profile_2_S: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    m11: { Epoxy_length_1_L: { lsl: 7.21, usl: 8.71 }, Epoxy_length_2_S: { lsl: 16.50, usl: 18.00 }, Fantail_profile_1: { lsl: 9.33, usl: 9.43 }, Fantail_profile_2: { lsl: 17.10, usl: 17.20 }, Fantail_profile_3: { lsl: 0.96, usl: 1.12 }, Fantail_profile_4: { lsl: 17.92, usl: 18.08 }, Fantail_profile_5: { lsl: 4.31, usl: 4.41 }, Coil_recess_DTM: { usl: 0.38 }, Coil_recess_NDTM: { usl: 0.38 } },
-    rosewood1d: { Coil_inner_profile_1: { lsl: 0.89, cl: 1.07, usl: 1.25 }, Coil_inner_profile_u: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_v: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_w: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Epoxy_length_1: { lsl: 10.976, cl: 11.356, usl: 12.256 }, Epoxy_length_2: { lsl: 14.073, cl: 14.453, usl: 15.353 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 16.893, cl: 16.955, usl: 17.018 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 } },
-    rosewood2d: { Coil_inner_profile_1: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_2: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_UV: { lsl: 15.748, cl: 15.928, usl: 16.108 }, Epoxy_length_1: { lsl: 12.569, cl: 12.949, usl: 13.699 }, Epoxy_length_2: { lsl: 14.170, cl: 14.550, usl: 15.300 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 12.149, cl: 12.211, usl: 12.274 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 }, Bobbin_recess_DTM: { usl: 0.25 }, Bobbin_recess_NDTM: { usl: 0.25 } },
-    skybolt1d: { X1: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y1: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, X2: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y2: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Epoxy_length_2: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Coil_symmetry: { lsl: 4.15, lcl: 4.165, cl: 4.25, ucl: 4.335, usl: 4.35 }, Coil_parallel: { lsl: 0.00, usl: 0.15 }, Coil_recess_DTM: { lsl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { lsl: 0.00, usl: 0.25 } },
-    skybolt2d: { X1: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y1: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, X2: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y2: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.28, lcl: 14.471, cl: 15.55, ucl: 16.63, usl: 16.82 }, Epoxy_length_2: { lsl: 14.23, lcl: 14.421, cl: 15.50, ucl: 16.58, usl: 16.77 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Coil_symmetry: { lsl: 4.95, cl: 5.05, usl: 5.15 }, Coil_parallel: { lcl: 0.0044, ucl: 0.0227, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0542, ucl: 0.2138, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0533, ucl: 0.1665, usl: 0.25 } },
-    skybolt3d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.1805, cl: 15.26, ucl: 16.3395, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.4805, cl: 15.56, ucl: 16.6395, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.0041, ucl: 0.0114, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0715, ucl: 0.1635, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0712, ucl: 0.2042, usl: 0.25 } },
-    skybolt4d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.181, cl: 15.26, ucl: 16.34, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.481, cl: 15.56, ucl: 16.64, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.009, ucl: 0.0313, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.094, ucl: 0.222, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.1102, ucl: 0.2312, usl: 0.25 } },
-    summit10d: { X1: { lsl: 0.6125, cl: 0.62, usl: 0.6275 }, Y1: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X2: { lsl: 0.8725, cl: 0.8800, usl: 0.8875 }, Y2: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X3: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y3: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X4: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y4: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Bobbin_hole_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Bobbin_slote_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Coil_position_1: { lsl: 0.00, usl: 0.014 }, Coil_position_2: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1: { lsl: 0.1345, cl: 0.137, usl: 0.1395 }, Crash_stop_profile_2: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v111d: { Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v112d: { X1: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v114d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v15cmr4d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Y2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Coil_position_1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, Coil_position_2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Epoxy_length_1: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Epoxy_length_2: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.0000, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.0040, usl: 0.0060 }, Coil_recess_DTM: { ucl: 0.0090, usl: 0.0100 }, Coil_recess_NDTM: { ucl: 0.0090, usl: 0.0100 } }
-};
-
-window.SPEC_ROVING = {
-    cmr3d: { Coil_outer_profile_u: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_v: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_w: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr4d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_v: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_w: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr5d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_v: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_w: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    comet: { X1: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y1: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, X2: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y2: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, Coil_position_1: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Coil_position_2: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Epoxy_length_1: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Epoxy_length_2: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Crash_stop_profile_1: { lsl: -0.06, lcl: -0.03, cl: 0.00, ucl: 0.03, usl: 0.06 }, Coil_parallel: { usl: 0.152 }, Coil_recess_DTM: { usl: 0.25 }, Coil_recess_NDTM: { usl: 0.25 } },
-    dorado10d: { X1_Center: { lsl: 0.6140, lcl: 0.6150, cl: 0.6200, ucl: 0.6250, usl: 0.6260 }, X1: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y1: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, X2: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y2: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, Coil_position_1_S: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.95, cl: 0.995, usl: 1.07 }, Crash_stop_profile_1_L: { lsl: 0.3775, lcl: 0.378, cl: 0.38, ucl: 0.382, usl: 0.3825 }, Crash_stop_profile_2_S: { lsl: -0.0025, lcl: -0.002, cl: 0.00, ucl: 0.002, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    marlin10d: { X1_Center: { lsl: 0.6550, cl: 0.6600, usl: 0.6650 }, X1: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y1: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X2: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y2: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Coil_position_1_S: { lsl: 0.00, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1_L: { lsl: 0.1345, cl: 0.1375, usl: 0.1395 }, Crash_stop_profile_2_S: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    m11: { Epoxy_length_1_L: { lsl: 7.21, usl: 8.71 }, Epoxy_length_2_S: { lsl: 16.50, usl: 18.00 }, Fantail_profile_1: { lsl: 9.33, usl: 9.43 }, Fantail_profile_2: { lsl: 17.10, usl: 17.20 }, Fantail_profile_3: { lsl: 0.96, usl: 1.12 }, Fantail_profile_4: { lsl: 17.92, usl: 18.08 }, Fantail_profile_5: { lsl: 4.31, usl: 4.41 }, Coil_recess_DTM: { usl: 0.38 }, Coil_recess_NDTM: { usl: 0.38 } },
-    rosewood1d: { Coil_inner_profile_1: { lsl: 0.89, cl: 1.07, usl: 1.25 }, Coil_inner_profile_u: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_v: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_w: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Epoxy_length_1: { lsl: 10.976, cl: 11.356, usl: 12.256 }, Epoxy_length_2: { lsl: 14.073, cl: 14.453, usl: 15.353 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 16.893, cl: 16.955, usl: 17.018 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 } },
-    rosewood2d: { Coil_inner_profile_1: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_2: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_UV: { lsl: 15.748, cl: 15.928, usl: 16.108 }, Epoxy_length_1: { lsl: 12.569, cl: 12.949, usl: 13.699 }, Epoxy_length_2: { lsl: 14.170, cl: 14.550, usl: 15.300 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 12.149, cl: 12.211, usl: 12.274 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 }, Bobbin_recess_DTM: { usl: 0.25 }, Bobbin_recess_NDTM: { usl: 0.25 } },
-    skybolt1d: { X1: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y1: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, X2: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y2: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Epoxy_length_2: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Coil_symmetry: { lsl: 4.15, lcl: 4.165, cl: 4.25, ucl: 4.335, usl: 4.35 }, Coil_parallel: { lsl: 0.00, usl: 0.15 }, Coil_recess_DTM: { lsl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { lsl: 0.00, usl: 0.25 } },
-    skybolt2d: { X1: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y1: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, X2: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y2: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.28, lcl: 14.471, cl: 15.55, ucl: 16.63, usl: 16.82 }, Epoxy_length_2: { lsl: 14.23, lcl: 14.421, cl: 15.50, ucl: 16.58, usl: 16.77 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Coil_symmetry: { lsl: 4.95, cl: 5.05, usl: 5.15 }, Coil_parallel: { lcl: 0.0044, ucl: 0.0227, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0542, ucl: 0.2138, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0533, ucl: 0.1665, usl: 0.25 } },
-    skybolt3d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.1805, cl: 15.26, ucl: 16.3395, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.4805, cl: 15.56, ucl: 16.6395, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.0041, ucl: 0.0114, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0715, ucl: 0.1635, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0712, ucl: 0.2042, usl: 0.25 } },
-    skybolt4d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.181, cl: 15.26, ucl: 16.34, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.481, cl: 15.56, ucl: 16.64, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.009, ucl: 0.0313, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.094, ucl: 0.222, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.1102, ucl: 0.2312, usl: 0.25 } },
-    summit10d: { X1: { lsl: 0.6125, cl: 0.62, usl: 0.6275 }, Y1: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X2: { lsl: 0.8725, cl: 0.8800, usl: 0.8875 }, Y2: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X3: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y3: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X4: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y4: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Bobbin_hole_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Bobbin_slote_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Coil_position_1: { lsl: 0.00, usl: 0.014 }, Coil_position_2: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1: { lsl: 0.1345, cl: 0.137, usl: 0.1395 }, Crash_stop_profile_2: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v111d: { Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v112d: { X1: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v114d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v15cmr4d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Y2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Coil_position_1: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Coil_position_2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Epoxy_length_1: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Epoxy_length_2: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.0000, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.0040, usl: 0.0060 }, Coil_recess_DTM: { ucl: 0.0090, usl: 0.0100 }, Coil_recess_NDTM: { ucl: 0.0090, usl: 0.0100 }, QC_Check: {} }
-};
-
-// ==========================================
-// ค่าเริ่มต้นของ ROVING AUDIT
-// (คุณสามารถเปลี่ยนตัวเลขของ Roving ในนี้ได้เลย โดยไม่กระทบ Buy off)
-// ==========================================
-const SPEC_ROVING = {
-    cmr3d: { Coil_outer_profile_u: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_v: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Coil_outer_profile_w: { lsl: 0.95, cl: 0.957, usl: 0.965 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr4d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_v: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Coil_outer_profile_w: { lsl: 1.1725, cl: 1.182, usl: 1.1915 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    cmr5d: { X1: { lsl: 0.5625, cl: 0.5700, usl: 0.5775 }, Y1: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, X2: { lsl: 0.9125, cl: 0.9200, usl: 0.9275 }, Y2: { lsl: -0.0075, cl: 0.0000, usl: 0.0075 }, Coil_outer_profile_u: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_v: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Coil_outer_profile_w: { lsl: 1.1925, cl: 1.202, usl: 1.2115 }, Bobbin_position_1: { lsl: 0.00, usl: 0.015 }, Bobbin_position_2: { lsl: 0.00, usl: 0.015 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    comet: { X1: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y1: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, X2: { lsl: 20.9562, cl: 21.0340, usl: 21.2118 }, Y2: { lsl: 7.3832, cl: 7.5610, usl: 7.7388 }, Coil_position_1: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Coil_position_2: { lsl: 0.00, ucl: 0.2845, usl: 0.3556 }, Epoxy_length_1: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Epoxy_length_2: { lsl: -1.27, cl: 0.00, usl: 1.27 }, Crash_stop_profile_1: { lsl: -0.06, lcl: -0.03, cl: 0.00, ucl: 0.03, usl: 0.06 }, Coil_parallel: { usl: 0.152 }, Coil_recess_DTM: { usl: 0.25 }, Coil_recess_NDTM: { usl: 0.25 } },
-    dorado10d: { X1_Center: { lsl: 0.6140, lcl: 0.6150, cl: 0.6200, ucl: 0.6250, usl: 0.6260 }, X1: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y1: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, X2: { lsl: 0.8780, lcl: 0.8790, cl: 0.8830, ucl: 0.8870, usl: 0.8880 }, Y2: { lsl: 0.2690, lcl: 0.2700, cl: 0.2740, ucl: 0.2780, usl: 0.2790 }, Coil_position_1_S: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, lcl: 0.001, ucl: 0.013, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.95, cl: 0.995, usl: 1.07 }, Crash_stop_profile_1_L: { lsl: 0.3775, lcl: 0.378, cl: 0.38, ucl: 0.382, usl: 0.3825 }, Crash_stop_profile_2_S: { lsl: -0.0025, lcl: -0.002, cl: 0.00, ucl: 0.002, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    marlin10d: { X1_Center: { lsl: 0.6550, cl: 0.6600, usl: 0.6650 }, X1: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y1: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X2: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y2: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Coil_position_1_S: { lsl: 0.00, usl: 0.014 }, Coil_position_2_L: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2_L: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1_L: { lsl: 0.1345, cl: 0.1375, usl: 0.1395 }, Crash_stop_profile_2_S: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    m11: { Epoxy_length_1_L: { lsl: 7.21, usl: 8.71 }, Epoxy_length_2_S: { lsl: 16.50, usl: 18.00 }, Fantail_profile_1: { lsl: 9.33, usl: 9.43 }, Fantail_profile_2: { lsl: 17.10, usl: 17.20 }, Fantail_profile_3: { lsl: 0.96, usl: 1.12 }, Fantail_profile_4: { lsl: 17.92, usl: 18.08 }, Fantail_profile_5: { lsl: 4.31, usl: 4.41 }, Coil_recess_DTM: { usl: 0.38 }, Coil_recess_NDTM: { usl: 0.38 } },
-    rosewood1d: { Coil_inner_profile_1: { lsl: 0.89, cl: 1.07, usl: 1.25 }, Coil_inner_profile_u: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_v: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Coil_inner_profile_w: { lsl: 16.22, cl: 16.40, usl: 16.58 }, Epoxy_length_1: { lsl: 10.976, cl: 11.356, usl: 12.256 }, Epoxy_length_2: { lsl: 14.073, cl: 14.453, usl: 15.353 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 16.893, cl: 16.955, usl: 17.018 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 } },
-    rosewood2d: { Coil_inner_profile_1: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_2: { lsl: -0.16, cl: 0.02, usl: 0.20 }, Coil_inner_profile_UV: { lsl: 15.748, cl: 15.928, usl: 16.108 }, Epoxy_length_1: { lsl: 12.569, cl: 12.949, usl: 13.699 }, Epoxy_length_2: { lsl: 14.170, cl: 14.550, usl: 15.300 }, Crash_stop_profile_1: { lsl: 8.709, cl: 8.771, usl: 8.834 }, Crash_stop_profile_2: { lsl: 0.954, cl: 1.016, usl: 1.079 }, Crash_stop_profile_3: { lsl: 12.149, cl: 12.211, usl: 12.274 }, Coil_parallel: { cl: 0.00, usl: 0.12 }, Coil_recess_DTM: { cl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { cl: 0.00, usl: 0.25 }, Bobbin_recess_DTM: { usl: 0.25 }, Bobbin_recess_NDTM: { usl: 0.25 } },
-    skybolt1d: { X1: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y1: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, X2: { lsl: 17.1500, cl: 17.3400, usl: 17.5300 }, Y2: { lsl: 5.6600, cl: 5.8500, usl: 6.0400 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Epoxy_length_2: { lsl: 14.39, lcl: 14.5805, cl: 15.66, ucl: 16.7395, usl: 16.93 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.5677, cl: 6.60, ucl: 6.6323, usl: 6.638 }, Coil_symmetry: { lsl: 4.15, lcl: 4.165, cl: 4.25, ucl: 4.335, usl: 4.35 }, Coil_parallel: { lsl: 0.00, usl: 0.15 }, Coil_recess_DTM: { lsl: 0.00, usl: 0.25 }, Coil_recess_NDTM: { lsl: 0.00, usl: 0.25 } },
-    skybolt2d: { X1: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y1: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, X2: { lsl: 16.990, lcl: 17.019, cl: 17.180, ucl: 17.342, usl: 17.370 }, Y2: { lsl: 5.590, lcl: 5.619, cl: 5.780, ucl: 5.942, usl: 5.970 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 14.28, lcl: 14.471, cl: 15.55, ucl: 16.63, usl: 16.82 }, Epoxy_length_2: { lsl: 14.23, lcl: 14.421, cl: 15.50, ucl: 16.58, usl: 16.77 }, Crash_stop_profile_1: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Crash_stop_profile_2: { lsl: 6.562, lcl: 6.568, cl: 6.60, ucl: 6.632, usl: 6.638 }, Coil_symmetry: { lsl: 4.95, cl: 5.05, usl: 5.15 }, Coil_parallel: { lcl: 0.0044, ucl: 0.0227, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0542, ucl: 0.2138, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0533, ucl: 0.1665, usl: 0.25 } },
-    skybolt3d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.1805, cl: 15.26, ucl: 16.3395, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.4805, cl: 15.56, ucl: 16.6395, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.0041, ucl: 0.0114, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.0715, ucl: 0.1635, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.0712, ucl: 0.2042, usl: 0.25 } },
-    skybolt4d: { X1: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y1: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, X2: { lsl: 16.3700, lcl: 16.3985, cl: 16.5600, ucl: 16.7215, usl: 16.7500 }, Y2: { lsl: 4.4900, lcl: 4.5185, cl: 4.6800, ucl: 4.8415, usl: 4.8700 }, Coil_position_1: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Coil_position_2: { lsl: 0.00, ucl: 0.266, usl: 0.38 }, Epoxy_length_1: { lsl: 13.99, lcl: 14.181, cl: 15.26, ucl: 16.34, usl: 16.53 }, Epoxy_length_2: { lsl: 14.29, lcl: 14.481, cl: 15.56, ucl: 16.64, usl: 16.83 }, Crash_stop_profile_1: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Crash_stop_profile_2: { lsl: 7.662, lcl: 7.6677, cl: 7.70, ucl: 7.7323, usl: 7.738 }, Coil_symmetry: { lsl: 4.91, lcl: 4.925, cl: 5.01, ucl: 5.095, usl: 5.11 }, Coil_parallel: { lcl: 0.009, ucl: 0.0313, usl: 0.15 }, Coil_recess_DTM: { lcl: 0.094, ucl: 0.222, usl: 0.25 }, Coil_recess_NDTM: { lcl: 0.1102, ucl: 0.2312, usl: 0.25 } },
-    summit10d: { X1: { lsl: 0.6125, cl: 0.62, usl: 0.6275 }, Y1: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X2: { lsl: 0.8725, cl: 0.8800, usl: 0.8875 }, Y2: { lsl: -0.0075, cl: 0, usl: 0.0075 }, X3: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y3: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, X4: { lsl: 0.9150, cl: 0.9220, usl: 0.9290 }, Y4: { lsl: 0.2740, cl: 0.2810, usl: 0.2880 }, Bobbin_hole_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Bobbin_slote_true: { lsl: 0.00, cl: 0.00, usl: 0.015 }, Coil_position_1: { lsl: 0.00, usl: 0.014 }, Coil_position_2: { lsl: 0.00, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, cl: 0.00, usl: 0.05 }, Epoxy_length_2: { lsl: 0.03, usl: 0.10 }, Crash_stop_profile_1: { lsl: 0.1345, cl: 0.137, usl: 0.1395 }, Crash_stop_profile_2: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 }, Bobbin_parallel: { ucl: 0.004, usl: 0.006 }, Bobbin_recess_DTM: { ucl: 0.009, usl: 0.010 }, Bobbin_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v111d: { Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, cl: 0.00, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v112d: { X1: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, cl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, cl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v114d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y2: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, Coil_position_1: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Coil_position_2: { lsl: 0.00, ucl: 0.0112, usl: 0.014 }, Epoxy_length_1_S: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Epoxy_length_2_L: { lsl: -0.05, lcl: -0.025, cl: 0.00, ucl: 0.025, usl: 0.05 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.00, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.004, usl: 0.006 }, Coil_recess_DTM: { ucl: 0.009, usl: 0.010 }, Coil_recess_NDTM: { ucl: 0.009, usl: 0.010 } },
-    v15cmr4d: { X1: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Y1: { lsl: 0.2910, lcl: 0.2921, cl: 0.2980, ucl: 0.3040, usl: 0.3050 }, X2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Y2: { lsl: 0.8210, lcl: 0.8221, cl: 0.8280, ucl: 0.8340, usl: 0.8350 }, Coil_position_1: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Coil_position_2: { lsl: 0.0000, ucl: 0.0112, usl: 0.0140 }, Epoxy_length_1: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Epoxy_length_2: { lsl: -0.0500, lcl: -0.0250, cl: 0.0000, ucl: 0.0250, usl: 0.0500 }, Crash_stop_profile_1: { lsl: -0.0025, lcl: -0.0018, cl: 0.0000, ucl: 0.0018, usl: 0.0025 }, Coil_parallel: { ucl: 0.0040, usl: 0.0060 }, Coil_recess_DTM: { ucl: 0.0090, usl: 0.0100 }, Coil_recess_NDTM: { ucl: 0.0090, usl: 0.0100 }, QC_Check: {} }
-};
 
 let DB = { records: [], configs: {} }; let ALERT_LOG = []; let tempImport = []; let editId = null; let spcChart = null, histChart = null; let activePTFilter = 'all';
 let window_spcCharts = []; // เปลี่ยนเป็น Array เพื่อรองรับหลาย Canvas
@@ -185,6 +197,41 @@ function saveAlertLog() {
         console.warn('LocalStorage quota exceeded in saveAlertLog:', e);
     }
     // ไม่ auto-sync — Alert log บันทึก local เท่านั้น
+}
+
+// ─── MySQL: ส่ง record ใหม่ไปบันทึกผ่าน API ทันทีหลังกด Save ─────────────────
+async function saveRecordToServer(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/api/dispensing/record`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) console.warn('[Dispensing] saveRecordToServer failed:', data.error);
+        return data;
+    } catch (err) {
+        console.error('[Dispensing] saveRecordToServer error:', err);
+        return { success: false };
+    }
+}
+
+// ─── MySQL: ส่ง alert เข้า system_alert (auto-trigger เมื่อ NG/ALERT) ────────
+// level: 'ng' | 'alert' | 'warn'
+async function sendSystemAlert(level, msg, context = {}) {
+    try {
+        const res = await fetch(`${API_BASE}/api/dispensing/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level, msg, ...context })
+        });
+        const data = await res.json();
+        if (!data.success) console.warn('[Dispensing] sendSystemAlert failed:', data.error);
+        return data;
+    } catch (err) {
+        console.error('[Dispensing] sendSystemAlert error:', err);
+        return { success: false };
+    }
 }
 
 async function checkBackendConnection() {
@@ -1659,17 +1706,38 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
         options += '<option value="">ทุก Product</option>';
     }
 
-    if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
-        // Fallback
-        Object.entries(_internalProducts).forEach(([k, v]) => {
+    // ── Helper: สร้าง options จาก window.PRODUCTS โดยตรง (guaranteed correct keys)
+    function buildFromProducts(filterFn = () => true) {
+        const products = window.PRODUCTS || {};
+        Object.entries(products).forEach(([k, v]) => {
+            if (!filterFn(k, v)) return;
             if (dataType === 'Roving Audit' && k === 'dorado5d') return;
             if (k.toLowerCase() === 'rosewood5d') return;
-            options += `<option value="${k}">${v.label}</option>`;
+            options += `<option value="${k}">${v.label || k}</option>`;
         });
+    }
+
+    // ── Path A: SERVER_PRODUCTS_LIST ว่าง → ใช้ window.PRODUCTS fallback
+    if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+        const products = window.PRODUCTS || {};
+        if (Object.keys(products).length > 0) {
+            // มี window.PRODUCTS แล้ว — ใช้โดยตรง (key ถูกต้องแน่นอน)
+            buildFromProducts();
+        } else {
+            // window.PRODUCTS ยังไม่มี → ใช้ SPEC_BUYOFF keys เป็น last-resort
+            const specKeys = Object.keys(window.SPEC_BUYOFF || SPEC_BUYOFF || {});
+            specKeys.forEach(k => {
+                if (dataType === 'Roving Audit' && k === 'dorado5d') return;
+                if (k.toLowerCase() === 'rosewood5d') return;
+                // format label: "skybolt1d" → "Skybolt 1D" (best-effort)
+                const label = k.replace(/([a-z])(\d)/g, '$1 $2').replace(/([a-z])([a-z]+)/g, (_, a, b) => a.toUpperCase() + b).trim();
+                options += `<option value="${k}">${label}</option>`;
+            });
+        }
         return options;
     }
 
-    // Use MySQL data
+    // ── Path B: SERVER_PRODUCTS_LIST มีข้อมูล → filter ตาม dataType
     let dbMode = dataType ? dataType.toLowerCase().trim().replace(/\s+/g, '') : null;
     if (dbMode === 'buy-off') dbMode = 'buyoff';
     if (dbMode === 'rovingaudit') dbMode = 'roving';
@@ -1683,16 +1751,16 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
         return pMode === dbMode;
     });
 
-    // Sort array by length DESC to match longest string first, then map to internal product key
-    const sourceKeys = Object.keys(_internalProducts);
-    const sortedKeys = sourceKeys.sort((a, b) => {
-        const aLen = _internalProducts[a]?.label?.length || 0;
-        const bLen = _internalProducts[b]?.label?.length || 0;
-        return bLen - aLen;
-    });
-
+    // [BUG FIX] ใช้ getProductConfig() แทน sortedKeys.find() แบบเดิม
+    // เพราะ _internalProducts อาจว่างถ้า window.PRODUCTS โหลดไม่ทัน
     filtered.forEach(p => {
-        let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || sourceKeys[0];
+        // p.product_key คือ key จาก dispensing_product table (ตรงกับ master_products.product_key)
+        // ลอง resolve ให้แน่ใจว่า key ตรงกับ window.PRODUCTS
+        const resolvedEntry = getProductConfig(p.product_key || p.product_name);
+        const mk = resolvedEntry
+            ? resolvedEntry.key
+            : (p.product_key || p.product_name || '');
+        if (!mk) return; // ข้ามถ้า key ว่าง
         options += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
     });
 
@@ -1856,9 +1924,18 @@ function switchTab(id, btn) {
 }
 
 function renderManualForm() {
-    const mk = document.getElementById('m-model').value; const container = document.getElementById('manual-form-body');
-    if (!mk) { container.innerHTML = '<div class="empty"><div class="ei">🔧</div><p>กรุณาเลือก Product ด้านบน</p></div>'; return; }
-    const dims = PRODUCTS[mk].dims;
+    const rawMk = document.getElementById('m-model').value; const container = document.getElementById('manual-form-body');
+    if (!rawMk) { container.innerHTML = '<div class="empty"><div class="ei">🔧</div><p>กรุณาเลือก Product ด้านบน</p></div>'; return; }
+
+    // [BUG FIX] ใช้ getProductConfig() แทน PRODUCTS[mk] โดยตรง
+    const resolved = getProductConfig(rawMk);
+    if (!resolved || !resolved.cfg || !Array.isArray(resolved.cfg.dims)) {
+        container.innerHTML = `<div class="empty"><div class="ei">⚠️</div><p>ไม่พบข้อมูล Product "<b>${rawMk}</b>"<br><small>กรุณาตรวจสอบ master_products ใน DB</small></p></div>`;
+        console.error(`[renderManualForm] getProductConfig("${rawMk}") → null`);
+        return;
+    }
+    const mk = resolved.key;       // canonical internal key
+    const dims = resolved.cfg.dims;
 
     // ── Stage 1 (Manual Input) แสดงเฉพาะค่าที่ QC ต้องวัดเองจริง:
     //    Coil/Bobbin Parallel, Recess DTM, Recess NDTM เท่านั้น
@@ -2401,6 +2478,48 @@ function saveManual() {
         syncDataConsistency(true);
         populateDailyDateDropdown();
         updateDashboard();
+
+        // ─── Persist to MySQL immediately on save ────────────────────────
+        if (isBackendOnline) {
+            const serverPayload = {
+                model: mk,
+                fixture: fix1,
+                date,
+                buytime,
+                mctime,
+                team,
+                op,
+                oven,
+                pt,
+                dataType: dType,
+                status: internalStatus,
+                values: vals
+            };
+            saveRecordToServer(serverPayload).then(result => {
+                if (result && result.success && result.id) {
+                    // Back-fill ด้วย real DB id เพื่อป้องกัน duplicate ตอน sync
+                    const localRec = DB.records.find(r =>
+                        r.fixture === fix1 && r.pt === pt && r.date === date && r.buytime === buytime
+                    );
+                    if (localRec) localRec.id = result.id;
+                }
+            });
+
+            // ─── Auto-alert ถ้า NG หรือ ALERT ───────────────────────────
+            if (internalStatus === 'REJECT' || internalStatus === 'ALERT') {
+                const alertLevel = internalStatus === 'REJECT' ? 'ng' : 'alert';
+                const alertMsg = `[${dType}] ${PRODUCTS[mk].label} | Fixture: ${fix1} | PT: ${pt} | Status: ${internalStatus}`;
+                sendSystemAlert(alertLevel, alertMsg, {
+                    product: mk,
+                    fixture: fix1,
+                    oven,
+                    pt,
+                    dataType: dType,
+                    values: vals
+                });
+            }
+        }
+        // ────────────────────────────────────────────────────────────────
 
         // ===== FORM MEMORY: เก็บ snapshot ก่อน reset =====
         const _memVals = {};
@@ -4479,11 +4598,11 @@ async function saveManualDraft() {
         if (exist.length + added >= 4) return;
 
         const now = new Date();
-        const isFullyComplete = vmiVal !== '' && coilVal !== '' && hiPotVal !== '';
-        const evalStatus = isFullyComplete ? getInternalStatus(vals, mk, dType) : 'WAITING';
+        // Change: Always start as DRAFT_INCOMPLETE. Do not bypass to ACCEPT.
+        let evalStatus = 'DRAFT_INCOMPLETE';
 
         const draftRec = {
-            id: (isFullyComplete ? 'LOCAL_' : 'DRAFT_') + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            id: 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
             status: evalStatus,
             dataType: dType,
             model: mk,
@@ -4503,16 +4622,27 @@ async function saveManualDraft() {
     });
 
     if (added > 0) {
+        // --- Upgrade to WAITING if we have 4 records for this PT/Oven ---
+        const matchingDrafts = DB.records.filter(r =>
+            (r.status === 'DRAFT_INCOMPLETE' || r.status === 'WAITING') &&
+            r.model === mk && r.pt === pt && r.oven === oven && r.dataType === dType
+        );
+        if (matchingDrafts.length >= 4) {
+            matchingDrafts.forEach(r => r.status = 'WAITING');
+            showToast('ครบ 4 Records แล้ว เปลี่ยนสถานะเป็น WAITING พร้อม Merge', 'success');
+        } else {
+            showToast(`บันทึก Draft แล้ว (${matchingDrafts.length}/4)`, 'info');
+        }
         saveDB();
-        
+
         if (window.BLoader) window.BLoader.show('กำลังบันทึกลงฐานข้อมูลถาวร...');
         try {
             if (isBackendOnline) await syncWithServer(false);
-        } catch(e) {
+        } catch (e) {
             console.error('MySQL Sync Error:', e);
         }
         if (window.BLoader) window.BLoader.hide();
-        
+
         renderAboutTable();
         renderPendingTable();
         updatePendingBadge();
@@ -4551,7 +4681,7 @@ async function saveManualDraft() {
 
         updateValidationBanner(mk);
         showToast(`✅ บันทึกลง MySQL ถาวรสำเร็จ (${added} ชิ้น)`, 'success');
-        
+
         // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
         const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
         if (aboutBtn) {
@@ -4572,7 +4702,7 @@ function renderPendingTable() {
 
     // จัดกลุ่มตาม PT, Oven, Model, Type (เฉพาะ WAITING)
     const groups = {};
-    DB.records.filter(r => r.status === 'WAITING').forEach(r => {
+    DB.records.filter(r => r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE').forEach(r => {
         const key = `${r.pt}|${r.oven}|${r.model}|${r.dataType}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(r);
@@ -5134,10 +5264,10 @@ function populateMergeDropdown() {
     const el = document.getElementById('merge-model');
     if (!el) return;
     const prev = el.value;
-    
+
     // ใช้ getProductOptions('all', false, true) เพื่อดึง Product แบบเดียวกับ Manual Input
     el.innerHTML = getProductOptions('all', false, true);
-    
+
     if (el.querySelector(`option[value="${prev}"]`)) {
         el.value = prev;
     } else {

@@ -115,7 +115,7 @@
   </style>
   <script src="api.js"></script>
   <script src="loader.js"></script>
-  
+
   <script src="global_nav.js"></script>
 </head>
 
@@ -931,6 +931,9 @@
         runNav();
       }
     </script>
+    <!-- [BUG FIX] โหลด shared_products.js ก่อน dispensing.js -->
+    <!-- เพื่อให้ window.PRODUCTS พร้อมใช้งานตั้งแต่ต้น (fallback กรณี server offline) -->
+    <script src="http://localhost:3001/shared_products.js"></script>
     <script src="dispensing.js"></script>
   </main>
 </body>

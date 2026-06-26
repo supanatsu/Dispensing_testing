@@ -70,9 +70,9 @@ const BACKEND_URL = API_BASE;
 
   // Intercept localStorage.setItem to also save configs back to MySQL
   const originalSetItem = localStorage.setItem;
-  localStorage.setItem = function(key, value) {
+  localStorage.setItem = function (key, value) {
     originalSetItem.apply(this, arguments);
-    
+
     // Sync config and alert keys automatically
     const syncKeys = [
       'belton_ipqc_dispensing_merged',
@@ -98,6 +98,3 @@ const BACKEND_URL = API_BASE;
     }
   };
 })();
-
-// Dynamically load shared_products.js from backend
-document.write('<script src="' + API_BASE + '/shared_products.js?v=' + Date.now() + '"></script>');

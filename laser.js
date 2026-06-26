@@ -34,34 +34,23 @@ const _internalProducts = {
   v15cmr4d: { label: 'V15 CMR 4D' },
 };
 
-window.PRODUCTS = new Proxy(_internalProducts, {
-    get: function(target, prop) {
-        if (typeof prop === 'symbol') return target[prop];
-        if (prop in target) return target[prop];
-        if (typeof prop === 'string') {
-            const sortedKeys = Object.keys(target).sort((a,b) => target[b].label.length - target[a].label.length);
-            const match = sortedKeys.find(k => prop.includes(target[k].label));
-            if (match) return target[match];
-        }
-        return undefined;
-    },
-    ownKeys: function(target) { return Reflect.ownKeys(target); },
-    getOwnPropertyDescriptor: function(target, prop) { return Reflect.getOwnPropertyDescriptor(target, prop); }
-});
+// Strict exact-match — ลบ Proxy ออก ใช้ plain object แทน
+// prop ต้องตรงทุกตัวอักษร (เช่น "dorado5d") ป้องกันบัค form ไม่แสดง
+window.PRODUCTS = _internalProducts;
 
 window.SERVER_PRODUCTS_LIST = [];
 
 async function fetchDynamicProducts() {
-    try {
-        const res = await fetch(`${BACKEND_URL}/api/laser/products_list`);
-        const data = await res.json();
-        if (data.success) {
-            window.SERVER_PRODUCTS_LIST = data.products;
-            populateProductDropdowns(_inputMode);
-        }
-    } catch (e) {
-        console.error('Failed to fetch dynamic products:', e);
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/laser/products_list`);
+    const data = await res.json();
+    if (data.success) {
+      window.SERVER_PRODUCTS_LIST = data.products;
+      populateProductDropdowns(_inputMode);
     }
+  } catch (e) {
+    console.error('Failed to fetch dynamic products:', e);
+  }
 }
 
 
@@ -244,6 +233,23 @@ function saveAlertLog() {
   _scheduleSyncDebounced();
 }
 
+// ─── MySQL: ส่ง alert เข้า system_alert ทันทีเมื่อมีผล Fail/Hold ───────────
+async function sendSystemAlert(level, msg, context = {}) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/laser/alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, msg, ...context })
+    });
+    const data = await res.json();
+    if (!data.success) console.warn('[Laser] sendSystemAlert failed:', data.error);
+    return data;
+  } catch (err) {
+    console.error('[Laser] sendSystemAlert error:', err);
+    return { success: false };
+  }
+}
+
 // debounced sync: รอ 2 วินาทีหลังการบันทึกครั้งสุดท้ายค่อย sync ครั้งเดียว
 let _syncDebounceTimer = null;
 function _scheduleSyncDebounced() {
@@ -356,7 +362,7 @@ function setMode(mode, btn) {
   const sel = document.getElementById('m-mode');
   if (sel) sel.value = mode;
   if (window.SERVER_PRODUCTS_LIST && window.SERVER_PRODUCTS_LIST.length > 0) {
-      populateProductDropdowns(mode);
+    populateProductDropdowns(mode);
   }
 }
 
@@ -427,21 +433,21 @@ function populateProductDropdowns(modeFilter = null) {
   const vProduct = document.getElementById('viz-product');
 
   let opts = '<option value="">— เลือก Product —</option>';
-  
-  if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
-      Object.keys(_internalProducts).forEach(k => {
-        opts += `<option value="${k}">${_internalProducts[k].label}</option>`;
-      });
-  } else {
-      let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
-      if (dbMode === 'buyoff') dbMode = 'buy-off';
-      const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase().trim() === dbMode);
-      const sortedKeys = Object.keys(_internalProducts).sort((a,b) => _internalProducts[b].label.length - _internalProducts[a].label.length);
 
-      filtered.forEach(p => {
-          let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || Object.keys(_internalProducts)[0];
-          opts += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
-      });
+  if (!window.SERVER_PRODUCTS_LIST || window.SERVER_PRODUCTS_LIST.length === 0) {
+    Object.keys(_internalProducts).forEach(k => {
+      opts += `<option value="${k}">${_internalProducts[k].label}</option>`;
+    });
+  } else {
+    let dbMode = modeFilter ? modeFilter.toLowerCase() : null;
+    if (dbMode === 'buyoff') dbMode = 'buy-off';
+    const filtered = window.SERVER_PRODUCTS_LIST.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase().trim() === dbMode);
+    const sortedKeys = Object.keys(_internalProducts).sort((a, b) => _internalProducts[b].label.length - _internalProducts[a].label.length);
+
+    filtered.forEach(p => {
+      let mk = sortedKeys.find(k => p.product_name.includes(_internalProducts[k].label)) || Object.keys(_internalProducts)[0];
+      opts += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
+    });
   }
 
   if (pSelect) pSelect.innerHTML = opts;
@@ -725,7 +731,7 @@ function saveDraft() {
   }
 
   DRAFT_STATE.headerData = header;
-  
+
   DRAFT_STATE.drafts.push({
     ...defects,
     attr: header.attr,
@@ -740,7 +746,7 @@ function saveDraft() {
 
   const savedCount = DRAFT_STATE.drafts.length;
   const remaining = DRAFT_STATE.requiredQty - savedCount;
-  
+
   if (remaining > 0) {
     showToast(`บันทึกชิ้นที่ ${savedCount} สำเร็จ (เหลืออีก ${remaining} ชิ้น)`, 'success');
   } else {
@@ -828,6 +834,40 @@ async function _doSubmitDrafts() {
         showToast(`❌ พบข้อมูลซ้ำ ${result.duplicates.length} ชุด (Machine: ${result.duplicates[0].machine}) ไม่ได้บันทึก`, 'error');
         return;
       }
+
+      // ─── Back-fill real DB ids from server response ──────────────────────
+      if (result.ids && Array.isArray(result.ids)) {
+        newRecords.forEach((rec, idx) => {
+          if (result.ids[idx] != null) rec.id = result.ids[idx];
+        });
+      }
+
+      // ─── Auto-alert to MySQL for any Fail/Hold record ────────────────────
+      for (const rec of newRecords) {
+        if (rec.overall === 'Fail' || rec.overall === 'Hold') {
+          const fails = [];
+          if (typeof DEFECT_FIELDS !== 'undefined') {
+            DEFECT_FIELDS.forEach(f => { if (rec[f.id] === 'Fail') fails.push(f.label); });
+          }
+          if (rec.z1_missing === 'Fail') fails.unshift('Z1 Missing');
+          if (rec.z2_missing === 'Fail') fails.unshift('Z2 Missing');
+          if (rec.vmi === 'Fail') fails.push('VMI');
+
+          const level = rec.overall === 'Fail' ? 'ng' : 'hold';
+          const msg = `[Laser] ${rec.product_label || rec.product || ''} | Machine: ${rec.machine || ''} | PT: ${rec.ptno || ''} | ${rec.overall}: ${fails.join(', ') || 'VMI Hold'}`;
+
+          sendSystemAlert(level, msg, {
+            product: rec.product || '',
+            product_label: rec.product_label || '',
+            machine: rec.machine || '',
+            fixture: rec.fixture || '',
+            ptno: rec.ptno || '',
+            defects: fails,
+            mode: _inputMode
+          });
+        }
+      }
+
     } catch (e) {
       if (typeof _BL !== 'undefined') _BL.hide();
       console.error('Save to server error', e);
@@ -835,7 +875,7 @@ async function _doSubmitDrafts() {
     }
   }
 
-  // หากไม่มีซ้ำ หรือ offline ค่อยบันทึกลง Local
+  // บันทึกลง local memory + ตรวจ alert local
   newRecords.forEach(rec => {
     if (rec.overall === 'Fail') hasOverallFail = true;
     DB.records.push(rec);
@@ -864,7 +904,7 @@ async function _doSubmitDrafts() {
   // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อ Submit เสร็จสิ้น
   const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
   if (aboutBtn) {
-      switchTab('about', aboutBtn);
+    switchTab('about', aboutBtn);
   }
 }
 
@@ -1485,7 +1525,7 @@ function saveEdit() {
   });
 
   rec.overall = getOverallResult(rec);
-  saveDB(); 
+  saveDB();
 
   if (isServerOnline) {
     try {
@@ -1509,7 +1549,7 @@ function saveEdit() {
   }
 
   updateDashboard(); renderAboutTable(); closeModal('edit-modal');
-  
+
   if (typeof isBackendOnline !== 'undefined' ? isBackendOnline : isServerOnline) {
     try {
       fetch(`${BACKEND_URL}/api/laser/sync`, {
@@ -2935,7 +2975,7 @@ async function refreshDataFromServer() {
         const localOnly = DB.records.filter(r => {
           if (serverIds.has(r.id)) return false;
           // Check if this record already exists in server records by matching key fields
-          const exists = normalizedServerRecs.some(sr => 
+          const exists = normalizedServerRecs.some(sr =>
             sr.product === r.product &&
             sr.machine === r.machine &&
             sr.date === r.date &&
@@ -2944,7 +2984,7 @@ async function refreshDataFromServer() {
           );
           return !exists;
         });
-        
+
         DB.records = [...normalizedServerRecs, ...localOnly];
         // อัปเดต nextId ให้ไม่ชนกับ id ที่มีอยู่ใน DB
         const maxId = DB.records.reduce((m, r) => Math.max(m, typeof r.id === 'number' ? r.id : 0), DB.nextId || 1);
@@ -3187,12 +3227,14 @@ async function importExportedExcel(event) {
   } else { showToast('ไม่พบข้อมูลที่จะนำเข้า (รูปแบบไฟล์ไม่ถูกต้อง หรือไม่มีข้อมูล)', 'warn'); }
 }
 
-function renderAlertLog() {}
+function renderAlertLog() { }
 
 function checkAndAlert(rec, showToastFlag) {
-  if (rec.overall === 'Fail') {
-    alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail)! \nโปรดตรวจสอบ Part No: ${rec.partno || '-'} เครื่อง: ${rec.machine || '-'}`);
-    
+  if (rec.overall === 'Fail' || rec.overall === 'Hold') {
+    if (rec.overall === 'Fail') {
+      alert(`แจ้งเตือน: พบข้อมูลอยู่นอกเกณฑ์ (Fail)! \nโปรดตรวจสอบ Part No: ${rec.partno || '-'} เครื่อง: ${rec.machine || '-'}`);
+    }
+
     // Generate alert log entry
     let fails = [];
     if (typeof DEFECT_FIELDS !== 'undefined') {
@@ -3201,28 +3243,42 @@ function checkAndAlert(rec, showToastFlag) {
     if (rec.z1_missing === 'Fail') fails.unshift('Z1 Missing');
     if (rec.z2_missing === 'Fail') fails.unshift('Z2 Missing');
     if (rec.vmi === 'Fail') fails.push('VMI');
-    
+
+    const level = rec.overall === 'Fail' ? 'ng' : 'hold';
     const alertObj = {
       id: rec.id,
       ts: rec.ts || new Date().toISOString(),
-      level: 'ng',
+      level,
       product: rec.product_label || rec.product,
       machine: rec.machine || '',
       fixture: rec.fixture || '',
       defects: fails,
-      msg: 'Laser Inspection Failed: ' + fails.join(', ')
+      msg: `Laser Inspection ${rec.overall}: ` + (fails.join(', ') || 'VMI Hold')
     };
     ALERT_LOG.unshift(alertObj);
     localStorage.setItem(ALERT_KEY, JSON.stringify(ALERT_LOG));
+
+    // ─── Push alert to MySQL (non-blocking, best-effort) ────────────────
+    if (isServerOnline) {
+      sendSystemAlert(level, alertObj.msg, {
+        product: rec.product || '',
+        product_label: rec.product_label || '',
+        machine: rec.machine || '',
+        fixture: rec.fixture || '',
+        ptno: rec.ptno || '',
+        defects: fails,
+        mode: _inputMode
+      });
+    }
   }
 }
 
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
     e.preventDefault();
     const container = e.target.closest('form, .modal-content, .card-body, .panel, .container') || document;
     const focusable = Array.from(container.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled])'))
-                           .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+      .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
     const index = focusable.indexOf(e.target);
     if (index > -1 && index < focusable.length - 1) {
       focusable[index + 1].focus();

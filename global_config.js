@@ -40,7 +40,7 @@ function initGlobalConfig() {
 
         const dtDmp = document.getElementById('gc-dmp-datatype')?.value || 'buyoff';
         window.populateFilteredDropdown('damper', 'gc-dmp-product', dtDmp);
-        
+
         const dtPof = document.getElementById('gc-pof-datatype')?.value || 'buyoff';
         window.populateFilteredDropdown('pof', 'gc-pof-product', dtPof);
     }
@@ -384,16 +384,16 @@ function saveGlobalPofConfig() {
     };
 
     localStorage.setItem(LS_KEY_POF_CFG, JSON.stringify(cfg));
-    
+
     // Push to MySQL
     const limits = [];
     const buildLim = (dt, tp, src) => {
         if (!src) return;
         limits.push({
-            product_key: key, data_type: dt, type_parameter: tp, frequency: null, 
+            product_key: key, data_type: dt, type_parameter: tp, frequency: null,
             usl: src.spec !== undefined ? src.spec : null,
             ucl: src.ucl !== undefined ? src.ucl : null,
-            cl:  src.cl !== undefined ? src.cl : null,
+            cl: src.cl !== undefined ? src.cl : null,
             lcl: src.lcl !== undefined ? src.lcl : null,
             lsl: null // POF usually doesn't use lsl, it's mostly usl/spec
         });
@@ -516,7 +516,7 @@ function saveGlobalDamperConfig() {
     }
 
     const fields = ['usl', 'ucl', 'cl', 'lcl', 'lsl'];
-    
+
     keys.forEach(k => {
         let allEmpty = true;
         let anyValid = false;
@@ -576,7 +576,7 @@ function saveGlobalDamperConfig() {
                 frequency: targetObj.freqBuyoff || null,
                 usl: fVals.usl !== undefined ? fVals.usl : null,
                 ucl: fVals.ucl !== undefined ? fVals.ucl : null,
-                cl:  fVals.cl  !== undefined ? fVals.cl  : null,
+                cl: fVals.cl !== undefined ? fVals.cl : null,
                 lcl: fVals.lcl !== undefined ? fVals.lcl : null,
                 lsl: fVals.lsl !== undefined ? fVals.lsl : null
             });
@@ -588,7 +588,7 @@ function saveGlobalDamperConfig() {
                 frequency: targetObj.freqRoving || null,
                 usl: fVals.usl !== undefined ? fVals.usl : null,
                 ucl: fVals.ucl !== undefined ? fVals.ucl : null,
-                cl:  fVals.cl  !== undefined ? fVals.cl  : null,
+                cl: fVals.cl !== undefined ? fVals.cl : null,
                 lcl: fVals.lcl !== undefined ? fVals.lcl : null,
                 lsl: fVals.lsl !== undefined ? fVals.lsl : null
             });
