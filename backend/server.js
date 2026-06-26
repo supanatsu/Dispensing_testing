@@ -34,8 +34,8 @@ app.get('/shared_products.js', async (req, res) => {
     }
     jsContent += `window.PRODUCTS = ${JSON.stringify(productsObj, null, 4)};\n\n`;
 
-    // 2. Fetch specs from spc_config_limits
-    const [specRows] = await pool.query('SELECT * FROM spc_config_limits');
+    // 2. Fetch specs from dispensing_config (moved out of spc_config_limits)
+    const [specRows] = await pool.query('SELECT * FROM dispensing_config');
     let buyoffObj = {};
     let rovingObj = {};
 
@@ -224,7 +224,7 @@ async function autoSeedData() {
     console.error('⚠️ [Auto-Seed] Check failed (Table might not exist yet):', e.message);
   }
 }
-autoSeedData();
+// autoSeedData();
 
 // -------------------------------------------------------------------------
 // HEALTH CHECK API
@@ -325,7 +325,7 @@ app.get('/api/debug/inspect-dispensing', (req, res) => {
 // ดึงค่าตั้งค่าของ POF (SPC Config Mapping)
 app.get('/api/pof/config', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl FROM spc_config_limits WHERE process_mode IN ("pof", "buyoff", "roving")');
+    const [rows] = await pool.query('SELECT * FROM pof_config');
     res.json({ success: true, limits: rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -616,7 +616,7 @@ app.get('/api/damper/records', async (req, res) => {
 // ดึงค่าตั้งค่าของ Damper Install (SPC Config Mapping)
 app.get('/api/damper/config', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT process_mode, product_key, dimension_name, lsl, lcl, cl, ucl, usl FROM spc_config_limits WHERE process_mode IN ("damper", "buyoff", "roving")');
+    const [rows] = await pool.query('SELECT * FROM damper_config');
     res.json({ success: true, limits: rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1568,7 +1568,7 @@ app.get('/api/system/config', async (req, res) => {
 
 // บันทึกการตั้งค่าระบบ
 app.post('/api/system/config', async (req, res) => {
-  const configs = req.body; 
+  const configs = req.body;
   try {
     for (const [key, val] of Object.entries(configs)) {
       if (key === 'SENDER_EMAIL' || key === 'SENDER_PASS') {
@@ -2090,6 +2090,175 @@ app.post('/api/config/laser/batch', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+
+// =========================================================================
+// LASER — Single alert insert (POST /api/laser/alert)
+// Called immediately from _doSubmitDrafts / checkAndAlert on Fail/Hold
+// =========================================================================
+app.post('/api/laser/alert', async (req, res) => {
+  const { level, msg, product, product_label, machine, fixture, ptno, defects, mode } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO system_alert
+         (process_type, alert_time, level, product, product_label, machine, fixture, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('Laser', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        new Date(),
+        level || 'ng',
+        product || '',
+        product_label || product || '',
+        machine || '',
+        fixture || '',
+        ptno || '',
+        mode || 'Laser',
+        null,
+        '',
+        msg || '',
+        JSON.stringify({ product, product_label, machine, fixture, ptno, defects, mode })
+      ]
+    );
+
+    // Fire email/notification pipeline (non-blocking)
+    try {
+      require('./alert_service').processAlerts(pool, 'Laser', [{
+        ts: new Date().toISOString(),
+        level, msg,
+        product: product_label || product,
+        machine, fixture,
+        traveler: ptno,
+        defects: defects || []
+      }]).catch(console.error);
+    } catch (e) { /* alert_service optional */ }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /api/laser/alert error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── POF: direct record insert (single-record POST) ─────────────────────────
+app.post('/api/pof/records', async (req, res) => {
+  const records = req.body.records || [];
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const r of records) {
+      let dataType = (r.mode || '').toLowerCase().includes('roving') ? 'Roving Audit'
+        : (r.mode || '').toLowerCase().includes('oba') ? 'OBA'
+          : (r.mode || '').toLowerCase().includes('special') ? 'Special' : 'Buy off';
+      let status = r.overall === 'Pass' ? 'ACCEPT' : r.overall === 'Fail' ? 'REJECT' : 'WAITING';
+      const en = r.en || '';
+      await connection.query(
+        `INSERT INTO pof_records
+           (product, pt_number, test_date, oven, team, op, data_type, category, status,
+            mode, coil_type, product_label, unit, overall,
+            spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec,
+            remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val,
+            spec_result, trigger_val, out_cl, trend, nine_pt,
+            eblock_long, eblock_short, eblock_avg,
+            coil_short, coil_center, coil_long,
+            bobbin_short, bobbin_center, bobbin_long, values_json)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          r.product || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
+          dataType, r.condition || 'NTC', status,
+          r.mode || 'buyoff', r.coil_type || r.coilType || 'sl', r.product_label || r.productLabel || '', r.unit || 'Lbs', r.overall || 'Pass',
+          r.spc_ucl != null ? parseFloat(r.spc_ucl) : null,
+          r.spc_cl != null ? parseFloat(r.spc_cl) : null,
+          r.spc_lcl != null ? parseFloat(r.spc_lcl) : null,
+          r.spc_trig != null ? parseFloat(r.spc_trig) : null,
+          r.spc_spec != null ? parseFloat(r.spc_spec) : null,
+          r.remark || '', en, r.traveler || '',
+          r.long1 != null ? parseFloat(r.long1) : null,
+          r.short2 != null ? parseFloat(r.short2) : null,
+          r.avg != null ? parseFloat(r.avg) : null,
+          r.max != null ? parseFloat(r.max) : null,
+          r.min != null ? parseFloat(r.min) : null,
+          r.range != null ? parseFloat(r.range) : null,
+          r.spec_result || null, r.trigger || null, r.out_cl || null, r.trend || null, r.nine_pt || null,
+          r.eblock_long != null ? parseFloat(r.eblock_long) : null,
+          r.eblock_short != null ? parseFloat(r.eblock_short) : null,
+          r.eblock_avg != null ? parseFloat(r.eblock_avg) : null,
+          r.coil_short != null ? parseFloat(r.coil_short) : null,
+          r.coil_center != null ? parseFloat(r.coil_center) : null,
+          r.coil_long != null ? parseFloat(r.coil_long) : null,
+          r.bobbin_short != null ? parseFloat(r.bobbin_short) : null,
+          r.bobbin_center != null ? parseFloat(r.bobbin_center) : null,
+          r.bobbin_long != null ? parseFloat(r.bobbin_long) : null,
+          JSON.stringify(r),
+        ]
+      );
+    }
+    await connection.commit();
+    res.json({ success: true, inserted: records.length });
+  } catch (e) {
+    await connection.rollback();
+    res.status(500).json({ success: false, message: e.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// ─── POF: fire a single alert to system_alert + alert_service ───────────────
+app.post('/api/pof/alert', async (req, res) => {
+  const { level, msg, product, product_label, en, traveler, oven, avg, min, spec_result, mode } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO system_alert
+         (process_type, alert_time, level, product, product_label, fixture, oven, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('POF', ?, ?, ?, ?, '', ?, ?, 'POF', ?, ?, ?, ?)`,
+      [
+        new Date(), level || 'ng',
+        product || '', product_label || product || '',
+        oven || '', traveler || en || '',
+        avg != null ? parseFloat(avg) : null,
+        spec_result || '', msg || '',
+        JSON.stringify(req.body),
+      ]
+    );
+    try {
+      require('./alert_service').processAlerts(pool, 'POF', [{
+        ts: new Date().toISOString(), level, msg,
+        product: product_label || product, oven, traveler, avg, min, spec_result,
+      }]).catch(console.error);
+    } catch (e) { /* alert_service optional */ }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /api/pof/alert error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Damper: fire a single alert to system_alert + alert_service ─────────────
+app.post('/api/damper/alert', async (req, res) => {
+  const { level, msg, product, product_label, qc_en, traveler, mode, overall, issues } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO system_alert
+         (process_type, alert_time, level, product, product_label, fixture, oven, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('Damper', ?, ?, ?, ?, '', '', ?, 'Damper', null, ?, ?, ?)`,
+      [
+        new Date(), level || 'ng',
+        product || '', product_label || product || '',
+        qc_en || '', overall || '',
+        msg || '', JSON.stringify(req.body),
+      ]
+    );
+    try {
+      require('./alert_service').processAlerts(pool, 'Damper', [{
+        ts: new Date().toISOString(), level, msg,
+        product: product_label || product, traveler, qcEn: qc_en,
+        issues: issues || [],
+      }]).catch(console.error);
+    } catch (e) { /* alert_service optional */ }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /api/damper/alert error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3001;
