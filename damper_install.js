@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     startClock();
     updateKPIs();
     updateBadges();
+    renderPendingTable();
     checkBackendConnection().then(() => {
         if (isServerOnline) refreshDataFromServer();
     });
@@ -512,14 +513,17 @@ function autoJudgeOverall() {
 // ════════════════════════════════════════════════════════════
 //  Save Batch
 // ════════════════════════════════════════════════════════════
-async function saveBatch() {
+// ════════════════════════════════════════════════════════════
+//  Save Draft (Piece by Piece)
+// ════════════════════════════════════════════════════════════
+async function saveManualDraft() {
     const key = document.getElementById('m-product')?.value;
     if (!key) { showToast('กรุณาเลือก Product ก่อน', 'warn'); return; }
     const p = PRODUCTS[key];
 
     const mode = document.getElementById('m-mode')?.value || 'buyoff';
 
-    // VMI
+    // VMI (สำหรับ 1 ชิ้น)
     const vmiData = {};
     const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
     items.forEach(v => {
@@ -527,12 +531,11 @@ async function saveBatch() {
     });
     const vmiNG = Object.values(vmiData).some(v => v === 'Fail');
 
-    const records = loadRecords();
-    const no = records.length + 1;
+    const draftId = 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
     const rec = {
-        id: Date.now().toString(),
-        no,
+        id: draftId,
+        no: 0, // Will be assigned when pushed to About Data or Completed
         mode,
         date: document.getElementById('m-date')?.value || todayISO(),
         product: key,
@@ -549,57 +552,191 @@ async function saveBatch() {
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
         pcs: p.pcs,
-        dimData: {}, // Waiting for Stage 2
-        datumAvg: null,
-        datumMax: null,
-        datumMin: null,
-        datumResult: null,
-        nondatumAvg: null,
-        nondatumMax: null,
-        nondatumMin: null,
-        nondatumResult: null,
+        dimData: {},
+        datumAvg: null, datumMax: null, datumMin: null, datumResult: null,
+        nondatumAvg: null, nondatumMax: null, nondatumMin: null, nondatumResult: null,
         vmi: vmiData,
         vmiNG,
-        overall: mode === 'roving' ? (vmiNG ? 'Fail' : 'Pass') : 'WAITING',
+        overall: 'DRAFT_WAITING',
         savedAt: new Date().toISOString(),
     };
 
-    records.push(rec);
+    const records = loadRecords();
+    records.unshift(rec);
     saveRecords(records);
+
+    showToast('✅ บันทึก Draft สำเร็จ', 'success');
+
+    resetVmiForm();
+    renderPendingTable();
     updateKPIs();
     updateBadges();
+}
 
+function resetVmiForm() {
+    VMI_ITEMS.forEach(v => {
+        const el = document.getElementById(`vmi-${v.id}`);
+        if (el) {
+            el.value = 'Pass';
+            el.classList.remove('ng-value');
+        }
+    });
+    const overallEl = document.getElementById('m-vmi-overall');
+    if (overallEl) {
+        overallEl.className = 'badge badge-in';
+        overallEl.textContent = 'PASS';
+    }
+}
+
+function pushToAboutData(groupKey) {
+    const records = loadRecords();
+    const drafts = records.filter(r =>
+        r.overall === 'DRAFT_WAITING' &&
+        `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}` === groupKey
+    );
+
+    if (drafts.length === 0) return;
+
+    const sample = drafts[0];
+    if (drafts.length < sample.pcs) {
+        showToast(`⚠️ ไม่สามารถบันทึกได้ (ต้องกรอกให้ครบ ${sample.pcs} ชิ้นก่อน)`, 'warn');
+        return;
+    }
+
+    const draftsToMerge = drafts.slice(0, sample.pcs);
+    const anyVmiNG = draftsToMerge.some(d => d.vmiNG);
+    const no = records.filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING').length + 1;
+
+    const finalRec = { ...draftsToMerge[0], id: Date.now().toString(), no };
+    finalRec.vmiNG = anyVmiNG;
+
+    if (sample.mode === 'roving') {
+        finalRec.overall = anyVmiNG ? 'Fail' : 'Pass';
+
+        // Delete drafts
+        const newRecords = records.filter(r => !draftsToMerge.find(d => d.id === r.id));
+        newRecords.push(finalRec);
+        saveRecords(newRecords);
+
+        sendToBackendAndAlert(finalRec);
+        showToast(`🎉 Roving Audit ข้อมูล ${sample.productLabel} ครบ ${sample.pcs} ชิ้นแล้ว บันทึกเรียบร้อย!`, 'success');
+    } else {
+        finalRec.overall = 'WAITING';
+
+        // Delete drafts
+        const newRecords = records.filter(r => !draftsToMerge.find(d => d.id === r.id));
+        newRecords.push(finalRec);
+        saveRecords(newRecords);
+
+        sendToBackendAndAlert(finalRec);
+        showToast(`🎉 นำเข้าข้อมูล ${sample.productLabel} ไปยัง Stage 2 สำเร็จ!`, 'success');
+    }
+
+    renderPendingTable();
+    updateKPIs();
+    updateBadges();
+}
+
+async function sendToBackendAndAlert(rec) {
     const failIssues = [];
-    if (vmiNG) {
-        const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
-        failIssues.push('VMI NG: ' + items.filter(v => vmiData[v.id] === 'Fail').map(v => v.label).join(', '));
-        const alerts = loadAlerts();
-        alerts.unshift({
-            id: rec.id, ts: rec.savedAt, level: 'ng',
-            product: p.label, traveler: rec.traveler, qcEn: rec.qcEn,
-            msg: failIssues.join(' | ')
-        });
-        saveAlerts(alerts);
+    if (rec.vmiNG) {
+        const items = VMI_ITEMS.filter(v => rec.mode === 'roving' || v.id !== 'double');
+        failIssues.push('VMI NG: ' + items.filter(v => rec.vmi[v.id] === 'Fail').map(v => v.label).join(', '));
         updateBadges();
     }
 
     if (window.BLoader) window.BLoader.show('กำลังบันทึกลงฐานข้อมูลถาวร...');
     await saveRecordToServer(rec);
     if (failIssues.length) await sendSystemAlert('ng', failIssues.join(' | '), rec, failIssues);
-    triggerAutoEml(rec, failIssues);
     if (window.BLoader) window.BLoader.hide();
     await refreshDataFromServer();
+}
 
-    clearForm();
-    showToast(`✅ บันทึกลง MySQL สำเร็จ — Batch #${no} — ${p.label} (${p.pcs} pcs)`, 'success');
+function renderPendingTable() {
+    const wrap = document.getElementById('pending-table-wrap');
+    if (!wrap) return;
 
-    // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
-    const aboutBtn = document.querySelector('.nav-btn[data-tab="records"]');
-    if (aboutBtn) {
-        switchTab('records', aboutBtn);
-    } else {
-        switchTab('records', null);
+    const records = loadRecords();
+    const groups = {};
+    records.filter(r => r.overall === 'DRAFT_WAITING').forEach(r => {
+        const key = `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+    });
+
+    let html = '';
+    Object.entries(groups).forEach(([key, recs]) => {
+        recs.sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
+        const sample = recs[0];
+        const batchFill = recs.length;
+        const totalReq = sample.pcs;
+        const batchPct = Math.round((batchFill / totalReq) * 100);
+        const progressColor = batchFill >= totalReq ? 'var(--pass)' : 'var(--blue)';
+
+        html += `<div style="margin-bottom:18px;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;">
+          <div style="padding:10px 16px;background:var(--bg3);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-weight:700;color:var(--text);font-size:13px;">📦 ${sample.productLabel}</span>
+            <span class="badge" style="background:rgba(9,132,227,0.12);color:var(--blue);font-weight:600;">${sample.mode === 'roving' ? 'Roving Audit' : 'Buy off'}</span>
+            <span style="font-size:12px;color:var(--text2);">M/C: <b>${sample.mc}</b> &nbsp;|&nbsp; Date: ${sample.date}</span>
+            
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="pushToAboutData('${key}')">💾 ${sample.mode === 'roving' ? 'บันทึกเข้าระบบ' : 'นำเข้า About Data (Waiting)'}</button>
+              
+              <div style="width:80px;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;margin-left:10px;">
+                <div style="width:${batchPct}%;height:100%;background:${progressColor};border-radius:4px;transition:width 0.3s;"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:${progressColor}">${batchFill}/${totalReq} ชิ้น</span>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+            <thead style="background:var(--bg2);color:var(--text3);border-bottom:1px solid var(--border2);">
+              <tr>
+                <th style="padding:8px 16px;width:50px">#</th>
+                <th style="padding:8px 16px">DRAFT ID</th>
+                <th style="padding:8px 16px">CREATED</th>
+                <th style="padding:8px 16px">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+        recs.forEach((r, idx) => {
+            const t = r.savedAt ? new Date(r.savedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+            html += `<tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 16px;font-weight:600">${idx + 1}</td>
+              <td style="padding:8px 16px">${r.id.slice(0, 15)}...</td>
+              <td style="padding:8px 16px;color:var(--text3)">${r.date} ${t}</td>
+              <td style="padding:8px 16px">
+                <button class="btn btn-outline btn-sm" onclick="deleteDraft('${r.id}')" style="color:var(--fail);border-color:transparent;background:var(--fail-bg);padding:4px 8px">🗑️</button>
+              </td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    });
+
+    if (!html) {
+        html = `<div class="empty" style="padding:20px"><div class="ei">📭</div><p>ยังไม่มี Pending Records — กด "Save Draft" เพื่อเริ่มต้น</p></div>`;
     }
+    wrap.innerHTML = html;
+
+    const pendingCount = Object.keys(groups).length;
+    const badge = document.getElementById('badge-pending');
+    if (badge) badge.textContent = pendingCount;
+}
+
+function deleteDraft(id) {
+    const records = loadRecords().filter(r => r.id !== id);
+    saveRecords(records);
+    renderPendingTable();
+    showToast('ลบ Draft สำเร็จ', 'success');
+}
+
+function clearAllDrafts() {
+    showConfirm('Clear All Drafts', 'ต้องการลบ Drafts ทั้งหมดใช่หรือไม่?', () => {
+        const records = loadRecords().filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING' && r.overall !== 'Waiting');
+        saveRecords(records);
+        renderPendingTable();
+        showToast('ล้าง Drafts เรียบร้อย', 'success');
+    });
 }
 
 function clearForm() {
@@ -662,6 +799,9 @@ function setKpi(id, v) { const el = document.getElementById(id); if (el) el.text
 function updateBadges() {
     const recs = loadRecords();
     setKpi('badge-records', recs.length);
+    if (typeof refreshNavBadges === 'function') {
+        refreshNavBadges({ damper: recs.length });
+    }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -990,150 +1130,7 @@ function buildVMIChart(recs) {
 // ------------------------------------------------------------------------------------------
 
 
-function sendSingleAlertEml(id) {
-    const a = loadAlerts().find(x => String(x.id) === String(id));
-    if (!a) return;
-    const subj = `[DAMPER FAIL] Damper Install Alert — ${a.product} | QC EN: ${a.qcEn}`;
-    const body = `<pre style="font-family:Calibri,sans-serif;font-size:13px">BELTON IPQC — Damper Install Alert\n${'-'.repeat(50)}\nProduct : ${a.product}\nQC EN#  : ${a.qcEn}\nTraveler: ${a.traveler}\nIssues  : ${a.msg}\nTime    : ${new Date(a.ts).toLocaleString('th-TH')}</pre>`;
-    const cfg = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-    downloadEmlBlob(cfg.email || 'supanatt04@gmail.com', subj, body);
-}
 
-// ------------------- Outlook / EML -------------------
-function triggerAutoEml(rec, issues) {
-    const cfg = JSON.parse(localStorage.getItem(LS_KEY_CFG) || '{}');
-    const to = cfg.email || 'supanatt04@gmail.com';
-    const p = PRODUCTS[rec.product];
-    const isFail = issues && issues.length > 0;
-    const subj = `[DAMPER ${isFail ? 'FAIL' : 'PASS'}] Damper Install — ${p?.label || rec.productLabel} | QC EN: ${rec.qcEn}`;
-
-    // Build offscreen Chart.js trend image (last 20 records)
-    const recentRecs = loadRecords().slice(-20);
-    const canvas = document.createElement('canvas');
-    canvas.width = 750; canvas.height = 300;
-    canvas.style.position = 'absolute'; canvas.style.left = '-9999px';
-    document.body.appendChild(canvas);
-
-    let chartImg = '';
-    try {
-        const labels = recentRecs.map(r => `#${r.no}`);
-        const sAvgs = recentRecs.map(r => r.datumAvg);
-        const lAvgs = recentRecs.map(r => r.nondatumAvg);
-        const tempChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    { label: 'Datum Avg', data: sAvgs, borderColor: 'rgba(37,99,235,0.9)', backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
-                    { label: 'Non-datum Avg', data: lAvgs, borderColor: 'rgba(124,58,237,0.9)', backgroundColor: 'rgba(124,58,237,0.1)', borderWidth: 2, pointRadius: 4, tension: 0.3 },
-                    { label: 'Datum USL (1.368)', data: Array(labels.length).fill(1.368), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
-                    { label: 'Datum LSL (1.348)', data: Array(labels.length).fill(1.348), borderColor: 'rgba(231,76,60,0.7)', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 },
-                ]
-            },
-            options: {
-                responsive: false, animation: false,
-                plugins: { title: { display: true, text: 'Damper Install Trend (Last 20 Records)', font: { size: 13, weight: 'bold' } }, legend: { position: 'top' } },
-                scales: { y: { beginAtZero: false, ticks: { stepSize: 0.005 } } }
-            }
-        });
-        chartImg = canvas.toDataURL('image/png');
-        tempChart.destroy();
-    } catch (e) { console.error('Chart gen error:', e); }
-    finally { document.body.removeChild(canvas); }
-
-    const html = `
-    <div style="font-family:'Calibri','Candara','Segoe UI',sans-serif;color:#333;max-width:700px;margin:0 auto;border:1.5px solid #d1d5db;border-radius:8px;overflow:hidden;">
-      <div style="background:${isFail ? '#7c3aed' : '#10b981'};padding:18px 24px;color:white;">
-        <h2 style="margin:0;font-size:20px;font-weight:700;">${isFail ? '🔴 CRITICAL FAIL' : '✅ RECORD SAVED'} — Damper Install</h2>
-        <p style="margin:4px 0 0;opacity:0.9;font-size:13px;">Belton Automated Real-time Quality Alert System</p>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:14px;">
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563;width:35%">Product</td><td style="padding:8px 0;color:#1f2937"><b>${p?.label || rec.productLabel || '—'}</b></td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">QC EN#</td><td style="padding:8px 0;color:#1f2937">${rec.qcEn || '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">ME EN#</td><td style="padding:8px 0;color:#1f2937">${rec.meEn || '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Traveler</td><td style="padding:8px 0;color:#1f2937">${rec.traveler || '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Date</td><td style="padding:8px 0;color:#1f2937">${rec.date}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.datumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.datumAvg ?? '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Non-datum Avg</td><td style="padding:8px 0;font-weight:bold;color:${rec.nondatumResult === 'Pass' ? '#27ae60' : '#e74c3c'}">${rec.nondatumAvg ?? '—'}</td></tr>
-          <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;font-weight:700;color:#4b5563">Defects Found</td><td style="padding:8px 0;color:${isFail ? '#e74c3c' : '#1f2937'};font-weight:bold">${issues && issues.length ? issues.join(' | ') : 'None'}</td></tr>
-        </table>
-        ${chartImg ? `
-        <div style="margin:24px 0;text-align:center;">
-          <p style="font-size:12px;color:#6b7280;margin-bottom:8px;font-weight:bold">📊 Damper Dimension Trend (Last 20 Records)</p>
-          <img src="${chartImg}" alt="Defect Trend" style="max-width:100%;border:1px solid #e5e7eb;border-radius:6px;">
-        </div>` : ''}
-        ${isFail ? `
-        <div style="background:#fef9ee;border-left:4px solid #7c3aed;padding:12px 16px;margin-top:20px;font-size:13px;border-radius:0 4px 4px 0;">
-          <span style="font-weight:700;color:#374151;">⚠️ Action Required:</span> Damper dimension out of spec. Halt production and perform corrective action immediately!
-        </div>` : ''}
-      </div>
-    </div>`;
-    downloadEmlBlob(to, subj, html);
-}
-
-
-function generateOutlookDraft() {
-    const alerts = loadAlerts();
-    if (!alerts.length) { showToast('ไม่มี Alert', 'warn'); return; }
-    const to = document.getElementById('outlook-to')?.value || 'supanatt04@gmail.com';
-    const now = new Date().toLocaleString('th-TH');
-    const subj = `[IPQC Damper Alert Summary] ${now}`;
-    const rows = alerts.map(a => `<tr style="border-bottom:1px solid #e5e7eb">
-        <td style="padding:7px 10px">${new Date(a.ts).toLocaleString('th-TH')}</td>
-        <td style="padding:7px 10px;color:#E74C3C;font-weight:700">FAIL</td>
-        <td style="padding:7px 10px">${a.product}</td>
-        <td style="padding:7px 10px">${a.qcEn || '—'}</td>
-        <td style="padding:7px 10px;font-size:11px">${a.msg}</td>
-    </tr>`).join('');
-    const html = `<div style="font-family:Calibri,sans-serif">
-        <h2 style="color:#7c3aed">BELTON IPQC — Damper Install Alert Summary</h2>
-        <p>Generated: ${now} | Total: ${alerts.length}</p>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead style="background:#7c3aed;color:#fff">
-                <tr><th style="padding:8px">Time</th><th>Level</th><th>Product</th><th>QC EN#</th><th>Message</th></tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
-    </div>`;
-    _emlCache = { to, subj, html };
-    document.getElementById('ol-subject').textContent = subj;
-    document.getElementById('ol-body').innerHTML = `${alerts.length} alerts ready to send to ${to}`;
-    document.getElementById('ol-preview').style.display = 'block';
-    document.getElementById('export-actions').style.display = 'block';
-    showToast(`สร้าง EML draft (${alerts.length} alerts)`, 'success');
-}
-
-function downloadOutlookEml() {
-    if (!_emlCache) { showToast('กรุณากด Step 1 ก่อน', 'warn'); return; }
-    downloadEmlBlob(_emlCache.to, _emlCache.subj, _emlCache.html);
-}
-
-function downloadEmlBlob(to, subject, htmlContent) {
-    const boundary = 'IPQC_DMR_' + Date.now();
-    const eml = [
-        `From: IPQC System <ipqc@belton.com>`,
-        `To: ${to}`,
-        `Subject: ${subject}`,
-        `MIME-Version: 1.0`,
-        `Content-Type: multipart/alternative; boundary="${boundary}"`,
-        ``,
-        `--${boundary}`,
-        `Content-Type: text/html; charset=utf-8`,
-        `Content-Transfer-Encoding: quoted-printable`,
-        ``,
-        htmlContent,
-        ``,
-        `--${boundary}--`,
-    ].join('\r\n');
-    const blob = new Blob([eml], { type: 'message/rfc822' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Damper_Alert_${todayISO()}.eml`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    showToast('📧 EML downloaded! เปิดด้วย Outlook', 'success');
-}
 
 // ------------------------------------------------------------------------------------------
 //  Backend
@@ -1262,7 +1259,7 @@ async function syncWithServer() {
     try {
         const res = await fetch(`${BACKEND_URL}/api/damper/sync`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records: loadRecords(), alerts: loadAlerts() }),
+            body: JSON.stringify({ records: loadRecords() }),
         });
         const r = await res.json();
         showToast(r.success ? '🔄 Synchronized!' : 'Sync failed: ' + r.message, r.success ? 'success' : 'error');
@@ -1275,8 +1272,6 @@ async function syncWithServer() {
 // ------------------------------------------------------------------------------------------
 function loadRecords() { return dmpRecords; }
 function saveRecords(a) { dmpRecords = a; }
-function loadAlerts() { try { return JSON.parse(localStorage.getItem(LS_KEY_ALERTS) || '[]'); } catch { return []; } }
-function saveAlerts(a) { localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(a)); }
 
 async function saveRecordToServer(rec) {
     if (!isServerOnline) return;
@@ -1437,30 +1432,6 @@ async function importExportedCSV(event) {
 }
 
 // === STAGE 2 MERGE LOGIC ===
-function renderPendingTable() {
-    const recs = loadRecords().filter(r => r.overall === 'Waiting' || r.overall === 'WAITING');
-    const tbody = document.getElementById('pending-table-wrap');
-    if (!tbody) return;
-    if (!recs.length) {
-        tbody.innerHTML = '<div class="empty" style="padding:20px"><p>ไม่มี Pending Records</p></div>';
-        return;
-    }
-
-    let html = '<table style="width:100%;text-align:left;">';
-    html += '<thead><tr><th>No</th><th>Date</th><th>Product</th><th>Part Number</th><th>PT Number</th><th>Select</th></tr></thead><tbody>';
-    recs.forEach(r => {
-        html += `<tr>
-            <td>${r.no}</td>
-            <td>${r.date}</td>
-            <td>${r.productLabel}</td>
-            <td>${r.partno || '-'}</td>
-            <td>${r.ptno || '-'}</td>
-            <td><button class="btn btn-sm btn-outline" onclick="selectPendingForMerge(${r.id})">Select</button></td>
-        </tr>`;
-    });
-    html += '</tbody></table>';
-    tbody.innerHTML = html;
-}
 
 let _selectedMergeId = null;
 function selectPendingForMerge(id) {
@@ -1597,38 +1568,6 @@ async function commitStage2Damper() {
         switchTab('records', aboutBtn);
     } else {
         switchTab('records', null);
-    }
-}
-
-function clearAllDrafts() {
-    showConfirm('Clear Waiting', 'ลบ Waiting Records ทั้งหมด?', () => {
-        const recs = loadRecords().filter(r => r.overall !== 'Waiting' && r.overall !== 'WAITING');
-        saveRecords(recs);
-        renderPendingTable();
-        showToast('ลบข้อมูล Waiting เรียบร้อย', 'success');
-    });
-}
-
-const originalSaveBatch = saveBatch;
-saveBatch = function () {
-    const mode = document.getElementById('m-mode')?.value || 'buyoff';
-
-    if (mode === 'roving') {
-        originalSaveBatch();
-        return;
-    }
-
-    // Stage 1 always saves as Waiting because dims are done in Stage 2 (for Buy Off)
-    const oldOverall = document.getElementById('m-overall').value;
-    setOverallPF('Waiting');
-    try {
-        const oldDatum = [...DIM_GROUPS.datum];
-        DIM_GROUPS.datum = [];
-        originalSaveBatch();
-        DIM_GROUPS.datum = oldDatum;
-        renderPendingTable();
-    } finally {
-        setOverallPF(oldOverall);
     }
 }
 

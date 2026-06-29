@@ -1823,10 +1823,10 @@ input[type=checkbox] {
 
 /* Filter Bar Container */
 .daily-filter-bar-v2 {
-  display: grid;
-  grid-template-columns: auto auto auto auto auto 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  align-items: end;
+  align-items: flex-end;
   padding: 16px 20px;
   background: linear-gradient(135deg, var(--bg2) 0%, #f0f4ff 100%);
   border-radius: 10px;
@@ -1835,23 +1835,16 @@ input[type=checkbox] {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1000px) {
   .daily-filter-bar-v2 {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .daily-filter-bar-v2 {
-    grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding: 12px 14px;
   }
 }
 
-@media (max-width: 480px) {
-  .daily-filter-bar-v2 {
-    grid-template-columns: 1fr;
+@media (max-width: 600px) {
+  .daily-filter-bar-v2 .df-group {
+    width: 100%;
   }
 }
 

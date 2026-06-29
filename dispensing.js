@@ -557,10 +557,10 @@ function getInternalStatus(vals, mk, dataType) {
 function syncDataConsistency(silent = false) {
     let changed = false;
     DB.records.forEach(r => {
-        // WAITING is a manually-assigned status for manual drafts pending Merge.
-        // Do NOT let getInternalStatus() overwrite it — those records are intentionally
-        // incomplete (no text-dim values yet) and must stay WAITING until bulkTextMerge runs.
-        if (r.status === 'WAITING') return;
+        // WAITING, DRAFT_INCOMPLETE, and DRAFT_WAITING are manually-assigned statuses for pending Merge/Stage 2.
+        // Do NOT let getInternalStatus() overwrite them — those records are intentionally
+        // incomplete (no text-dim values yet) and must stay in their draft state until explicitly progressed.
+        if (r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING') return;
         const correctStatus = getInternalStatus(r.values, r.model, r.dataType);
         if (r.status !== correctStatus) { r.status = correctStatus; changed = true; }
     });
@@ -1696,8 +1696,20 @@ function initConfigs() {
 // ==========================================
 // [เพิ่มใหม่] ฟังก์ชันสร้างตัวเลือก Product แบบแยกประเภท
 // ==========================================
-function getProductOptions(dataType, includeAll = false, includeSelectFirst = false) {
+function getProductOptions(dataType, includeAll = false, includeSelectFirst = false, onlyExisting = false) {
     let options = '';
+
+    // สร้าง Set ของ product keys ที่มี data อยู่จริงๆ (ถ้า onlyExisting = true)
+    let existingKeys = new Set();
+    if (onlyExisting) {
+        DB.records.forEach(r => {
+            if (dataType && dataType !== 'all' && dataType !== 'compare') {
+                if ((r.dataType || 'Buy off') !== dataType) return;
+            }
+            const resolved = getProductConfig(r.model);
+            if (resolved) existingKeys.add(resolved.key);
+        });
+    }
 
     if (includeSelectFirst) {
         options += '<option value="">— เลือก Product —</option>';
@@ -1713,6 +1725,7 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
             if (!filterFn(k, v)) return;
             if (dataType === 'Roving Audit' && k === 'dorado5d') return;
             if (k.toLowerCase() === 'rosewood5d') return;
+            if (onlyExisting && !existingKeys.has(k)) return; // ข้ามถ้าไม่มี data
             options += `<option value="${k}">${v.label || k}</option>`;
         });
     }
@@ -1729,6 +1742,13 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
             specKeys.forEach(k => {
                 if (dataType === 'Roving Audit' && k === 'dorado5d') return;
                 if (k.toLowerCase() === 'rosewood5d') return;
+
+                // ถ้าระบุว่าต้องมี data แต่ key นี้ไม่อยู่ใน existingKeys ให้ข้าม
+                if (onlyExisting) {
+                    const resolved = getProductConfig(k);
+                    if (!resolved || !existingKeys.has(resolved.key)) return;
+                }
+
                 // format label: "skybolt1d" → "Skybolt 1D" (best-effort)
                 const label = k.replace(/([a-z])(\d)/g, '$1 $2').replace(/([a-z])([a-z]+)/g, (_, a, b) => a.toUpperCase() + b).trim();
                 options += `<option value="${k}">${label}</option>`;
@@ -1741,6 +1761,7 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
     let dbMode = dataType ? dataType.toLowerCase().trim().replace(/\s+/g, '') : null;
     if (dbMode === 'buy-off') dbMode = 'buyoff';
     if (dbMode === 'rovingaudit') dbMode = 'roving';
+    if (dbMode === 'compare') dbMode = 'all';
 
     const filtered = window.SERVER_PRODUCTS_LIST.filter(p => {
         if (!dbMode || dbMode === 'all') return true;
@@ -1761,6 +1782,7 @@ function getProductOptions(dataType, includeAll = false, includeSelectFirst = fa
             ? resolvedEntry.key
             : (p.product_key || p.product_name || '');
         if (!mk) return; // ข้ามถ้า key ว่าง
+        if (onlyExisting && !existingKeys.has(mk)) return; // ข้ามถ้าไม่มี data
         options += `<option value="${mk}" data-fullname="${p.product_name}">${p.product_name}</option>`;
     });
 
@@ -1798,9 +1820,15 @@ function updateDynamicDropdowns(scope = 'all') {
     if (scope === 'all' || scope === 'viz') {
         const vEl = document.getElementById('v-model');
         if (vEl) {
-            const prev = vEl.value;
-            vEl.innerHTML = getProductOptions(getVal('v-datatype'), true, false);
-            if (vEl.querySelector(`option[value="${prev}"]`)) vEl.value = prev; else vEl.value = '';
+            const vDataType = getVal('v-datatype');
+            if (!vDataType) {
+                vEl.innerHTML = '<option value="">— เลือก Data Type ก่อน —</option>';
+                vEl.value = '';
+            } else {
+                const prev = vEl.value;
+                vEl.innerHTML = getProductOptions(vDataType, false, true, true);
+                if (vEl.querySelector(`option[value="${prev}"]`)) vEl.value = prev; else vEl.value = '';
+            }
         }
     }
 }
@@ -1810,7 +1838,7 @@ function updateDynamicDropdowns(scope = 'all') {
 // ==========================================
 function populateDropdowns() {
     // 1. จัดการ Dropdown เมนูค้นหาและเมนูตั้งค่าที่ไม่แปรผันตาม Data Type
-    ['auto-model-filter', 'about-model-filter', 'daily-model', 'log-model-filter', 'e-model', 'i-model'].forEach(id => {
+    ['auto-model-filter', 'about-model-filter', 'log-model-filter', 'e-model', 'i-model'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             if (id === 'e-model' || id === 'i-model') {
@@ -2803,6 +2831,7 @@ function _renderAboutTableCore() {
 
         // 2. กรองข้อมูลจากฐานข้อมูลหลัก
         let rows = DB.records.filter(r => {
+            if (r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING') return false; // Hide pending drafts from About Data
             const txt = `${r.fixture || ''}${r.pt || ''}${r.modelLabel || ''}${r.date || ''}${r.team || ''}${r.oven || ''}`.toLowerCase();
             return txt.includes(search.toLowerCase()) &&
                 (!mf || r.model === mf) &&
@@ -3231,7 +3260,7 @@ function saveEdit() {
 }
 
 function openInsertModal() { document.getElementById('insert-modal').classList.add('open'); }
-async function insertRecord() { const mk = document.getElementById('i-model').value; if (!mk) return showToast('กรุณาเลือก Product', 'warn'); const rec = { id: Date.now(), dataType: 'Buy off', model: mk, modelLabel: PRODUCTS[mk].label, buytime: document.getElementById('i-buytime').value || '00:00', pt: document.getElementById('i-pt').value || 'Unknown', fixture: document.getElementById('i-fixture').value || 'FIX-NEW', mctime: document.getElementById('i-mctime').value || '00:00', date: document.getElementById('i-date').value || TODAY, team: document.getElementById('i-team').value || 'A', operator: document.getElementById('i-op').value || 'ADMIN', values: {}, status: 'INCOMPLETE' }; DB.records.unshift(rec); saveDB(); if (window.BLoader) window.BLoader.show('กำลังซิงค์ข้อมูล...'); if (isBackendOnline) { await syncWithServer(false); } else { syncDataConsistency(false); } if (window.BLoader) window.BLoader.hide(); showToast('✅ เพิ่มข้อมูลใหม่เรียบร้อย (ข้อมูลเป็น INCOMPLETE)', 'success'); closeModal('insert-modal'); renderAboutTable(); }
+async function insertRecord() { const mk = document.getElementById('i-model').value; if (!mk) return showToast('กรุณาเลือก Product', 'warn'); const draftId = 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); const rec = { id: draftId, dataType: 'Buy off', model: mk, modelLabel: PRODUCTS[mk].label, buytime: document.getElementById('i-buytime').value || '00:00', pt: document.getElementById('i-pt').value || 'Unknown', fixture: document.getElementById('i-fixture').value || 'FIX-NEW', mctime: document.getElementById('i-mctime').value || '00:00', date: document.getElementById('i-date').value || TODAY, team: document.getElementById('i-team').value || 'A', operator: document.getElementById('i-op').value || 'ADMIN', values: { draft_id: draftId }, status: 'INCOMPLETE' }; DB.records.unshift(rec); saveDB(); if (window.BLoader) window.BLoader.show('กำลังซิงค์ข้อมูล...'); if (isBackendOnline) { await syncWithServer(false); } else { syncDataConsistency(false); } if (window.BLoader) window.BLoader.hide(); showToast('✅ เพิ่มข้อมูลใหม่เรียบร้อย (ข้อมูลเป็น INCOMPLETE)', 'success'); closeModal('insert-modal'); renderAboutTable(); }
 
 // ==========================================
 // ส่วนที่ปรับปรุง Daily Date Range (ช่วงวันที่)
@@ -3264,6 +3293,55 @@ function populateDailyDateDropdown() {
         const n = dates.filter(d => d >= window.startDate && d <= window.endDate).length; // dates already ISO
         cnt.textContent = n > 0 ? `(${n} วันที่มีข้อมูล)` : '(ไม่มีข้อมูลในช่วงนี้)';
     }
+
+    if (typeof updateDailyModelDropdown === 'function') {
+        updateDailyModelDropdown();
+    }
+}
+
+function updateDailyModelDropdown() {
+    const el = document.getElementById('daily-model');
+    if (!el) return;
+
+    // ถ้ายังไม่ได้เลือก Date ให้เป็นค่าว่าง
+    if (!window.startDate || !window.endDate) {
+        el.innerHTML = '<option value="">— เลือก Date Range ก่อน —</option>';
+        el.disabled = true;
+        return;
+    }
+
+    // บังคับให้ต้องเลือก Data Type ก่อน (ไม่ใช่ all)
+    if (!activeDailyTypeFilter || activeDailyTypeFilter === 'all') {
+        el.innerHTML = '<option value="">— เลือก Data Type ก่อน —</option>';
+        el.disabled = true;
+        return;
+    }
+
+    el.disabled = false;
+
+    // กรองข้อมูลตาม Date และ DataType
+    let rows = DB.records.filter(r => isInDateRange(r.date, window.startDate, window.endDate));
+    rows = rows.filter(r => (r.dataType || 'Buy off') === activeDailyTypeFilter);
+
+    // หา Product ที่มีข้อมูลจริง
+    const availableModels = [...new Set(rows.map(r => r.model).filter(Boolean))];
+    const currVal = el.value;
+
+    if (availableModels.length === 0) {
+        el.innerHTML = '<option value="">— ไม่มีข้อมูล —</option>';
+    } else {
+        let html = '<option value="">— เลือก Product —</option>';
+        availableModels.sort().forEach(mk => {
+            const lbl = PRODUCTS[mk] ? PRODUCTS[mk].label : mk;
+            html += `<option value="${mk}">${lbl}</option>`;
+        });
+        el.innerHTML = html;
+        if (availableModels.includes(currVal)) {
+            el.value = currVal;
+        } else {
+            el.value = '';
+        }
+    }
 }
 
 function handleDailyDateChange() {
@@ -3278,6 +3356,7 @@ function handleDailyDateChange() {
     window.startDate = s;
     window.endDate = e;
     populateDailyDateDropdown(); // อัปเดต label count เท่านั้น
+    updateDailyModelDropdown();
 }
 
 function applyDailyFilter() {
@@ -3393,6 +3472,9 @@ function setDailyTypeFilter(el, val) {
     if (val === 'all') el.classList.add('active-all');
     else if (val === 'Buy off') el.classList.add('active-buyoff');
     else el.classList.add('active-roving');
+
+    updateDailyModelDropdown();
+
     if (window.startDate && window.endDate) renderDailyCompare();
 }
 
@@ -3493,8 +3575,9 @@ function buildCompareTableHtml(rows, title, colorHex, emptyMsg, modelKey) {
     // ถ้ารู้ model → ใช้ลำดับจาก PRODUCTS dims (ข้อมูลครบ + ลำดับตรง)
     // ถ้าหลาย model → union ของ keys จากข้อมูลจริง เรียงตาม name
     let params = [];
-    if (modelKey && PRODUCTS[modelKey]) {
-        params = PRODUCTS[modelKey].dims.map(d => getDimId(d));
+    const resolvedCfg = modelKey ? getProductConfig(modelKey) : null;
+    if (resolvedCfg && resolvedCfg.cfg) {
+        params = resolvedCfg.cfg.dims.map(d => getDimId(d));
     } else {
         // multi-model: union เรียงตาม PRODUCTS dim order ก่อน แล้วต่อด้วย key ที่ไม่รู้จัก
         const seenSet = new Set();
@@ -3715,9 +3798,11 @@ function exportDailyCompareCSV() {
 }
 
 function updateVizParams() {
-    const mk = document.getElementById('v-model').value; const pSel = document.getElementById('v-param'); const btnGrid = document.getElementById('v-param-btns');
-    if (!mk) { pSel.innerHTML = '<option>— เลือก Product ก่อน —</option>'; btnGrid.innerHTML = ''; return; }
-    const dims = PRODUCTS[mk].dims; pSel.innerHTML = dims.map(d => { const id = getDimId(d); return `<option value="${id}">${id.replace(/_/g, ' ')}</option>`; }).join('');
+    const rawMk = document.getElementById('v-model').value; const pSel = document.getElementById('v-param'); const btnGrid = document.getElementById('v-param-btns');
+    if (!rawMk) { pSel.innerHTML = '<option>— เลือก Product ก่อน —</option>'; btnGrid.innerHTML = ''; return; }
+    const resolved = getProductConfig(rawMk);
+    if (!resolved || !resolved.cfg || !resolved.cfg.dims) { pSel.innerHTML = '<option>— ไม่พบ Product ในระบบ —</option>'; btnGrid.innerHTML = ''; return; }
+    const dims = resolved.cfg.dims; pSel.innerHTML = dims.map(d => { const id = getDimId(d); return `<option value="${id}">${id.replace(/_/g, ' ')}</option>`; }).join('');
     btnGrid.innerHTML = dims.map(d => { const id = getDimId(d); return `<button class="param-btn" onclick="selectParam('${id}')" id="pbtn-${id}">${id.replace(/_/g, ' ')}</button>`; }).join(''); drawSPCChart();
 }
 
@@ -3747,11 +3832,16 @@ function _ptColor(v, cfg, dataType) {
 
 function drawSPCChart() {
     const dTypeFilter = document.getElementById('v-datatype').value;
-    const mk = document.getElementById('v-model').value;
+    const rawMk = document.getElementById('v-model').value;
     const param = document.getElementById('v-param').value;
     const timeFilter = document.getElementById('v-time-filter') ? document.getElementById('v-time-filter').value : 'all';
 
-    if (!mk || !param) return;
+    if (!rawMk || !param) return;
+
+    const resolved = getProductConfig(rawMk);
+    if (!resolved) return;
+    const mk = resolved.key;
+    const mkLabel = resolved.cfg.label || mk;
 
     const n = parseInt(document.getElementById('v-count').value) || 0;
     const cfg = (DB.configs[mk] && DB.configs[mk][param]) || {};
@@ -3762,13 +3852,16 @@ function drawSPCChart() {
         return da.localeCompare(db);
     });
 
-    let baseRows = DB.records.filter(r => r.model === mk && r.values);
+    let baseRows = DB.records.filter(r => {
+        const rResolved = getProductConfig(r.model);
+        return rResolved && rResolved.key === mk && r.values;
+    });
     if (timeFilter === 'selected_date' && window.startDate && window.endDate) {
         // ใช้ Date Range Filter
         baseRows = baseRows.filter(r => toISO(r.date) >= window.startDate && toISO(r.date) <= window.endDate);
     }
 
-    if (dTypeFilter) {
+    if (dTypeFilter && dTypeFilter !== 'compare') {
         // Single-type mode
         let rows = baseRows.filter(r => (r.dataType || 'Buy off') === dTypeFilter);
         sortByDT(rows);
@@ -3823,7 +3916,7 @@ function drawSPCChart() {
     });
 
     document.getElementById('v-chart-title').textContent =
-        `${param.replace(/_/g, ' ')} — ${PRODUCTS[mk]?.label || mk} · 🔴 Buy off vs 🔵 Roving (Shared Timeline)`;
+        `${param.replace(/_/g, ' ')} — ${mkLabel} · 🔴 Buy off vs 🔵 Roving (Shared Timeline)`;
 
     const legendEl = document.querySelector('#panel-viz .spc-legend');
     if (legendEl) legendEl.innerHTML = `
@@ -3968,7 +4061,9 @@ function _drawSingleSPCOnOriginalCanvas(rows, mk, param, cfg, lineColor) {
         }
     }
 
-    document.getElementById('v-chart-title').textContent = `${param.replace(/_/g, ' ')} — ${PRODUCTS[mk]?.label || mk}`;
+    const resolved = getProductConfig(mk);
+    const mkLabel = resolved ? (resolved.cfg.label || mk) : mk;
+    document.getElementById('v-chart-title').textContent = `${param.replace(/_/g, ' ')} — ${mkLabel}`;
     const legendEl = document.querySelector('#panel-viz .spc-legend');
     if (legendEl) legendEl.innerHTML = `
         <div class="spc-leg-item"><div style="width:20px;height:2px;background:${lineColor};border-radius:2px;display:inline-block"></div> Measured</div>
@@ -4339,6 +4434,10 @@ function updateDashboard() {
     const badgeImport = document.getElementById('badge-import');
     if (badgeRecords) badgeRecords.textContent = DB.records.length;
     if (badgeImport) badgeImport.textContent = DB.records.filter(r => r.date === TODAY).length;
+
+    if (typeof refreshNavBadges === 'function') {
+        refreshNavBadges({ dispensing: DB.records.length });
+    }
 }
 
 function exportConfig() {
@@ -4614,22 +4713,25 @@ async function saveManualDraft() {
             team: document.getElementById('m-team').value || 'A/Day',
             operator: op,
             createdAt: now.toISOString(),
-            values: { ...vals },
+            values: { ...vals, draft_id: 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) },
         };
+        // Ensure id matches the one in values for reliable deduplication
+        draftRec.values.draft_id = draftRec.id;
 
         DB.records.unshift(draftRec);
         added++;
     });
 
     if (added > 0) {
-        // --- Upgrade to WAITING if we have 4 records for this PT/Oven ---
         const matchingDrafts = DB.records.filter(r =>
-            (r.status === 'DRAFT_INCOMPLETE' || r.status === 'WAITING') &&
+            (r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING') &&
             r.model === mk && r.pt === pt && r.oven === oven && r.dataType === dType
         );
         if (matchingDrafts.length >= 4) {
-            matchingDrafts.forEach(r => r.status = 'WAITING');
-            showToast('ครบ 4 Records แล้ว เปลี่ยนสถานะเป็น WAITING พร้อม Merge', 'success');
+            matchingDrafts.forEach(r => {
+                if (r.status === 'DRAFT_INCOMPLETE') r.status = 'DRAFT_WAITING';
+            });
+            showToast('ครบ 4 Records แล้ว สามารถนำเข้า About Data เพื่อไป Stage 2 ได้', 'success');
         } else {
             showToast(`บันทึก Draft แล้ว (${matchingDrafts.length}/4)`, 'info');
         }
@@ -4682,11 +4784,13 @@ async function saveManualDraft() {
         updateValidationBanner(mk);
         showToast(`✅ บันทึกลง MySQL ถาวรสำเร็จ (${added} ชิ้น)`, 'success');
 
-        // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
+        // ไม่ต้องเด้งไปแท็บ About Data เพื่อให้ผู้ใช้เห็น PENDING RECORDS
+        /*
         const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
         if (aboutBtn) {
             switchTab('about', aboutBtn);
         }
+        */
     } else {
         showToast('⚠️ ไม่สามารถบันทึกได้ (กลุ่ม PT/Oven นี้ครบ 4 ชิ้นแล้ว)', 'warn');
     }
@@ -4700,9 +4804,9 @@ function renderPendingTable() {
     const wrap = document.getElementById('pending-table-wrap');
     if (!wrap) return;
 
-    // จัดกลุ่มตาม PT, Oven, Model, Type (เฉพาะ WAITING)
+    // จัดกลุ่มตาม PT, Oven, Model, Type (เฉพาะ DRAFT_INCOMPLETE / DRAFT_WAITING)
     const groups = {};
-    DB.records.filter(r => r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE').forEach(r => {
+    DB.records.filter(r => r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING').forEach(r => {
         const key = `${r.pt}|${r.oven}|${r.model}|${r.dataType}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(r);
@@ -4764,16 +4868,12 @@ function renderPendingTable() {
 }
 
 function pushToAboutData(pt, oven, model, dataType) {
-    const drafts = DB.records.filter(r => r.pt === pt && r.oven === oven && r.model === model && r.dataType === dataType && r.status === 'WAITING');
+    const drafts = DB.records.filter(r => r.pt === pt && r.oven === oven && r.model === model && r.dataType === dataType && (r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'));
     if (drafts.length === 0) return;
 
     drafts.forEach(d => {
-        const newRec = { ...d, id: 'LOCAL_' + Date.now() + '_' + Math.floor(Math.random() * 1000) };
-        delete newRec.createdAt;
-        DB.records.unshift(newRec);
+        d.status = 'WAITING';
     });
-
-    DB.records = DB.records.filter(r => !(r.pt === pt && r.oven === oven && r.model === model && r.dataType === dataType && r.status === 'WAITING'));
 
     saveDB();
 
@@ -4852,8 +4952,8 @@ async function clearAllDrafts() {
 function updatePendingBadge(count) {
     const badge = document.getElementById('badge-pending');
     if (!badge) return;
-    // 🔴 แก้ไข: ให้นับจำนวนจากสถานะ WAITING
-    const n = count !== undefined ? count : DB.records.filter(r => r.status === 'WAITING').length;
+    // 🔴 แก้ไข: ให้นับจำนวนจากสถานะ DRAFT_INCOMPLETE หรือ DRAFT_WAITING
+    const n = count !== undefined ? count : DB.records.filter(r => r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING').length;
     badge.textContent = n;
     badge.style.display = n > 0 ? 'inline-block' : 'none';
 }
@@ -5051,7 +5151,7 @@ function refreshMergePreview() {
         (ovFilter === '' || r.oven === ovFilter)
     ).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const targetCount = Math.min(parsedRows.length, batch);
+    const targetCount = Math.min(parsedRows.length, candidates.length);
 
     mergeBtn.disabled = targetCount === 0;
     mergeBtn.textContent = `⚡ Merge Text Data (${targetCount} records)`;
@@ -5080,8 +5180,6 @@ function refreshMergePreview() {
         return;
     }
 
-    const baseDraft = candidates[0]; // Auto-clone the latest draft
-
     // ── Build 1-to-1 preview table ──────────────────────────────────────────
     let html = `<div style="font-size:12px;margin-bottom:8px;color:var(--text2);">
       <b>📋 Preview — 1-to-1 Merge: Line → Record</b><br>
@@ -5099,7 +5197,7 @@ function refreshMergePreview() {
         <tbody>`;
 
     for (let i = 0; i < targetCount; i++) {
-        const draft = baseDraft;
+        const draft = candidates[i];
         const lineVals = parsedRows[i];
         // Simulate merged status — same logic as bulkTextMerge (completeness gate first)
         const simVals = { ...draft.values };
@@ -5167,28 +5265,24 @@ function bulkTextMerge() {
         return;
     }
 
-    const targetCount = parsedRows.length;
+    const targetCount = Math.min(parsedRows.length, candidates.length);
     let updatedCount = 0;
     const mergedDraftIds = [];
-    const baseDraft = candidates[0]; // Auto-clone the latest draft
 
     for (let i = 0; i < targetCount; i++) {
-        // Clone the base draft
-        const draftRec = JSON.parse(JSON.stringify(baseDraft));
-        draftRec.id = 'DRAFT_' + Date.now() + '_' + i;
-
+        // Update the candidate draft IN-PLACE to preserve its database ID
+        const draftRec = candidates[i];
         const lineVals = parsedRows[i];
 
         // 1. รวมข้อมูล (Merge Stage 1 Measurement + Stage 2 SM Flash)
-        const mergedVals = { ...draftRec.values };
         Object.entries(lineVals).forEach(([dimId, val]) => {
-            mergedVals[dimId] = val;
+            draftRec.values[dimId] = val;
         });
 
         // 2. ตรวจสอบความสมบูรณ์
         const allDimIds = PRODUCTS[draftRec.model].dims.map(d => getDimId(d));
         const missing = allDimIds.filter(id => (
-            mergedVals[id] === undefined || mergedVals[id] === null || mergedVals[id] === ''
+            draftRec.values[id] === undefined || draftRec.values[id] === null || draftRec.values[id] === ''
         ));
 
         // 3. คำนวณสถานะใหม่
@@ -5196,29 +5290,19 @@ function bulkTextMerge() {
         if (missing.length > 0) {
             finalStatus = 'INCOMPLETE';
         } else {
-            finalStatus = getInternalStatus(mergedVals, draftRec.model, draftRec.dataType);
+            finalStatus = getInternalStatus(draftRec.values, draftRec.model, draftRec.dataType);
         }
 
-        // 4. อัปเดต record ใน DB.records ด้วยข้อมูลที่ merge
+        // 4. อัปเดต record ใน DB.records
         const now = new Date();
-        draftRec.values = mergedVals;
         draftRec.status = finalStatus;
         draftRec._mergedAt = now.toISOString();
         delete draftRec.createdAt; // ลบ field ที่ใช้เฉพาะ draft
-
-        // ดึงขึ้นมาไว้หน้าสุด
-        DB.records.unshift(draftRec);
 
         updatedCount++;
 
         checkRealtimeAlertAndNotify(draftRec); // 📢 Trigger alert ถ้าค่าเกิน Spec
     }
-
-    // ลบ WAITING drafts เดิมออกให้หมดเพื่อไม่ให้เหลือค้าง
-    candidates.forEach(c => {
-        const idx = DB.records.indexOf(c);
-        if (idx > -1) DB.records.splice(idx, 1);
-    });
 
     // 6. บันทึก localStorage
     saveDB();

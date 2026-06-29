@@ -45,11 +45,25 @@ function renderAlerts() {
     let html = '';
     for (const alert of currentAlerts) {
         let levelClass = 'info';
-        if (alert.level === 'NG' || alert.level === 'Critical') levelClass = 'critical';
-        else if (alert.level === 'Warning') levelClass = 'warning';
+        
+        // Comprehensive checking for NG/Critical synonyms
+        const lvlStr = (alert.level || '').toLowerCase();
+        const msgStr = (alert.msg || '').toLowerCase();
+        
+        if (lvlStr.includes('ng') || lvlStr.includes('critical') || lvlStr.includes('reject') || lvlStr.includes('fail') || lvlStr.includes('out of spec') || lvlStr.includes('higher than ucl') || lvlStr.includes('lower than lcl') || msgStr.includes('reject') || msgStr.includes('fail')) {
+            levelClass = 'critical';
+        } else if (lvlStr.includes('warning') || lvlStr.includes('higher than lcl') || lvlStr.includes('lower than ucl')) {
+            levelClass = 'warning';
+        }
 
-        let moduleClass = 'tag-' + alert.process_type;
-        let moduleName = alert.process_type;
+        let moduleClass = 'tag-' + (alert.process_type || '').toLowerCase();
+        let moduleName = alert.process_type || 'Unknown';
+
+        // Add Chart Button for supported modules
+        let chartBtnHtml = '';
+        if (alert.product && alert.param && (moduleName.toLowerCase() === 'pof' || moduleName.toLowerCase() === 'dispensing')) {
+            chartBtnHtml = `<button class="btn btn-primary" style="margin-top:8px; padding:4px 8px; font-size:11px;" onclick="viewChart('${alert.process_type}', '${alert.product}', '${alert.param}')">📉 View Trend Chart</button>`;
+        }
 
         html += `
             <tr>
@@ -68,6 +82,7 @@ function renderAlerts() {
                     ${alert.param ? `<b>${alert.param}</b><br>` : ''}
                     ${alert.value_val != null ? `Value: ${alert.value_val}` : ''}
                     ${alert.spec_str ? `<br><span style="color:var(--text-muted);font-size:11px">Spec: ${alert.spec_str}</span>` : ''}
+                    ${chartBtnHtml}
                 </td>
                 <td>${alert.msg || '-'}</td>
             </tr>
@@ -79,10 +94,16 @@ function renderAlerts() {
 function updateKPIs() {
     document.getElementById('kpi-total').textContent = currentAlerts.length;
 
-    const criticalCount = currentAlerts.filter(a => a.level === 'NG' || a.level === 'Critical').length;
+    const criticalCount = currentAlerts.filter(a => {
+        const lvlStr = (a.level || '').toLowerCase();
+        return lvlStr.includes('ng') || lvlStr.includes('critical') || lvlStr.includes('reject') || lvlStr.includes('fail') || lvlStr.includes('out of spec') || lvlStr.includes('higher than ucl') || lvlStr.includes('lower than lcl');
+    }).length;
     document.getElementById('kpi-critical').textContent = criticalCount;
 
-    const warningCount = currentAlerts.filter(a => a.level === 'Warning').length;
+    const warningCount = currentAlerts.filter(a => {
+        const lvlStr = (a.level || '').toLowerCase();
+        return lvlStr.includes('warning') || lvlStr.includes('higher than lcl') || lvlStr.includes('lower than ucl');
+    }).length;
     document.getElementById('kpi-warning').textContent = warningCount;
 }
 
@@ -108,5 +129,22 @@ async function clearAlerts() {
     } catch (err) {
         console.error(err);
         alert('Error clearing alerts: ' + err.message);
+    }
+}
+
+async function viewChart(module, product, param) {
+    try {
+        const res = await fetch(`${API_BASE}/api/alerts/chart?module=${encodeURIComponent(module)}&product=${encodeURIComponent(product)}&param=${encodeURIComponent(param)}`);
+        const data = await res.json();
+        if (data.success && data.url) {
+            // Open chart in a new tab/window
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>Trend Chart</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#f8fafc;}img{max-width:100%;max-height:100%;box-shadow:0 4px 12px rgba(0,0,0,0.15);border-radius:8px;}</style></head><body><img src="${data.url}" /></body></html>`);
+        } else {
+            alert('ไม่สามารถสร้างกราฟได้: ' + (data.error || 'No URL returned'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('เกิดข้อผิดพลาดในการโหลดกราฟ: ' + err.message);
     }
 }

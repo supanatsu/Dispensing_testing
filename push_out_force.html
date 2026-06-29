@@ -892,9 +892,9 @@
           <div class="card-hdr">
             <h3>ABOUT DATA — PUSH OUT FORCE RECORDS</h3>
             <div class="btn-row">
-              <button class="btn btn-outline btn-sm" onclick="exportCSV()">↓ Export CSV</button>
-              <button class="btn btn-success btn-sm" onclick="document.getElementById('import-csv-file').click()">↑
-                Import Excel/CSV</button>
+              <button class="btn btn-outline btn-sm" onclick="clearAllRecords()">🗑️ ล้างข้อมูลทั้งหมด</button>
+              <button class="btn btn-danger btn-sm" onclick="exportCSV()">↓ Export CSV</button>
+              <button class="btn btn-success btn-sm" onclick="document.getElementById('import-csv-file').click()">↑ Import Excel</button>
               <input type="file" id="import-csv-file" accept=".csv,.xlsx,.xls" style="display:none;"
                 onchange="importExportedCSV(event)" multiple>
             </div>
@@ -928,8 +928,6 @@
                   <tr>
                     <th style="width:40px"><input type="checkbox" id="rec-chk-all" onclick="toggleAllRecChk(this)"
                         title="Select All"></th>
-                    <th style="cursor:pointer;user-select:none" onclick="sortTable('no')">NO. <span id="s-no"></span>
-                    </th>
                     <th style="cursor:pointer;user-select:none" onclick="sortTable('date')">DATE <span
                         id="s-date"></span></th>
                     <th style="cursor:pointer;user-select:none" onclick="sortTable('mode')">MODE <span

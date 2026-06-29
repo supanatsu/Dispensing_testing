@@ -1459,6 +1459,9 @@ function updateBadges() {
   const recs = loadRecords();
   const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setEl('badge-records', recs.length);
+  if (typeof refreshNavBadges === 'function') {
+    refreshNavBadges({ pof: recs.length });
+  }
 }
 
 // 
@@ -1547,7 +1550,6 @@ function renderRecords() {
   const renderRow = r => `
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:10px"><input type="checkbox" class="rec-row-chk" value="${r.id ?? r.no}"></td>
-      <td style="padding:10px;font-weight:700;color:var(--text3);font-size:12px">${r.no}</td>
       <td style="padding:10px;white-space:nowrap;font-size:12px">${r.date}</td>
       <td style="padding:8px">${modeTag(r.mode)}</td>
       <td style="padding:10px;font-weight:600;font-size:12px">${r.condition || 'NTC'}</td>
@@ -1561,12 +1563,12 @@ function renderRecords() {
       <td style="padding:8px">${ovBadge(r.overall)}</td>
       <td style="padding:8px;text-align:right">
         <div style="display:flex;gap:5px;justify-content:flex-end">
-          <button onclick="showRecordDetail(${r.id ?? r.no})" title=""
-                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer"></button>
-          <button onclick="openEditRecordModal(${r.id ?? r.no})" title=""
-                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer"></button>
-          <button onclick="deleteRecord(${r.id ?? r.no})" title=""
-                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid rgba(220,38,38,.3);background:var(--fail-bg);cursor:pointer;color:var(--fail)"></button>
+          <button onclick="showRecordDetail(${r.id ?? r.no})" title="View Details"
+                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer">🔍</button>
+          <button onclick="openEditRecordModal(${r.id ?? r.no})" title="Edit Record"
+                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer">✏️</button>
+          <button onclick="deleteRecord(${r.id ?? r.no})" title="Delete Record"
+                  style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid rgba(220,38,38,.3);background:var(--fail-bg);cursor:pointer;color:var(--fail)">🗑️</button>
         </div>
       </td>
     </tr>`;

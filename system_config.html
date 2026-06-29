@@ -74,6 +74,9 @@
                                 <button class="btn btn-outline sys-mod-btn" data-mod="damper"
                                     onclick="setSysModule('damper', this)"
                                     style="padding:8px 20px; font-weight:600;">Damper Install</button>
+                                <button class="btn btn-outline sys-mod-btn" data-mod="email"
+                                    onclick="setSysModule('email', this)"
+                                    style="padding:8px 20px; font-weight:600;">Email Alerts</button>
                             </div>
                             <input type="hidden" id="sys-cfg-module" value="dispensing">
                         </div>
@@ -1214,8 +1217,32 @@
                         };
                     </script>
                 </div>
+
+                <!-- EMAIL CONFIG PANEL -->
+                <div id="cfg-panel-email" style="display:none;">
+                    <div style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #f59e0b; margin-bottom:16px;">
+                        <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                            ✉️ Email Notification Settings (Gmail App Password Required)
+                        </h3>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="form-group">
+                                <label style="font-weight:bold; color:var(--text-dark); margin-bottom:4px;">Sender Email (Gmail)</label>
+                                <input type="email" id="sys-email-sender" class="form-input" placeholder="e.g. your_alert_bot@gmail.com" style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                                <small style="color:var(--text-muted); margin-top:4px; display:block;">This email will be used to send all alert notifications.</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight:bold; color:var(--text-dark); margin-bottom:4px;">App Password (16 chars)</label>
+                                <input type="password" id="sys-email-pass" class="form-input" placeholder="xxxx xxxx xxxx xxxx" style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                                <small style="color:var(--text-muted); margin-top:4px; display:block;">Create this in your Google Account > Security > App Passwords.</small>
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:16px;">
+                            <button class="btn btn-primary" onclick="testEmailConfig()" style="background:#3b82f6; border:none; padding:10px 24px; font-weight:bold;">📤 Test Connection</button>
+                            <button class="btn btn-primary" onclick="saveEmailConfig()" style="background:#10b981; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾 Save Email Config</button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
         </div>
         </div>
     </main>
@@ -1261,11 +1288,13 @@
             const panelLaser = document.getElementById('cfg-panel-laser');
             const panelPof = document.getElementById('cfg-panel-pof');
             const panelDamper = document.getElementById('cfg-panel-damper');
+            const panelEmail = document.getElementById('cfg-panel-email');
 
             if (panelDispensing) panelDispensing.style.display = 'none';
             if (panelLaser) panelLaser.style.display = 'none';
             if (panelPof) panelPof.style.display = 'none';
             if (panelDamper) panelDamper.style.display = 'none';
+            if (panelEmail) panelEmail.style.display = 'none';
 
             if (mod === 'dispensing') {
                 if (panelDispensing) panelDispensing.style.display = 'block';
@@ -1282,6 +1311,10 @@
                 if (panelDamper) panelDamper.style.display = 'block';
                 if (typeof initGlobalConfig === 'function') initGlobalConfig();
                 if (typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
+                return;
+            } else if (mod === 'email') {
+                if (panelEmail) panelEmail.style.display = 'block';
+                if (typeof loadEmailConfig === 'function') loadEmailConfig();
                 return;
             }
 
@@ -1827,19 +1860,64 @@
             const cfgStr = JSON.stringify(existing);
             localStorage.setItem('belton_pof_config_v1', cfgStr);
 
-            // Sync with DB
+            // Sync with generic config
             fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ belton_pof_config_v1: cfgStr })
             }).catch(e => console.error("Sync to DB failed", e));
 
-            // Show toast if available, else alert
-            if (typeof showToast === 'function') {
-                showToast(`✅ บันทึก POF Config สำหรับ "${prodKey}" สำเร็จ`, 'success');
-            } else {
-                alert('✅ บันทึก POF Config สำเร็จ');
-            }
+            // Sync with pof_config table
+            const limits = [];
+            const buildLim = (dt, tp, prefix, src) => {
+                if (!src) return;
+                const lim = {
+                    product_key: prodKey, data_type: dt, type_parameter: tp, frequency: cfg.freq || null,
+                    usl: src[prefix + '_usl'] !== undefined ? src[prefix + '_usl'] : null,
+                    ucl: src[prefix + '_ucl'] !== undefined ? src[prefix + '_ucl'] : null,
+                    cl: src[prefix + '_cl'] !== undefined ? src[prefix + '_cl'] : null,
+                    lcl: src[prefix + '_lcl'] !== undefined ? src[prefix + '_lcl'] : null,
+                    lsl: src[prefix + '_lsl'] !== undefined ? src[prefix + '_lsl'] : null
+                };
+                if (lim.usl !== null || lim.ucl !== null || lim.cl !== null || lim.lcl !== null || lim.lsl !== null || lim.frequency !== null) {
+                    limits.push(lim);
+                }
+            };
+
+            buildLim('buyoff', 'long_fantail', 'long', cfg.buyoff);
+            buildLim('buyoff', 'short_fantail', 'short', cfg.buyoff);
+            buildLim('buyoff', 'bobbin', 'bobbin', cfg.buyoff);
+
+            buildLim('roving', 'long_fantail', 'long', cfg.roving);
+            buildLim('roving', 'short_fantail', 'short', cfg.roving);
+            buildLim('roving', 'bobbin', 'bobbin', cfg.roving);
+
+            buildLim('oba', 'long_fantail', 'long', cfg.oba);
+            buildLim('oba', 'short_fantail', 'short', cfg.oba);
+            buildLim('oba', 'bobbin', 'bobbin', cfg.oba);
+
+            buildLim('special', 'long_fantail', 'long', cfg.special);
+            buildLim('special', 'short_fantail', 'short', cfg.special);
+            buildLim('special', 'bobbin', 'bobbin', cfg.special);
+
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                if (typeof showToast === 'function') {
+                    showToast(`✅ บันทึก POF Config สำหรับ "${prodKey}" สำเร็จ`, 'success');
+                } else {
+                    alert('✅ บันทึก POF Config สำเร็จ');
+                }
+            }).catch(e => {
+                console.error("Sync to pof_config DB failed", e);
+                if (typeof showToast === 'function') {
+                    showToast(`✅ บันทึก POF Config สำเร็จ (Local) แต่บันทึกลง MySQL ไม่สำเร็จ`, 'warn');
+                } else {
+                    alert('✅ บันทึก POF Config สำเร็จ (Local)');
+                }
+            });
         }
 
         function resetGlobalPofConfig() {
@@ -2072,6 +2150,61 @@
 
             // อัปเดต bobbin rows ตาม product ที่เลือก
             filterPofCategoryByProduct();
+        }
+        async function loadEmailConfig() {
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config');
+                const data = await res.json();
+                document.getElementById('sys-email-sender').value = data.SENDER_EMAIL || '';
+                document.getElementById('sys-email-pass').value = data.SENDER_PASS || '';
+            } catch (err) {
+                console.error("Failed to load email config", err);
+            }
+        }
+
+        async function saveEmailConfig() {
+            const sender = document.getElementById('sys-email-sender').value.trim();
+            const pass = document.getElementById('sys-email-pass').value.trim();
+            
+            try {
+                await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ SENDER_EMAIL: sender, SENDER_PASS: pass })
+                });
+                if (typeof showToast === 'function') {
+                    showToast('✅ บันทึกตั้งค่า Email สำเร็จ', 'success');
+                } else {
+                    alert('✅ บันทึกตั้งค่า Email สำเร็จ');
+                }
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
+            }
+        }
+
+        async function testEmailConfig() {
+            const sender = document.getElementById('sys-email-sender').value.trim();
+            const pass = document.getElementById('sys-email-pass').value.trim();
+            if (!sender || !pass) {
+                alert('กรุณากรอก Email และ Password ก่อนทดสอบครับ');
+                return;
+            }
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/test-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: sender, pass: pass })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') showToast('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!', 'success');
+                    else alert('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!');
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                alert('❌ ล้มเหลวในการเชื่อมต่อ: ' + err.message);
+            }
         }
     </script>
 </body>

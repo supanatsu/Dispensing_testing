@@ -689,9 +689,9 @@
               </div>
 
               <div class="df-group"
-                style="flex-direction:row; align-items:flex-end; gap:8px; justify-content:flex-end;">
+                style="margin-left:auto; flex-direction:row; align-items:flex-end; gap:8px; justify-content:flex-end; padding-top: 15px;">
                 <button class="df-apply-btn" onclick="applyDailyFilter()">
-                  🔍 แสดงผล
+                  <span>🔍</span><span>แสดงผล</span>
                 </button>
                 <button class="btn btn-outline" style="height:36px;" onclick="exportDailyCompareCSV()">↓ Export</button>
               </div>
@@ -716,8 +716,9 @@
                 <div class="form-group"><label>Product</label><select id="v-model" class="form-select"
                     onchange="updateVizParams()"></select></div>
                 <div class="form-group"><label>Data Type / Mode</label><select id="v-datatype" class="form-select"
-                    onchange="drawSPCChart()">
-                    <option value="">🔀 เปรียบเทียบ Buy off + Roving</option>
+                    onchange="updateDynamicDropdowns('viz'); updateVizParams();">
+                    <option value="">— เลือก Data Type —</option>
+                    <option value="compare">🔀 เปรียบเทียบ Buy off + Roving</option>
                     <option value="Buy off">🔴 Buy off เท่านั้น</option>
                     <option value="Roving Audit">🔵 Roving เท่านั้น</option>
                   </select></div>

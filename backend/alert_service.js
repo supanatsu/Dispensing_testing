@@ -115,4 +115,4 @@ async function generateChartUrl(pool, moduleName, product, param) {
     }
 }
 
-module.exports = { processAlerts };
+module.exports = { processAlerts, generateChartUrl };

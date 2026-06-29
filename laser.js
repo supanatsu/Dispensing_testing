@@ -1043,6 +1043,9 @@ function updateDashboard() {
   if (holdEl) holdEl.textContent = fmt(recs.filter(r => r.overall === 'Hold').length);
   if (yieldEl) yieldEl.textContent = inspectedCount ? yieldInspected + '%' : '—%';
 
+  const badgeRecords = document.getElementById('badge-records');
+  if (badgeRecords) badgeRecords.textContent = DB.records.length;
+
   updateAlertBadge();
 }
 

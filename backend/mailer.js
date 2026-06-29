@@ -46,15 +46,12 @@ async function sendAlertEmail(pool, moduleName, alerts) {
 
     // 3. Configure Transporter
     const transporter = nodemailer.createTransport({
-      host: 'smtp.office365.com',
+      host: 'smtp.ethereal.email',
       port: 587,
       secure: false, // true for 465, false for other ports
       auth: {
         user: smtpUser,
         pass: smtpPass,
-      },
-      tls: {
-        ciphers: 'SSLv3'
       }
     });
 

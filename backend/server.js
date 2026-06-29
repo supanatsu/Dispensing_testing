@@ -1362,13 +1362,12 @@ app.post('/api/dispensing/sync', async (req, res) => {
           if (rowsById.length > 0) existingId = rowsById[0].id;
         }
 
-        if (!existingId) {
-          const [rowsByComposite] = await connection.query(
-            `SELECT id FROM dispensing_records 
-               WHERE product = ? AND fixture = ? AND test_date = ? AND buytime = ? AND data_type = ?`,
-            [product, r.fixture || '', r.date, r.buytime || '', r.dataType || 'Buy off']
+        if (!existingId && typeof r.id === 'string' && r.id.startsWith('DRAFT_')) {
+          const [rowsByDraft] = await connection.query(
+            `SELECT id FROM dispensing_records WHERE values_json LIKE ?`,
+            [`%"draft_id":"${r.id}"%`]
           );
-          if (rowsByComposite.length > 0) existingId = rowsByComposite[0].id;
+          if (rowsByDraft.length > 0) existingId = rowsByDraft[0].id;
         }
 
         // Extract explicit dimension values from r.values
@@ -1571,28 +1570,34 @@ app.post('/api/system/config', async (req, res) => {
   const configs = req.body;
   try {
     for (const [key, val] of Object.entries(configs)) {
-      if (key === 'SENDER_EMAIL' || key === 'SENDER_PASS') {
-        continue; // Handled separately below
-      }
-      // Save everything else to system_config generic table
       await pool.query(
         'INSERT INTO system_config (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value=?',
         [key, val, val]
       );
     }
-
-    if (configs.SENDER_EMAIL !== undefined) {
-      // Upsert into alert_recipients where is_sender = true
-      const [existing] = await pool.query('SELECT id FROM alert_recipients WHERE is_sender = TRUE LIMIT 1');
-      if (existing.length > 0) {
-        await pool.query('UPDATE alert_recipients SET email=?, password=? WHERE id=?', [configs.SENDER_EMAIL, configs.SENDER_PASS || '', existing[0].id]);
-      } else {
-        await pool.query('INSERT INTO alert_recipients (email, password, is_sender, active) VALUES (?, ?, TRUE, TRUE)', [configs.SENDER_EMAIL, configs.SENDER_PASS || '']);
-      }
-    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Test Email Connection
+app.post('/api/test-email', async (req, res) => {
+  const { email, pass } = req.body;
+  if (!email || !pass) return res.status(400).json({ success: false, error: "Missing email or pass" });
+  
+  try {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: { user: email, pass: pass }
+    });
+    await transporter.verify();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1872,6 +1877,21 @@ app.get('/api/system-alerts', async (req, res) => {
   }
 });
 
+// Get Chart URL for a specific parameter (SPC Trend Chart)
+app.get('/api/alerts/chart', async (req, res) => {
+  try {
+    const { module, product, param } = req.query;
+    if (!module || !product || !param) {
+      return res.status(400).json({ success: false, error: "Missing module, product, or param" });
+    }
+    const chartUrl = await require('./alert_service').generateChartUrl(pool, module, product, param);
+    res.json({ success: true, url: chartUrl });
+  } catch (err) {
+    console.error('Error generating chart URL:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.delete('/api/system-alerts', async (req, res) => {
   try {
     const { process_type } = req.query;
@@ -2102,19 +2122,15 @@ app.post('/api/laser/alert', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO system_alert
-         (process_type, alert_time, level, product, product_label, machine, fixture, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('Laser', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (process_type, alert_time, level, product, fixture, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('Laser', ?, ?, ?, ?, ?, ?, null, '', ?, ?)`,
       [
         new Date(),
         level || 'ng',
         product || '',
-        product_label || product || '',
-        machine || '',
         fixture || '',
         ptno || '',
         mode || 'Laser',
-        null,
-        '',
         msg || '',
         JSON.stringify({ product, product_label, machine, fixture, ptno, defects, mode })
       ]
@@ -2208,11 +2224,11 @@ app.post('/api/pof/alert', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO system_alert
-         (process_type, alert_time, level, product, product_label, fixture, oven, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('POF', ?, ?, ?, ?, '', ?, ?, 'POF', ?, ?, ?, ?)`,
+         (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('POF', ?, ?, ?, '', ?, ?, 'POF', ?, ?, ?, ?)`,
       [
         new Date(), level || 'ng',
-        product || '', product_label || product || '',
+        product || '',
         oven || '', traveler || en || '',
         avg != null ? parseFloat(avg) : null,
         spec_result || '', msg || '',
@@ -2238,11 +2254,11 @@ app.post('/api/damper/alert', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO system_alert
-         (process_type, alert_time, level, product, product_label, fixture, oven, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('Damper', ?, ?, ?, ?, '', '', ?, 'Damper', null, ?, ?, ?)`,
+         (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('Damper', ?, ?, ?, '', '', ?, 'Damper', null, ?, ?, ?)`,
       [
         new Date(), level || 'ng',
-        product || '', product_label || product || '',
+        product || '',
         qc_en || '', overall || '',
         msg || '', JSON.stringify(req.body),
       ]
@@ -2257,6 +2273,35 @@ app.post('/api/damper/alert', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('POST /api/damper/alert error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Dispensing: fire a single alert to system_alert + alert_service ─────────────
+app.post('/api/dispensing/alert', async (req, res) => {
+  const { level, msg, product, fixture, oven, pt, dataType, values } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO system_alert
+         (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
+       VALUES ('Dispensing', ?, ?, ?, ?, ?, '', ?, null, '', ?, ?)`,
+      [
+        new Date(), level || 'ng',
+        product || '',
+        fixture || '', oven || '',
+        pt || 'Dispensing',
+        msg || '', JSON.stringify(req.body),
+      ]
+    );
+    try {
+      require('./alert_service').processAlerts(pool, 'Dispensing', [{
+        ts: new Date().toISOString(), level, msg,
+        product, fixture, oven, pt, dataType, values
+      }]).catch(console.error);
+    } catch (e) { /* alert_service optional */ }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /api/dispensing/alert error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
