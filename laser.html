@@ -696,6 +696,11 @@
     <script src="loader.js"></script>
     <script src="global_nav.js"></script>
 
+    <!-- [BUG FIX] โหลด shared_products.js ก่อน laser.js เพื่อให้ window.LASER_CONFIG
+         ถูกตั้งค่าจาก DB สดทุกครั้งที่โหลดหน้า — ไม่งั้น loadConfig() ใน laser.js
+         จะหา window.LASER_CONFIG ไม่เจอ แล้ว fallback ไปใช้ localStorage เก่าแทน
+         ทำให้แก้ Frequency ใน System Config แล้วหน้า Laser ไม่อัปเดตตาม -->
+    <script src="shared_products.js"></script>
     <script src="laser.js"></script>
     <script>
       function runNav() { if (typeof initGlobalNavigation === 'function') initGlobalNavigation('laser'); }

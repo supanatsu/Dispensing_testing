@@ -351,7 +351,11 @@ function onProductChange() {
         `${p.label} · ${p.pcs} pcs/batch | Datum: 1.358±0.010 | Non-datum: 0.814±0.010`;
 
     // Update Frequency
+    // หมายเหตุ: ค่านี้คือจำนวนชิ้น "ตาม Frequency" ที่ตั้งไว้ใน System Config (System Config > Damper)
+    // เป็นตัวกำหนดว่าต้อง Save Draft กี่ครั้ง (กี่ชิ้น) ถึงจะครบ 1 ชุดและ Push เข้า About Data (Waiting) ได้
+    // ถ้าไม่ได้ตั้งค่า Frequency ไว้ ระบบจะ fallback ไปใช้ pcs/batch ของสินค้านั้น (ค่าตั้งต้นในระบบ)
     const qtyInput = document.getElementById('m-qty');
+    let freqTarget = p.pcs; // fallback
     if (qtyInput) {
         try {
             const raw = localStorage.getItem('belton_damper_v3_config');
@@ -360,17 +364,26 @@ function onProductChange() {
             const fBuyoff = prodCfg.freqBuyoff !== undefined ? prodCfg.freqBuyoff : cfg.freqBuyoff;
             const fRoving = prodCfg.freqRoving !== undefined ? prodCfg.freqRoving : cfg.freqRoving;
 
+            let activeFreq = null;
             if (mode === 'buyoff' || mode === 'oba') {
-                qtyInput.value = fBuyoff ? `${fBuyoff}/Shift/Oven` : '';
+                activeFreq = fBuyoff;
             } else if (mode.includes('roving')) {
-                qtyInput.value = fRoving ? `${fRoving}/Shift/Oven` : '';
+                activeFreq = fRoving;
+            }
+
+            if (activeFreq && !isNaN(parseInt(activeFreq, 10)) && parseInt(activeFreq, 10) > 0) {
+                freqTarget = parseInt(activeFreq, 10);
+                qtyInput.value = `${freqTarget}/Shift/Oven`;
             } else {
-                qtyInput.value = '';
+                // ไม่มีค่า Frequency ที่ตั้งไว้ -> แจ้งผู้ใช้และใช้ pcs/batch แทน
+                qtyInput.value = `${freqTarget} (default pcs/batch)`;
             }
         } catch (e) {
-            qtyInput.value = '';
+            qtyInput.value = `${freqTarget} (default pcs/batch)`;
         }
     }
+    // เก็บค่า target ที่ใช้จริงไว้ใน dataset เพื่อให้ saveManualDraft() ดึงไปใช้ตอนบันทึก
+    if (qtyInput) qtyInput.dataset.freqTarget = freqTarget;
 
     // Build all 4 dimension groups
     buildAllDimGroups(p.pcs);
@@ -533,6 +546,11 @@ async function saveManualDraft() {
 
     const draftId = 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
+    // จำนวนชิ้นที่ต้องกรอกให้ครบ 1 ชุด: อิงตาม Frequency ที่ตั้งค่าไว้ใน System Config ก่อน
+    // (เก็บไว้ใน dataset ตอน onProductChange()) ถ้าไม่มีค่า fallback ไปที่ pcs/batch ของสินค้า
+    const qtyEl = document.getElementById('m-qty');
+    const freqTarget = parseInt(qtyEl?.dataset.freqTarget, 10) || p.pcs;
+
     const rec = {
         id: draftId,
         no: 0, // Will be assigned when pushed to About Data or Completed
@@ -548,6 +566,7 @@ async function saveManualDraft() {
         partno: (document.getElementById('m-partno')?.value || '').trim(),
         ptno: (document.getElementById('m-ptno')?.value || '').trim(),
         qty: (document.getElementById('m-qty')?.value || '').trim(),
+        freqTarget,
         sendTime: document.getElementById('m-send-time')?.value || '',
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
@@ -565,7 +584,12 @@ async function saveManualDraft() {
     records.unshift(rec);
     saveRecords(records);
 
-    showToast('✅ บันทึก Draft สำเร็จ', 'success');
+    // นับจำนวนชิ้นที่บันทึกแล้วในชุดเดียวกัน (product+mc+date+sendTime+mode) เทียบกับ Frequency target
+    const groupKey = `${rec.product}|${rec.mc}|${rec.date}|${rec.sendTime}|${rec.mode}`;
+    const sameGroupCount = records.filter(r => r.overall === 'DRAFT_WAITING' &&
+        `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}` === groupKey).length;
+
+    showToast(`✅ บันทึก Draft สำเร็จ (${sameGroupCount}/${freqTarget} ชิ้น ตาม Frequency)`, 'success');
 
     resetVmiForm();
     renderPendingTable();
@@ -598,17 +622,21 @@ function pushToAboutData(groupKey) {
     if (drafts.length === 0) return;
 
     const sample = drafts[0];
-    if (drafts.length < sample.pcs) {
-        showToast(`⚠️ ไม่สามารถบันทึกได้ (ต้องกรอกให้ครบ ${sample.pcs} ชิ้นก่อน)`, 'warn');
+    // จำนวนที่ต้องครบ: อิงตาม Frequency ที่ตั้งค่าไว้ (freqTarget) เป็นหลัก ไม่ใช่ pcs/batch ที่ fix ไว้ในระบบ
+    const requiredQty = sample.freqTarget || sample.pcs;
+    if (drafts.length < requiredQty) {
+        showToast(`⚠️ ไม่สามารถบันทึกได้ (ต้องกรอกให้ครบ ${requiredQty} ชิ้นตาม Frequency ก่อน — ตอนนี้มี ${drafts.length} ชิ้น)`, 'warn');
         return;
     }
 
-    const draftsToMerge = drafts.slice(0, sample.pcs);
+    const draftsToMerge = drafts.slice(0, requiredQty);
     const anyVmiNG = draftsToMerge.some(d => d.vmiNG);
     const no = records.filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING').length + 1;
 
     const finalRec = { ...draftsToMerge[0], id: Date.now().toString(), no };
     finalRec.vmiNG = anyVmiNG;
+    // เก็บจำนวนชิ้นจริงที่ merge เข้าด้วยกัน (ตาม Frequency) ไว้อ้างอิง
+    finalRec.mergedQty = draftsToMerge.length;
 
     if (sample.mode === 'roving') {
         finalRec.overall = anyVmiNG ? 'Fail' : 'Pass';
@@ -669,9 +697,10 @@ function renderPendingTable() {
         recs.sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
         const sample = recs[0];
         const batchFill = recs.length;
-        const totalReq = sample.pcs;
-        const batchPct = Math.round((batchFill / totalReq) * 100);
+        const totalReq = sample.freqTarget || sample.pcs;
+        const batchPct = Math.min(100, Math.round((batchFill / totalReq) * 100));
         const progressColor = batchFill >= totalReq ? 'var(--pass)' : 'var(--blue)';
+        const canPush = batchFill >= totalReq;
 
         html += `<div style="margin-bottom:18px;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;">
           <div style="padding:10px 16px;background:var(--bg3);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -680,12 +709,12 @@ function renderPendingTable() {
             <span style="font-size:12px;color:var(--text2);">M/C: <b>${sample.mc}</b> &nbsp;|&nbsp; Date: ${sample.date}</span>
             
             <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-              <button class="btn btn-primary btn-sm" onclick="pushToAboutData('${key}')">💾 ${sample.mode === 'roving' ? 'บันทึกเข้าระบบ' : 'นำเข้า About Data (Waiting)'}</button>
+              <button class="btn btn-primary btn-sm" onclick="pushToAboutData('${key}')" ${canPush ? '' : 'disabled title="กรอกข้อมูลให้ครบตาม Frequency ก่อน"'}>💾 ${sample.mode === 'roving' ? 'บันทึกเข้าระบบ' : 'นำเข้า About Data (Waiting)'}</button>
               
               <div style="width:80px;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;margin-left:10px;">
                 <div style="width:${batchPct}%;height:100%;background:${progressColor};border-radius:4px;transition:width 0.3s;"></div>
               </div>
-              <span style="font-size:12px;font-weight:700;color:${progressColor}">${batchFill}/${totalReq} ชิ้น</span>
+              <span style="font-size:12px;font-weight:700;color:${progressColor}">${batchFill}/${totalReq} ชิ้น (ตาม Frequency)</span>
             </div>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
@@ -743,6 +772,8 @@ function clearForm() {
     ['m-mc', 'm-partno', 'm-ptno', 'm-traveler', 'm-qc-en', 'm-en', 'm-me-en', 'm-send-time', 'm-recv-time', 'm-qty'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
+    const qtyEl = document.getElementById('m-qty');
+    if (qtyEl) delete qtyEl.dataset.freqTarget;
     const dateEl = document.getElementById('m-date');
     if (dateEl) dateEl.value = todayISO();
     const prodEl = document.getElementById('m-product');
@@ -851,7 +882,11 @@ function renderRecords() {
         return;
     }
 
-    const ovBadge = v => v === 'Pass' ? `<span class="badge-pass">Pass</span>` : `<span class="badge-fail">Fail</span>`;
+    const ovBadge = v => {
+        if (v === 'Pass') return `<span class="badge-pass">Pass</span>`;
+        if (v === 'WAITING' || v === 'Waiting') return `<span class="badge-out" style="background:rgba(9,132,227,.12);color:var(--blue)">⏳ Waiting</span>`;
+        return `<span class="badge-fail">Fail</span>`;
+    };
     const dimBadge = v => v === 'Pass' ? `<span class="badge-in">PASS</span>` : `<span class="badge-out">FAIL</span>`;
     const vmiSum = r => {
         const ng = VMI_ITEMS.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label);
@@ -882,6 +917,7 @@ function renderRecords() {
             <td>${ovBadge(r.overall)}</td>
             <td>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    ${(r.overall === 'WAITING' || r.overall === 'Waiting') ? `<button class="btn btn-primary btn-sm" style="font-size:10px;padding:2px 6px;background:var(--blue)" onclick="selectPendingForMerge('${r.id}')" title="ไปที่ Stage 2 เพื่อกรอกค่า Datum/Non-datum สำหรับ Record นี้">➡️ Stage 2</button>` : ''}
                     <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="viewRecord('${r.id}')">👁</button>
                     <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="editRecord('${r.id}')">✏️</button>
                     <button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteRecord('${r.id}')">🗑</button>
@@ -931,7 +967,7 @@ function viewRecord(id) {
             <div><span style="color:var(--text3)">Send:</span> ${r.sendTime || '—'}</div>
             <div><span style="color:var(--text3)">Recv:</span> ${r.recvTime || '—'}</div>
             <div><span style="color:var(--text3)">Attribute:</span> ${r.attribute || '—'}</div>
-            <div><span style="color:var(--text3)">Pcs:</span> ${r.pcs}</div>
+            <div><span style="color:var(--text3)">Pcs:</span> ${r.mergedQty || r.pcs} ${r.freqTarget ? `<span style="color:var(--text3);font-size:10px">(ตาม Frequency: ${r.freqTarget})</span>` : ''}</div>
         </div>
         <div style="margin-bottom:12px">
             <div class="sec-label" style="margin-bottom:8px">📏 Dimension Results</div>
@@ -1439,15 +1475,40 @@ function selectPendingForMerge(id) {
 
     const recs = loadRecords();
     const r = recs.find(x => x.id === id);
-    if (r) {
-        document.getElementById('stage2-target-info').style.display = 'block';
-        document.getElementById('stage2-target-details').innerHTML = `
-            <b>Product:</b> ${r.productLabel || r.product} <br>
-            <b>Part No:</b> ${r.partno || '-'} &nbsp;|&nbsp; <b>PT No:</b> ${r.ptno || '-'} &nbsp;|&nbsp; <b>M/C:</b> ${r.mc || '-'} &nbsp;|&nbsp; <b>Date:</b> ${r.date}
-        `;
+    if (!r) {
+        showToast('❌ ไม่พบ Record ที่ต้องการเชื่อมข้อมูล', 'error');
+        return;
     }
 
-    showToast('เลือก Record แล้ว ไปที่แถบ Stage 2 เพื่อนำเข้าข้อมูล', 'success');
+    if (r.overall !== 'WAITING' && r.overall !== 'Waiting') {
+        showToast('⚠️ Record นี้ไม่ได้อยู่ในสถานะ Waiting', 'warn');
+        return;
+    }
+
+    document.getElementById('stage2-target-info').style.display = 'block';
+    document.getElementById('stage2-target-details').innerHTML = `
+        <b>Product:</b> ${r.productLabel || r.product} <br>
+        <b>Part No:</b> ${r.partno || '-'} &nbsp;|&nbsp; <b>PT No:</b> ${r.ptno || '-'} &nbsp;|&nbsp; <b>M/C:</b> ${r.mc || '-'} &nbsp;|&nbsp; <b>Date:</b> ${r.date}
+    `;
+
+    // เชื่อมข้อมูล Waiting record นี้เข้ากับฟิลด์เลือก Target ในแท็บ Stage 2 โดยตรง
+    // เพื่อให้ Stage 2 อ่าน/กรองข้อมูลของ Record นี้ได้ทันที ไม่ต้องเลือกใหม่
+    const prodSel = document.getElementById('merge-product');
+    if (prodSel) prodSel.value = r.product;
+    const ptInput = document.getElementById('merge-pt');
+    if (ptInput) ptInput.value = r.ptno || '';
+    const mcInput = document.getElementById('merge-mc');
+    if (mcInput) mcInput.value = r.mc || '';
+
+    // ระบุ record เป้าหมายให้ตรงตัวเลย (ไม่ใช่แค่ candidate แรกที่ filter เจอ)
+    _selectedMergeId = r.id;
+    const html = `<h4>Linked Waiting Record:</h4>
+        <p><b>Traveler:</b> ${r.traveler || '-'} | <b>Product:</b> ${r.productLabel} | <b>PT:</b> ${r.ptno || '-'} | <b>M/C:</b> ${r.mc || '-'}</p>
+        <p style="color:var(--text3);font-size:12px">กรอก Datum Data / Non-datum Data ด้านล่างแล้วกด "Preview & Extract" เพื่อตรวจสอบค่าก่อน Merge</p>`;
+    const previewArea = document.getElementById('merge-preview-area');
+    if (previewArea) previewArea.innerHTML = html;
+
+    showToast('✅ เชื่อมข้อมูล Waiting Record แล้ว ไปที่แถบ Stage 2 เพื่อกรอกค่า Datum/Non-datum', 'success');
     const btn = document.querySelector('[data-tab="stage2"]');
     if (btn) btn.click();
 }
@@ -1539,6 +1600,20 @@ async function commitStage2Damper() {
     const datumOk = r.datumResult === 'Pass';
     const nondatumOk = r.nondatumResult === 'Pass';
     r.overall = (!r.vmiNG && datumOk && nondatumOk) ? 'Pass' : 'Fail';
+
+    // ─── Auto-alert เข้า System Alert Center ถ้า Fail (มิติเกิน Spec และ/หรือ VMI NG) ─────────
+    // (เดิม Stage 2 Merge คำนวณ Fail จากค่ามิติ Datum/Non-datum แต่ไม่เคยเรียก sendSystemAlert
+    //  ทำให้ Damper ที่ Reject จากมิติเกินเกณฑ์ ไม่เคยขึ้นที่หน้า System Alert Center)
+    if (r.overall === 'Fail') {
+        const issues = [];
+        if (r.vmiNG) {
+            const vmiItems = VMI_ITEMS.filter(v => r.mode === 'roving' || v.id !== 'double');
+            issues.push('VMI NG: ' + vmiItems.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label).join(', '));
+        }
+        if (!datumOk) issues.push(`Datum out of spec (Avg=${fmt(r.datumAvg)}, Min=${fmt(r.datumMin)}, Max=${fmt(r.datumMax)})`);
+        if (!nondatumOk) issues.push(`Non-datum out of spec (Avg=${fmt(r.nondatumAvg)}, Min=${fmt(r.nondatumMin)}, Max=${fmt(r.nondatumMax)})`);
+        await sendSystemAlert('ng', issues.join(' | ') || 'Damper Inspection Fail', r, issues);
+    }
 
     saveRecords(recs);
     _selectedMergeId = null;

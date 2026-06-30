@@ -138,11 +138,13 @@ const TODAY = getLocalToday();
 
 // ── Smart Cache: เก็บเฉพาะ WAITING drafts, records จริงมาจาก MySQL เท่านั้น ──
 try {
-    // โหลด WAITING drafts ไว้ก่อน (ข้อมูลที่กรอกค้างอยู่ยังไม่ submit)
+    // โหลด WAITING + ร่างที่กรอกค้างไว้ (DRAFT_INCOMPLETE/DRAFT_WAITING) ไว้ก่อน (ข้อมูลที่กรอกค้างอยู่ยังไม่ submit)
     const s = localStorage.getItem(LS_KEY) || localStorage.getItem('belton_ipqc_v10');
     if (s) {
         const parsed = JSON.parse(s);
-        const draftsOnly = (parsed.records || []).filter(r => r.status === 'WAITING');
+        const draftsOnly = (parsed.records || []).filter(r =>
+            r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+        );
         DB = { ...parsed, records: draftsOnly };
         DB.records.forEach(r => { if (PRODUCTS[r.model]) r.modelLabel = PRODUCTS[r.model].label; });
         // เก็บ snapshot ไว้เผื่อ server offline ครั้งแรก
@@ -154,7 +156,9 @@ try {
         const cur = localStorage.getItem(LS_KEY);
         if (cur) {
             const p = JSON.parse(cur);
-            p.records = (p.records || []).filter(r => r.status === 'WAITING');
+            p.records = (p.records || []).filter(r =>
+                r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+            );
             localStorage.setItem(LS_KEY, JSON.stringify(p));
         }
     } catch (e2) { }
@@ -180,10 +184,17 @@ let isBackendOnline = false;
 let isSyncing = false;
 
 function saveDB() {
-    // บันทึกเฉพาะ WAITING drafts ลง localStorage เท่านั้น
-    // records จริงไม่เก็บใน localStorage — ดึงจาก MySQL ทุกครั้ง
+    // บันทึก WAITING + ร่างที่ยังกรอกไม่ครบ (DRAFT_INCOMPLETE/DRAFT_WAITING) ลง localStorage
+    // 🔴 เดิมเก็บแค่ status WAITING ทำให้ข้อมูล Stage 1 ที่กรอกค้างไว้ (ยังไม่กด
+    //    "นำเข้า About Data") หายไปทันทีที่ fetchServerRecords() auto-poll ทุก 60 วิ
+    //    มาเขียนทับ DB.records ถ้า MySQL sync ไม่ทันหรือล้มเหลวชั่วคราว
     try {
-        const toSave = { ...DB, records: DB.records.filter(r => r.status === 'WAITING') };
+        const toSave = {
+            ...DB,
+            records: DB.records.filter(r =>
+                r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+            )
+        };
         localStorage.setItem(LS_KEY, JSON.stringify(toSave));
     } catch (e) {
         console.warn('LocalStorage saveDB error:', e);
@@ -285,8 +296,10 @@ function updateConnectionStatus(online) {
         // ── server กลับมา online: ล้าง cache records เก่า รอ fetchServerRecords() ──
         if (!wasOnline && window._dispensingOfflineCache) {
             window._dispensingOfflineCache = null;
-            // เก็บแค่ WAITING drafts ไว้ ที่เหลือรอ server ส่งมาใหม่
-            DB.records = DB.records.filter(r => r.status === 'WAITING');
+            // เก็บ WAITING + ร่างที่กรอกค้างไว้ (DRAFT_INCOMPLETE/DRAFT_WAITING) ที่เหลือรอ server ส่งมาใหม่
+            DB.records = DB.records.filter(r =>
+                r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+            );
             console.log('[Dispensing] Server กลับมา online → ล้าง cache เก่า รอ fetchServerRecords()');
         }
     } else {
@@ -298,8 +311,12 @@ function updateConnectionStatus(online) {
         // ── server offline: โหลด cache ทั้งหมดมาแสดงชั่วคราว ──────────────────
         if (window._dispensingOfflineCache && window._dispensingOfflineCache.records) {
             const cacheRecords = window._dispensingOfflineCache.records || [];
-            const drafts = DB.records.filter(r => r.status === 'WAITING');
-            const nonDraftCache = cacheRecords.filter(r => r.status !== 'WAITING');
+            const drafts = DB.records.filter(r =>
+                r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+            );
+            const nonDraftCache = cacheRecords.filter(r =>
+                r.status !== 'WAITING' && r.status !== 'DRAFT_INCOMPLETE' && r.status !== 'DRAFT_WAITING'
+            );
             DB.records = [...drafts, ...nonDraftCache];
             DB.records.forEach(r => { if (PRODUCTS[r.model]) r.modelLabel = PRODUCTS[r.model].label; });
             renderAboutTable();
@@ -371,7 +388,9 @@ async function fetchServerRecords() {
             return;
         }
 
-        const drafts = DB.records.filter(r => r.status === 'WAITING');
+        const drafts = DB.records.filter(r =>
+            r.status === 'WAITING' || r.status === 'DRAFT_INCOMPLETE' || r.status === 'DRAFT_WAITING'
+        );
         const mappedRecords = data.records.map(r => {
             const values = r.values || {};
             if (PRODUCTS[r.model]) {
@@ -413,11 +432,14 @@ async function fetchServerRecords() {
         });
 
         // ── Server is source of truth: ใช้ server data แทน cache ──────────────
-        // เก็บแค่ WAITING drafts จาก local ที่ยังไม่ถูก sync ไปยัง server
+        // เก็บ drafts ที่ยังไม่ถูก sync ไปยัง server (WAITING, DRAFT_INCOMPLETE, DRAFT_WAITING)
+        // 🔴 เดิมเช็คเทียบกับ m.status === 'WAITING' เท่านั้น ทำให้ร่างที่ยังกรอกไม่ครบ
+        //    (DRAFT_INCOMPLETE/DRAFT_WAITING) ถูกมองว่า "sync แล้ว" ผิดๆ แล้วถูกตัดทิ้ง
+        const PENDING_STATUSES = ['WAITING', 'DRAFT_INCOMPLETE', 'DRAFT_WAITING'];
         const unSyncedDrafts = drafts.filter(d => {
             if (!String(d.id).startsWith('DRAFT_')) return false;
             return !mappedRecords.some(m =>
-                m.status === 'WAITING' &&
+                PENDING_STATUSES.includes(m.status) &&
                 m.model === d.model &&
                 (m.fixture || '') === (d.fixture || '') &&
                 m.date === d.date &&
@@ -2720,6 +2742,26 @@ function commitImport() {
 
     let hasOutliers = actualAddedRecords.some(r => r.status === 'REJECT' || r.status === 'ALERT' || r.status === 'INCOMPLETE');
 
+    // ─── Auto-alert เข้า System Alert Center สำหรับทุก record ที่ Import มาแล้วเกินเกณฑ์ ─────────
+    // (เดิม Auto Import ไม่เคยเรียก sendSystemAlert เลย ทำให้ REJECT/ALERT ที่มาจากการ Import
+    //  ไม่เคยถูกบันทึกลงตาราง system_alert ใน MySQL หรือขึ้นที่หน้า System Alert Center)
+    if (typeof isBackendOnline !== 'undefined' && isBackendOnline) {
+        actualAddedRecords.forEach(rec => {
+            if (rec.status === 'REJECT' || rec.status === 'ALERT') {
+                const alertLevel = rec.status === 'REJECT' ? 'ng' : 'alert';
+                const alertMsg = `[${rec.dataType}] ${PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model} | Fixture: ${rec.fixture} | PT: ${rec.pt} | Status: ${rec.status} (Auto Import)`;
+                sendSystemAlert(alertLevel, alertMsg, {
+                    product: rec.model,
+                    fixture: rec.fixture,
+                    oven: rec.oven,
+                    pt: rec.pt,
+                    dataType: rec.dataType,
+                    values: rec.values
+                });
+            }
+        });
+    }
+
     // แจ้งเตือนผู้ใช้งานตามผลลัพธ์
     if (added === 0 && skipped > 0) {
         showToast(`ℹ️ ไม่มีข้อมูลใหม่ถูกเพิ่ม (เป็นข้อมูลซ้ำทั้งหมด ${skipped} รายการ)`, 'info', 5000);
@@ -4430,10 +4472,13 @@ function updateDashboard() {
     if (elIncomplete) elIncomplete.textContent = incompleteRecs.length;
 
     // --- 2. อัปเดตตัวเลขบน Tab เมนู ---
+    // ใช้ filter เดียวกับ _renderAboutTableCore() (ซ่อน DRAFT_INCOMPLETE/DRAFT_WAITING)
+    // ไม่งั้นตัวเลข badge จะไม่ตรงกับจำนวนแถวที่แสดงจริงในตาราง About Data
     const badgeRecords = document.getElementById('badge-records');
     const badgeImport = document.getElementById('badge-import');
-    if (badgeRecords) badgeRecords.textContent = DB.records.length;
-    if (badgeImport) badgeImport.textContent = DB.records.filter(r => r.date === TODAY).length;
+    const aboutVisibleRecs = DB.records.filter(r => r.status !== 'DRAFT_INCOMPLETE' && r.status !== 'DRAFT_WAITING');
+    if (badgeRecords) badgeRecords.textContent = aboutVisibleRecs.length;
+    if (badgeImport) badgeImport.textContent = aboutVisibleRecs.filter(r => r.date === TODAY).length;
 
     if (typeof refreshNavBadges === 'function') {
         refreshNavBadges({ dispensing: DB.records.length });
@@ -5302,6 +5347,22 @@ function bulkTextMerge() {
         updatedCount++;
 
         checkRealtimeAlertAndNotify(draftRec); // 📢 Trigger alert ถ้าค่าเกิน Spec
+
+        // ─── Auto-alert เข้า System Alert Center ถ้า NG หรือ ALERT ─────────
+        // (เดิม Stage 2 ไม่เคยเรียก sendSystemAlert เลย ทำให้ warning จาก
+        //  การ Merge ไม่เคยถูกบันทึกลงตาราง system_alert ใน MySQL)
+        if (finalStatus === 'REJECT' || finalStatus === 'ALERT') {
+            const alertLevel = finalStatus === 'REJECT' ? 'ng' : 'alert';
+            const alertMsg = `[${draftRec.dataType}] ${PRODUCTS[draftRec.model] ? PRODUCTS[draftRec.model].label : draftRec.model} | Fixture: ${draftRec.fixture} | PT: ${draftRec.pt} | Status: ${finalStatus} (Stage 2 Merge)`;
+            sendSystemAlert(alertLevel, alertMsg, {
+                product: draftRec.model,
+                fixture: draftRec.fixture,
+                oven: draftRec.oven,
+                pt: draftRec.pt,
+                dataType: draftRec.dataType,
+                values: draftRec.values
+            });
+        }
     }
 
     // 6. บันทึก localStorage
