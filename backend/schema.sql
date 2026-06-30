@@ -6,10 +6,14 @@
 -- ============================================================
 
 -- =============================================================
--- ล้าง DB เก่าและสร้างใหม่ทั้งหมด (วิธีนี้หลีกเลี่ยง FK constraint error)
+-- หมายเหตุ: ห้ามใส่ DROP DATABASE / CREATE DATABASE ตรงนี้
+-- เพราะ autoSeedData() ใน server.js รัน schema.sql นี้ทุกครั้งที่ Start
+-- ผ่าน connection pool ที่ต่อกับ belton_ipqc อยู่แล้ว — ถ้า DROP DATABASE
+-- จะล้างข้อมูลทั้งหมดทุกครั้งที่ restart server (data loss) และทำให้
+-- connection อื่นใน pool หลุด database context จนเกิด 500 ที่
+-- /api/dispensing/configs และ /api/system/config ได้
 -- =============================================================
-DROP DATABASE IF EXISTS belton_ipqc;
-CREATE DATABASE belton_ipqc CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS belton_ipqc CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE belton_ipqc;
 
 -- ==============================================================================
@@ -253,6 +257,10 @@ CREATE TABLE IF NOT EXISTS pof_records (
     max_val        DECIMAL(10,4),
     min_val        DECIMAL(10,4),
     range_val      DECIMAL(10,4),
+    -- ค่า Pass/Fail แยกตามหมวด (Long Fantail / Short Fantail / Bobbin)
+    -- เดิมมีคอลัมน์นี้อยู่แล้วแต่ไม่เคยถูกใช้งาน — ตอนนี้ push_out_force.js (addDraft/_doSubmitDrafts)
+    -- และ server.js (/api/pof/records, /api/pof/sync) เขียนค่า 'Pass'/'Fail' ลงมาแล้ว
+    -- โดยเทียบ Long1/Short2/Bobbin1-2 กับ LSL (spec_pass) และ UCL/LCL (trigger_pass) ของแต่ละหมวด
     long_fantail_spec_pass VARCHAR(50),
     long_fantail_trigger_pass VARCHAR(50),
     short_fantail_spec_pass VARCHAR(50),

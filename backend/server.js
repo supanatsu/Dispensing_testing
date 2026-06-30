@@ -173,26 +173,12 @@ async function autoSeedData() {
       console.log('✅ Auto-migrated dispensing_measurements for VARCHAR support');
     } catch (e) { }
 
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS dispensing_config (
-          config_key VARCHAR(100) PRIMARY KEY,
-          config_value TEXT
-        );
-      `);
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS alert_recipients (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          email VARCHAR(255) UNIQUE,
-          name VARCHAR(255),
-          role VARCHAR(100),
-          active BOOLEAN DEFAULT true
-        );
-      `);
-      console.log('✅ Verified dispensing config & alert tables exist.');
-    } catch (e) {
-      console.error('⚠️ Could not verify config tables:', e.message);
-    }
+    // NOTE: dispensing_config and alert_recipients are already created with the
+    // correct schema by schema.sql above. A stray duplicate CREATE TABLE for
+    // dispensing_config with a (config_key, config_value) shape used to live
+    // here and could shadow the real (process_mode, product_key, dimension_name,
+    // lsl, lcl, cl, ucl, usl) table if schema.sql ever failed to run first —
+    // removed to avoid that race.
 
     const [laserRows] = await pool.query('SELECT COUNT(*) as cnt FROM laser_records');
     if (laserRows[0].cnt === 0) {
@@ -224,7 +210,7 @@ async function autoSeedData() {
     console.error('⚠️ [Auto-Seed] Check failed (Table might not exist yet):', e.message);
   }
 }
-// autoSeedData();
+autoSeedData();
 
 // -------------------------------------------------------------------------
 // HEALTH CHECK API
@@ -394,28 +380,29 @@ app.get('/api/pof/alerts', async (req, res) => {
   try {
     // JOIN กับ pof_records เพื่อดึง product, mode, coil_type, en, min ที่ JS ต้องการ
     const [rows] = await pool.query(
-      `SELECT a.*, r.product, r.product_label, r.mode, r.coil_type, r.en, r.min_val
-       FROM pof_alerts a
-       LEFT JOIN pof_records r ON r.record_no = a.record_no
+      `SELECT a.*, r.product, r.product_label, r.mode, r.coil_type, r.en, r.min_val, r.avg_val, r.trigger_val, r.remark, r.spec_result
+       FROM system_alert a
+       LEFT JOIN pof_records r ON r.record_no = a.record_id OR r.id = a.record_id
+       WHERE a.process_type = 'POF'
        ORDER BY a.alert_time DESC LIMIT 500`
     );
     const alerts = rows.map(r => ({
       id: r.id,
       time: new Date(r.alert_time).toLocaleString('th-TH'),
       ts: r.alert_time ? new Date(r.alert_time).toISOString() : new Date().toISOString(),
-      no: r.record_no,
-      level: r.spec_result === 'OUT' ? 'ng' : 'warn',
-      product: r.product_label || r.product || '',
+      no: r.record_no || r.record_id,
+      level: r.level || (r.spec_result === 'OUT' ? 'ng' : 'warn'),
+      product: r.product_label || r.product || a.product || '',
       mode: r.mode || 'buyoff',
       coil_type: r.coil_type || 'sl',
       en: r.en || '',
       traveler: r.traveler || '',
-      avg: r.avg_val != null ? parseFloat(r.avg_val).toFixed(2) : '—',
+      avg: r.avg_val != null ? parseFloat(r.avg_val).toFixed(2) : (r.value_val != null ? parseFloat(r.value_val).toFixed(2) : '—'),
       min: r.min_val != null ? parseFloat(r.min_val).toFixed(2) : '—',
-      spec: r.spec_result || '',
+      spec: r.spec_result || r.spec_str || '',
       trigger: r.trigger_val || '',
-      remark: r.remark || '',
-      msg: r.remark || ''
+      remark: r.msg || r.remark || '',
+      msg: r.msg || r.remark || ''
     }));
     res.json({ success: true, alerts });
   } catch (error) {
@@ -482,6 +469,12 @@ app.post('/api/pof/sync', async (req, res) => {
       const out_cl = r.out_cl || null;
       const trend = r.trend || null;
       const nine_pt = r.nine_pt || null;
+      const long_fantail_spec_pass = r.long_fantail_spec_pass || null;
+      const long_fantail_trigger_pass = r.long_fantail_trigger_pass || null;
+      const short_fantail_spec_pass = r.short_fantail_spec_pass || null;
+      const short_fantail_trigger_pass = r.short_fantail_trigger_pass || null;
+      const bobbin_spec_pass = r.bobbin_spec_pass || null;
+      const bobbin_trigger_pass = r.bobbin_trigger_pass || null;
       const eblock_long = r.eblock_long != null ? parseFloat(r.eblock_long) : null;
       const eblock_short = r.eblock_short != null ? parseFloat(r.eblock_short) : null;
       const eblock_avg = r.eblock_avg != null ? parseFloat(r.eblock_avg) : null;
@@ -494,19 +487,19 @@ app.post('/api/pof/sync', async (req, res) => {
 
       if (existingId) {
         await connection.query(
-          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, coil_type=?, product_label=?, unit=?, overall=?, spc_ucl=?, spc_cl=?, spc_lcl=?, spc_trig=?, spc_spec=?, remark=?, en=?, traveler=?, long1=?, short2=?, avg_val=?, max_val=?, min_val=?, range_val=?, spec_result=?, trigger_val=?, out_cl=?, trend=?, nine_pt=?, eblock_long=?, eblock_short=?, eblock_avg=?, coil_short=?, coil_center=?, coil_long=?, bobbin_short=?, bobbin_center=?, bobbin_long=?, values_json=? WHERE id=?`,
+          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, coil_type=?, product_label=?, unit=?, overall=?, spc_ucl=?, spc_cl=?, spc_lcl=?, spc_trig=?, spc_spec=?, remark=?, en=?, traveler=?, long1=?, short2=?, avg_val=?, max_val=?, min_val=?, range_val=?, spec_result=?, trigger_val=?, out_cl=?, trend=?, nine_pt=?, long_fantail_spec_pass=?, long_fantail_trigger_pass=?, short_fantail_spec_pass=?, short_fantail_trigger_pass=?, bobbin_spec_pass=?, bobbin_trigger_pass=?, eblock_long=?, eblock_short=?, eblock_avg=?, coil_short=?, coil_center=?, coil_long=?, bobbin_short=?, bobbin_center=?, bobbin_long=?, values_json=? WHERE id=?`,
           [
             r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
-            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson, existingId
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson, existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
-            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
           ]
         );
       }
@@ -1295,9 +1288,18 @@ app.get('/api/dispensing/configs', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM dispensing_config');
     const configs = {};
-    rows.forEach(r => {
-      configs[r.config_key] = JSON.parse(r.config_value);
-    });
+    for (const row of rows) {
+      const key = row.process_mode === 'roving' ? row.product_key + '_rov' : row.product_key;
+      const dim = row.dimension_name;
+      if (!configs[key]) configs[key] = {};
+      configs[key][dim] = {
+        lsl: row.lsl,
+        lcl: row.lcl,
+        cl: row.cl,
+        ucl: row.ucl,
+        usl: row.usl
+      };
+    }
     res.json({ success: true, configs });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1461,10 +1463,13 @@ app.post('/api/dispensing/records/delete-bulk', async (req, res) => {
   const { ids } = req.body;
   if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'ids must be an array' });
   try {
-    // Filter out client-side timestamps which are larger than INT
-    const dbIds = ids.filter(id => Number(id) <= 2147483647);
+    // Filter out client-side timestamps which are larger than INT and string drafts
+    const dbIds = ids.filter(id => {
+      const num = Number(id);
+      return typeof id !== 'string' || !id.startsWith('DRAFT_') ? (!isNaN(num) && num <= 2147483647) : false;
+    });
     if (dbIds.length > 0) {
-      await pool.query('DELETE FROM dispensing_measurements WHERE record_id IN (?)', [dbIds]);
+      // dispensing_measurements was removed in new schema, so we only delete from dispensing_records
       await pool.query('DELETE FROM dispensing_records WHERE id IN (?)', [dbIds]);
     }
     res.json({ success: true, message: `Deleted ${dbIds.length} records successfully` });
@@ -1476,11 +1481,15 @@ app.post('/api/dispensing/records/delete-bulk', async (req, res) => {
 app.delete('/api/dispensing/records/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    // If the ID is a client-side timestamp (larger than max INT), it's not in DB, just return success
-    if (Number(id) > 2147483647) {
+    // If the ID is a client-side timestamp (larger than max INT) or draft string, it's not in DB
+    if (typeof id === 'string' && id.startsWith('DRAFT_')) {
+      return res.json({ success: true, message: `Ignored local draft record ID ${id}` });
+    }
+    const numId = Number(id);
+    if (isNaN(numId) || numId > 2147483647) {
       return res.json({ success: true, message: `Ignored local record ID ${id}` });
     }
-    await pool.query('DELETE FROM dispensing_measurements WHERE record_id = ?', [id]);
+    // dispensing_measurements was removed in new schema, so we only delete from dispensing_records
     await pool.query('DELETE FROM dispensing_records WHERE id = ?', [id]);
     res.json({ success: true, message: `Deleted dispensing record ID ${id} successfully` });
   } catch (error) {
@@ -1546,19 +1555,17 @@ app.delete('/api/system/alert-recipients/:id', async (req, res) => {
   }
 });
 
-// ดึงการตั้งค่าระบบ (เช่น อีเมลผู้ส่ง)
+// ดึงข้อมูลการตั้งค่าระบบ (ฝั่ง Front-end เรียกใช้)
 app.get('/api/system/config', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT config_key, config_value FROM system_config');
     let config = {};
     rows.forEach(r => config[r.config_key] = r.config_value);
 
-    // Also fetch alert recipients config
-    const [emailRows] = await pool.query('SELECT email, password FROM alert_recipients WHERE is_sender = TRUE LIMIT 1');
-    if (emailRows.length > 0) {
-      config.SENDER_EMAIL = emailRows[0].email || '';
-      config.SENDER_PASS = emailRows[0].password || '';
-    }
+    // Provide default email config if needed by frontend
+    config.SENDER_EMAIL = '';
+    config.SENDER_PASS = '';
+    
     res.json(config);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2091,7 +2098,7 @@ app.post('/api/config/damper/batch', async (req, res) => {
 
 app.get('/api/config/laser', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM laser_config ORDER BY product_key, data_type');
+    const [rows] = await pool.query('SELECT * FROM laser_config ORDER BY product_key');
     res.json({ success: true, limits: rows });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
@@ -2174,10 +2181,13 @@ app.post('/api/pof/records', async (req, res) => {
             spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec,
             remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val,
             spec_result, trigger_val, out_cl, trend, nine_pt,
+            long_fantail_spec_pass, long_fantail_trigger_pass,
+            short_fantail_spec_pass, short_fantail_trigger_pass,
+            bobbin_spec_pass, bobbin_trigger_pass,
             eblock_long, eblock_short, eblock_avg,
             coil_short, coil_center, coil_long,
             bobbin_short, bobbin_center, bobbin_long, values_json)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           r.product || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
           dataType, r.condition || 'NTC', status,
@@ -2195,6 +2205,9 @@ app.post('/api/pof/records', async (req, res) => {
           r.min != null ? parseFloat(r.min) : null,
           r.range != null ? parseFloat(r.range) : null,
           r.spec_result || null, r.trigger || null, r.out_cl || null, r.trend || null, r.nine_pt || null,
+          r.long_fantail_spec_pass || null, r.long_fantail_trigger_pass || null,
+          r.short_fantail_spec_pass || null, r.short_fantail_trigger_pass || null,
+          r.bobbin_spec_pass || null, r.bobbin_trigger_pass || null,
           r.eblock_long != null ? parseFloat(r.eblock_long) : null,
           r.eblock_short != null ? parseFloat(r.eblock_short) : null,
           r.eblock_avg != null ? parseFloat(r.eblock_avg) : null,
