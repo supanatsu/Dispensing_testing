@@ -2742,26 +2742,6 @@ function commitImport() {
 
     let hasOutliers = actualAddedRecords.some(r => r.status === 'REJECT' || r.status === 'ALERT' || r.status === 'INCOMPLETE');
 
-    // ─── Auto-alert เข้า System Alert Center สำหรับทุก record ที่ Import มาแล้วเกินเกณฑ์ ─────────
-    // (เดิม Auto Import ไม่เคยเรียก sendSystemAlert เลย ทำให้ REJECT/ALERT ที่มาจากการ Import
-    //  ไม่เคยถูกบันทึกลงตาราง system_alert ใน MySQL หรือขึ้นที่หน้า System Alert Center)
-    if (typeof isBackendOnline !== 'undefined' && isBackendOnline) {
-        actualAddedRecords.forEach(rec => {
-            if (rec.status === 'REJECT' || rec.status === 'ALERT') {
-                const alertLevel = rec.status === 'REJECT' ? 'ng' : 'alert';
-                const alertMsg = `[${rec.dataType}] ${PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model} | Fixture: ${rec.fixture} | PT: ${rec.pt} | Status: ${rec.status} (Auto Import)`;
-                sendSystemAlert(alertLevel, alertMsg, {
-                    product: rec.model,
-                    fixture: rec.fixture,
-                    oven: rec.oven,
-                    pt: rec.pt,
-                    dataType: rec.dataType,
-                    values: rec.values
-                });
-            }
-        });
-    }
-
     // แจ้งเตือนผู้ใช้งานตามผลลัพธ์
     if (added === 0 && skipped > 0) {
         showToast(`ℹ️ ไม่มีข้อมูลใหม่ถูกเพิ่ม (เป็นข้อมูลซ้ำทั้งหมด ${skipped} รายการ)`, 'info', 5000);
@@ -4737,6 +4717,27 @@ async function saveManualDraft() {
     const exist = DB.records.filter(r => r.pt === pt && r.oven === oven && r.model === mk && r.dataType === dType && r.status === 'WAITING');
     const fixes = fix.split(',').map(s => s.trim()).filter(s => s);
     let added = 0;
+
+    // ─── ตรวจสอบค่าที่กรอกกับ Spec Limit ทันที (เหมือน Stage 2 bulkTextMerge) ──
+    // เดิม Stage 1 ไม่เคยเช็ค Spec เลย ทำให้ค่าที่ REJECT/ALERT (เกิน USL/LSL/UCL/LCL)
+    // ไม่เคยถูกบันทึกลงตาราง system_alert ใน MySQL จนกว่าจะผ่าน Stage 2 Merge
+    // (ซึ่งบาง Process ไม่จำเป็นต้องผ่าน Stage 2 เลย) — เพิ่มการเช็ค+แจ้งเตือนตรงนี้
+    // โดยไม่เปลี่ยน status ของ draft (ยังเป็น DRAFT_INCOMPLETE/DRAFT_WAITING ตามเดิม
+    // เพื่อให้ workflow ของ Stage 1→2 ยังทำงานเหมือนเดิม)
+    const specStatus = getInternalStatus(vals, mk, dType);
+    if (isBackendOnline && (specStatus === 'REJECT' || specStatus === 'ALERT')) {
+        const alertLevel = specStatus === 'REJECT' ? 'ng' : 'alert';
+        const alertMsg = `[${dType}] ${PRODUCTS[mk] ? PRODUCTS[mk].label : mk} | Fixture: ${fix} | PT: ${pt} | Status: ${specStatus} (Stage 1 Manual Input)`;
+        sendSystemAlert(alertLevel, alertMsg, {
+            product: mk,
+            fixture: fix,
+            oven,
+            pt,
+            dataType: dType,
+            values: vals
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     fixes.forEach(fix1 => {
         if (exist.length + added >= 4) return;

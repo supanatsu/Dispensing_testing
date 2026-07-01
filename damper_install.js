@@ -25,8 +25,7 @@ async function fetchDamperConfigFromDB() {
         console.error("Failed to fetch Damper config from DB", e);
     }
 }
-// Call early
-fetchDamperConfigFromDB();
+// Removed early call, moved to DOMContentLoaded
 
 // ─── Backend ──────────────────────────────────────────────────
 let isServerOnline = false;
@@ -109,7 +108,8 @@ let PRODUCTS = {};
 // ════════════════════════════════════════════════════════════
 //  Startup
 // ════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await fetchDamperConfigFromDB();
     loadConfig();
     fetchDynamicProducts();
     buildVMIGrid();
@@ -551,14 +551,30 @@ async function saveManualDraft() {
     const qtyEl = document.getElementById('m-qty');
     const freqTarget = parseInt(qtyEl?.dataset.freqTarget, 10) || p.pcs;
 
+    const dateStr = document.getElementById('m-date')?.value || todayISO();
+    const mcStr = document.getElementById('m-mc')?.value || p.mc;
+    const sendTimeStr = document.getElementById('m-send-time')?.value || '';
+    const groupKey = `${key}|${mcStr}|${dateStr}|${sendTimeStr}|${mode}`;
+
+    const records = loadRecords();
+    
+    // นับจำนวนชิ้นที่บันทึกแล้วในชุดเดียวกัน (product+mc+date+sendTime+mode)
+    const currentCount = records.filter(r => r.overall === 'DRAFT_WAITING' &&
+        `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}` === groupKey).length;
+
+    if (currentCount >= freqTarget) {
+        showToast(`⚠️ ไม่สามารถบันทึกเพิ่มได้ (กรอกครบ ${freqTarget} ชิ้นตาม Frequency แล้ว กรุณากด "นำเข้า About Data")`, 'error');
+        return;
+    }
+
     const rec = {
         id: draftId,
         no: 0, // Will be assigned when pushed to About Data or Completed
         mode,
-        date: document.getElementById('m-date')?.value || todayISO(),
+        date: dateStr,
         product: key,
         productLabel: p.label,
-        mc: document.getElementById('m-mc')?.value || p.mc,
+        mc: mcStr,
         team: document.getElementById('m-team')?.value || '',
         qcEn: (document.getElementById('m-en')?.value || '').trim(),
         meEn: (document.getElementById('m-me-en')?.value || '').trim(),
@@ -567,7 +583,7 @@ async function saveManualDraft() {
         ptno: (document.getElementById('m-ptno')?.value || '').trim(),
         qty: (document.getElementById('m-qty')?.value || '').trim(),
         freqTarget,
-        sendTime: document.getElementById('m-send-time')?.value || '',
+        sendTime: sendTimeStr,
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
         pcs: p.pcs,
@@ -580,16 +596,11 @@ async function saveManualDraft() {
         savedAt: new Date().toISOString(),
     };
 
-    const records = loadRecords();
     records.unshift(rec);
     saveRecords(records);
 
-    // นับจำนวนชิ้นที่บันทึกแล้วในชุดเดียวกัน (product+mc+date+sendTime+mode) เทียบกับ Frequency target
-    const groupKey = `${rec.product}|${rec.mc}|${rec.date}|${rec.sendTime}|${rec.mode}`;
-    const sameGroupCount = records.filter(r => r.overall === 'DRAFT_WAITING' &&
-        `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}` === groupKey).length;
-
-    showToast(`✅ บันทึก Draft สำเร็จ (${sameGroupCount}/${freqTarget} ชิ้น ตาม Frequency)`, 'success');
+    const newCount = currentCount + 1;
+    showToast(`✅ บันทึก Draft สำเร็จ (${newCount}/${freqTarget} ชิ้น ตาม Frequency)`, 'success');
 
     resetVmiForm();
     renderPendingTable();
@@ -630,34 +641,32 @@ function pushToAboutData(groupKey) {
     }
 
     const draftsToMerge = drafts.slice(0, requiredQty);
-    const anyVmiNG = draftsToMerge.some(d => d.vmiNG);
-    const no = records.filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING').length + 1;
+    const baseNo = records.filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING').length;
 
-    const finalRec = { ...draftsToMerge[0], id: Date.now().toString(), no };
-    finalRec.vmiNG = anyVmiNG;
-    // เก็บจำนวนชิ้นจริงที่ merge เข้าด้วยกัน (ตาม Frequency) ไว้อ้างอิง
-    finalRec.mergedQty = draftsToMerge.length;
+    const finalizedDrafts = draftsToMerge.map((draft, i) => {
+        return {
+            ...draft,
+            id: Date.now().toString() + '_' + i,
+            no: baseNo + i + 1,
+            overall: sample.mode === 'roving' ? (draft.vmiNG ? 'Fail' : 'Pass') : 'WAITING',
+            mergedQty: 1
+        };
+    });
+
+    const newRecords = records.filter(r => !draftsToMerge.find(d => d.id === r.id));
+    newRecords.push(...finalizedDrafts);
+    saveRecords(newRecords);
 
     if (sample.mode === 'roving') {
-        finalRec.overall = anyVmiNG ? 'Fail' : 'Pass';
-
-        // Delete drafts
-        const newRecords = records.filter(r => !draftsToMerge.find(d => d.id === r.id));
-        newRecords.push(finalRec);
-        saveRecords(newRecords);
-
-        sendToBackendAndAlert(finalRec);
-        showToast(`🎉 Roving Audit ข้อมูล ${sample.productLabel} ครบ ${sample.pcs} ชิ้นแล้ว บันทึกเรียบร้อย!`, 'success');
+        for (const rec of finalizedDrafts) {
+            sendToBackendAndAlert(rec);
+        }
+        showToast(`🎉 Roving Audit ข้อมูล ${sample.productLabel} ครบ ${requiredQty} ชิ้นแล้ว บันทึกเรียบร้อย!`, 'success');
     } else {
-        finalRec.overall = 'WAITING';
-
-        // Delete drafts
-        const newRecords = records.filter(r => !draftsToMerge.find(d => d.id === r.id));
-        newRecords.push(finalRec);
-        saveRecords(newRecords);
-
-        sendToBackendAndAlert(finalRec);
-        showToast(`🎉 นำเข้าข้อมูล ${sample.productLabel} ไปยัง Stage 2 สำเร็จ!`, 'success');
+        for (const rec of finalizedDrafts) {
+            sendToBackendAndAlert(rec);
+        }
+        showToast(`🎉 นำเข้าข้อมูล ${sample.productLabel} จำนวน ${requiredQty} รายการ ไปยัง Stage 2 สำเร็จ!`, 'success');
     }
 
     renderPendingTable();
@@ -1566,53 +1575,74 @@ async function commitStage2Damper() {
     const idx = recs.findIndex(r => r.id === _selectedMergeId);
     if (idx === -1) return;
 
-    const r = recs[idx];
     const { topNums, botNums } = window._stage2Data;
+    const mk = document.getElementById('merge-product').value;
+    const ptFilter = document.getElementById('merge-pt').value.trim();
+    const mcFilter = document.getElementById('merge-mc').value.trim();
 
-    if (!r.dimData) r.dimData = {};
+    // Select all waiting records that match the current filter
+    const allCandidates = recs.filter(r =>
+        (r.overall === 'WAITING' || r.overall === 'Waiting') &&
+        r.product === mk &&
+        (ptFilter === '' || r.ptno === ptFilter) &&
+        (mcFilter === '' || r.mc === mcFilter)
+    ).sort((a, b) => new Date(a.date + 'T' + a.recvTime) - new Date(b.date + 'T' + b.recvTime));
 
-    const evalGroup = (key, nums, gDef) => {
-        const lsl = gDef.lsl;
-        const usl = gDef.usl;
-        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-        const max = Math.max(...nums);
-        const min = Math.min(...nums);
-        const allOk = nums.every(v => v >= lsl && v <= usl);
-        return { vals: nums, avg: +avg.toFixed(5), max: +max.toFixed(5), min: +min.toFixed(5), result: allOk ? 'Pass' : 'Fail' };
-    };
+    if (allCandidates.length === 0) return;
 
-    const topDef = DIM_GROUPS.datum.find(x => x.key === 'datum');
-    const botDef = DIM_GROUPS.datum.find(x => x.key === 'nondatum');
+    // จำกัดจำนวนที่ merge ให้เท่ากับจำนวนข้อมูลที่มีการ Extract มา
+    // เช่น ถ้า CMM ให้มา 4 ค่า ก็จะ merge แค่ 4 Record แรกที่รออยู่
+    const mergeCount = Math.max(topNums.length, botNums.length);
+    const candidates = allCandidates.slice(0, mergeCount || 1);
 
-    r.dimData['datum'] = evalGroup('datum', topNums, topDef);
-    r.dimData['nondatum'] = evalGroup('nondatum', botNums, botDef);
+    for (let i = 0; i < candidates.length; i++) {
+        const r = candidates[i];
 
-    r.datumAvg = r.dimData['datum'].avg;
-    r.datumMax = r.dimData['datum'].max;
-    r.datumMin = r.dimData['datum'].min;
-    r.datumResult = r.dimData['datum'].result;
+        // If the text block has fewer values than candidates, fallback to the first value
+        const dVal = topNums[i] !== undefined ? topNums[i] : topNums[0];
+        const nVal = botNums[i] !== undefined ? botNums[i] : botNums[0];
 
-    r.nondatumAvg = r.dimData['nondatum'].avg;
-    r.nondatumMax = r.dimData['nondatum'].max;
-    r.nondatumMin = r.dimData['nondatum'].min;
-    r.nondatumResult = r.dimData['nondatum'].result;
+        if (dVal === undefined || nVal === undefined) continue;
 
-    const datumOk = r.datumResult === 'Pass';
-    const nondatumOk = r.nondatumResult === 'Pass';
-    r.overall = (!r.vmiNG && datumOk && nondatumOk) ? 'Pass' : 'Fail';
+        if (!r.dimData) r.dimData = {};
 
-    // ─── Auto-alert เข้า System Alert Center ถ้า Fail (มิติเกิน Spec และ/หรือ VMI NG) ─────────
-    // (เดิม Stage 2 Merge คำนวณ Fail จากค่ามิติ Datum/Non-datum แต่ไม่เคยเรียก sendSystemAlert
-    //  ทำให้ Damper ที่ Reject จากมิติเกินเกณฑ์ ไม่เคยขึ้นที่หน้า System Alert Center)
-    if (r.overall === 'Fail') {
-        const issues = [];
-        if (r.vmiNG) {
-            const vmiItems = VMI_ITEMS.filter(v => r.mode === 'roving' || v.id !== 'double');
-            issues.push('VMI NG: ' + vmiItems.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label).join(', '));
+        const topDef = DIM_GROUPS.datum.find(x => x.key === 'datum');
+        const botDef = DIM_GROUPS.datum.find(x => x.key === 'nondatum');
+
+        const evalSingle = (val, gDef) => {
+            const lsl = gDef.lsl;
+            const usl = gDef.usl;
+            const ok = val >= lsl && val <= usl;
+            return { vals: [val], avg: +val.toFixed(5), max: +val.toFixed(5), min: +val.toFixed(5), result: ok ? 'Pass' : 'Fail' };
+        };
+
+        r.dimData['datum'] = evalSingle(dVal, topDef);
+        r.dimData['nondatum'] = evalSingle(nVal, botDef);
+
+        r.datumAvg = dVal;
+        r.datumMax = dVal;
+        r.datumMin = dVal;
+        r.datumResult = r.dimData['datum'].result;
+
+        r.nondatumAvg = nVal;
+        r.nondatumMax = nVal;
+        r.nondatumMin = nVal;
+        r.nondatumResult = r.dimData['nondatum'].result;
+
+        const datumOk = r.datumResult === 'Pass';
+        const nondatumOk = r.nondatumResult === 'Pass';
+        r.overall = (!r.vmiNG && datumOk && nondatumOk) ? 'Pass' : 'Fail';
+
+        if (r.overall === 'Fail') {
+            const issues = [];
+            if (r.vmiNG) {
+                const vmiItems = VMI_ITEMS.filter(v => r.mode === 'roving' || v.id !== 'double');
+                issues.push('VMI NG: ' + vmiItems.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label).join(', '));
+            }
+            if (!datumOk) issues.push(`Datum out of spec (${fmt(r.datumAvg)})`);
+            if (!nondatumOk) issues.push(`Non-datum out of spec (${fmt(r.nondatumAvg)})`);
+            await sendSystemAlert('ng', issues.join(' | ') || 'Damper Inspection Fail', r, issues);
         }
-        if (!datumOk) issues.push(`Datum out of spec (Avg=${fmt(r.datumAvg)}, Min=${fmt(r.datumMin)}, Max=${fmt(r.datumMax)})`);
-        if (!nondatumOk) issues.push(`Non-datum out of spec (Avg=${fmt(r.nondatumAvg)}, Min=${fmt(r.nondatumMin)}, Max=${fmt(r.nondatumMax)})`);
-        await sendSystemAlert('ng', issues.join(' | ') || 'Damper Inspection Fail', r, issues);
     }
 
     saveRecords(recs);

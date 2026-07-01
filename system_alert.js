@@ -52,7 +52,7 @@ function renderAlerts() {
         
         if (lvlStr.includes('ng') || lvlStr.includes('critical') || lvlStr.includes('reject') || lvlStr.includes('fail') || lvlStr.includes('out of spec') || lvlStr.includes('higher than ucl') || lvlStr.includes('lower than lcl') || msgStr.includes('reject') || msgStr.includes('fail')) {
             levelClass = 'critical';
-        } else if (lvlStr.includes('warning') || lvlStr.includes('higher than lcl') || lvlStr.includes('lower than ucl')) {
+        } else if (lvlStr.includes('warning') || lvlStr.includes('warn') || lvlStr.includes('hold') || lvlStr.includes('alert') || lvlStr.includes('higher than lcl') || lvlStr.includes('lower than ucl')) {
             levelClass = 'warning';
         }
 

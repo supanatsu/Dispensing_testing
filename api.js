@@ -21,19 +21,26 @@
 
 const API_BASE = (function () {
   try {
-    const { protocol, hostname, port } = window.location;
+    const { protocol, hostname, port, origin } = window.location;
 
-    // Backend's own port
+    // Backend's own local port
     const BACKEND_PORT = '3001';
 
-    // Served directly by the backend (same port) -> use relative paths
-    if (port === BACKEND_PORT) {
-      return '';
+    // If opened via file:// protocol
+    if (protocol === 'file:') {
+      return `http://localhost:${BACKEND_PORT}`;
     }
 
-    // Opened via file:// or any other port/dev-server -> point at backend
+    // If served directly by the backend (same port), or via a standard web server tunnel 
+    // that routes to the backend (like ngrok, reverse proxy, etc)
+    // We just use empty string or origin for the API base.
+    if (port === BACKEND_PORT || port === '80' || port === '443' || port === '') {
+      return origin;
+    }
+
+    // Opened via a different dev server port (e.g. Live Server on :5500) -> point at backend port on the same host
     const host = hostname || 'localhost';
-    return `${protocol === 'file:' ? 'http:' : protocol}//${host}:${BACKEND_PORT}`;
+    return `${protocol}//${host}:${BACKEND_PORT}`;
   } catch (e) {
     return 'http://localhost:3001';
   }

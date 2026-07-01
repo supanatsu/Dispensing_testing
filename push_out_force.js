@@ -25,8 +25,6 @@ async function fetchPOFConfigFromDB() {
     console.error("Failed to fetch POF config from DB", e);
   }
 }
-// Call early
-fetchPOFConfigFromDB();
 
 //  Backend 
 let isServerOnline = false;
@@ -359,7 +357,8 @@ function getSPC(productKey, modeKey, typeKey) {
 // 
 //  Startup
 // 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await fetchPOFConfigFromDB();
   loadConfig();
   fetchDynamicProducts();
   populateModeDropdowns();
@@ -758,16 +757,22 @@ function onProductChange() {
   }
 
   if (p && spc) {
-    // ── Load separate Long/Short/Bobbin SPC specs from localStorage (new config schema) ──
+    // ── Load separate Long/Short SPC specs from localStorage (new config schema) ──
     let longSpc = { ...spc };
     let shortSpc = { ...spc };
-    let bobbinSpc = { ...spc };
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
       const pCfg = allCfg[prodKey] || allCfg['default'];
       const grp = MODES[modeKey]?.spcKey || 'buyoff';
-      if (pCfg && pCfg[grp]) {
-        const bc = pCfg[grp];
+      let bc = null;
+      if (pCfg) {
+        if (pCfg[modeKey] && Object.values(pCfg[modeKey]).some(v => v !== null && v !== '')) {
+          bc = pCfg[modeKey];
+        } else if (pCfg[grp]) {
+          bc = pCfg[grp];
+        }
+      }
+      if (bc) {
         // Long Fantail overrides
         if (bc.long_lsl != null) longSpc.spec = bc.long_lsl;
         if (bc.long_ucl != null) longSpc.trigger = bc.long_ucl;
@@ -782,20 +787,12 @@ function onProductChange() {
         if (bc.short_cl != null) shortSpc.cl = bc.short_cl;
         if (bc.short_lcl != null) shortSpc.lcl = bc.short_lcl;
         if (bc.short_usl != null) shortSpc.usl = bc.short_usl;
-        // Bobbin overrides
-        if (bc.bobbin_lsl != null) bobbinSpc.spec = bc.bobbin_lsl;
-        if (bc.bobbin_ucl != null) bobbinSpc.trigger = bc.bobbin_ucl;
-        if (bc.bobbin_ucl != null) bobbinSpc.ucl = bc.bobbin_ucl;
-        if (bc.bobbin_cl != null) bobbinSpc.cl = bc.bobbin_cl;
-        if (bc.bobbin_lcl != null) bobbinSpc.lcl = bc.bobbin_lcl;
-        if (bc.bobbin_usl != null) bobbinSpc.usl = bc.bobbin_usl;
       }
     } catch { }
 
     // Store separate specs for use in calcResult
     window._pofSpcLong = longSpc;
     window._pofSpcShort = shortSpc;
-    window._pofSpcBobbin = bobbinSpc;
 
     if (specLabel) {
       specLabel.textContent =
@@ -828,7 +825,6 @@ function onProductChange() {
   } else {
     window._pofSpcLong = null;
     window._pofSpcShort = null;
-    window._pofSpcBobbin = null;
     if (specLabel) specLabel.textContent = 'เลือก Product และ Mode เพื่อดู SPC Spec';
     if (measSec) measSec.style.display = 'none';
     if (noMsg) noMsg.style.display = '';
@@ -845,24 +841,32 @@ function onProductChange() {
 
   // Load Frequency from system config
   const qtyInput = document.getElementById('m-qty');
+  let freqTarget = p?.pcs || 1; // fallback to product pcs or 1
   if (qtyInput && prodKey) {
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
       const pCfg = allCfg[prodKey] || allCfg['default'];
-      if (pCfg) {
+      
+      let activeFreq = null;
+      if (pCfg && pCfg.freq) {
         if (modeKey === 'buyoff' || modeKey === 'oba' || modeKey.includes('roving')) {
-          qtyInput.value = pCfg.freq ? `${pCfg.freq}/Shift/Oven` : '';
-        } else {
-          qtyInput.value = '';
+          activeFreq = pCfg.freq;
         }
+      }
+
+      if (activeFreq && !isNaN(parseInt(activeFreq, 10)) && parseInt(activeFreq, 10) > 0) {
+        freqTarget = parseInt(activeFreq, 10);
+        qtyInput.value = `${freqTarget}/Shift/Oven`;
       } else {
-        qtyInput.value = '';
+        qtyInput.value = `${freqTarget} (default pcs/batch)`;
       }
     } catch (e) {
-      qtyInput.value = '';
+      qtyInput.value = `${freqTarget} (default pcs/batch)`;
     }
+    qtyInput.dataset.freqTarget = freqTarget;
   } else if (qtyInput) {
-    qtyInput.value = '';
+    qtyInput.value = `${freqTarget} (default pcs/batch)`;
+    qtyInput.dataset.freqTarget = freqTarget;
   }
 
   // Re-init epoxy pickers with product-specific thresholds
@@ -985,9 +989,8 @@ async function addDraft() {
 
   if (!prodKey) { showToast('กรุณาเลือก Product', 'warn'); return; }
 
-  const qtyInput = document.getElementById('m-qty')?.value || '';
-  const parsedQty = parseInt(qtyInput, 10);
-  const requiredQty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+  const qtyEl = document.getElementById('m-qty');
+  const requiredQty = parseInt(qtyEl?.dataset?.freqTarget, 10) || 1;
 
   if (DRAFT_STATE.drafts.length === 0) {
     DRAFT_STATE.requiredQty = requiredQty;
@@ -1003,7 +1006,7 @@ async function addDraft() {
       time: document.getElementById('m-time')?.value.trim() || '',
       sample_date: document.getElementById('m-sample-date')?.value.trim() || '',
       lot: document.getElementById('m-lot')?.value.trim() || '',
-      qtyInput: qtyInput
+      qtyInput: qtyEl ? qtyEl.value : ''
     };
   } else {
     // Validate header fields haven't changed
@@ -1030,7 +1033,6 @@ async function addDraft() {
 
   const longSpc = window._pofSpcLong || spc;
   const shortSpc = window._pofSpcShort || spc;
-  const bobbinSpc = window._pofSpcBobbin || spc;
 
   const vals = [l1, s2];
   if (hasBobbin) vals.push(b1, b2);
@@ -1042,16 +1044,9 @@ async function addDraft() {
 
   const longOk = l1 >= longSpc.spec;
   const shortOk = s2 >= shortSpc.spec;
-  // ─── Bobbin: ตรวจค่ากับ LSL ของ Bobbin โดยเฉพาะ (เดิมไม่เคยตรวจเลย ถึงแม้จะกรอกค่าก็ตาม) ───
-  const bobbinOk = !hasBobbin || (b1 >= bobbinSpc.spec && b2 >= bobbinSpc.spec);
-  const inSpec = longOk && shortOk && bobbinOk;
+  const inSpec = longOk && shortOk;
   const inTrigger = avg >= (longSpc.trigger ?? longSpc.ucl ?? spc.trigger);
-  // ─── Per-category Control Limit (UCL/LCL) check — ตรงกับคอลัมน์ *_trigger_pass ใน schema ───
-  const longCLOk = l1 >= longSpc.lcl && l1 <= longSpc.ucl;
-  const shortCLOk = s2 >= shortSpc.lcl && s2 <= shortSpc.ucl;
-  const bobbinCLOk = !hasBobbin || (b1 >= bobbinSpc.lcl && b1 <= bobbinSpc.ucl && b2 >= bobbinSpc.lcl && b2 <= bobbinSpc.ucl);
-  // ─── Warning zone: ค่าเฉลี่ยอยู่นอกช่วง UCL/LCL ของ Long/Short (และ Bobbin ถ้ามี) ───
-  const inCL = avg >= spc.lcl && avg <= spc.ucl && longCLOk && shortCLOk && bobbinCLOk;
+  const inCL = avg >= spc.lcl && avg <= spc.ucl;
 
   const outSpec = document.getElementById('m-out-spec')?.value || (inSpec ? 'IN' : 'OUT');
   const overall = document.getElementById('m-overall')?.value || (inSpec ? 'Pass' : 'Fail');
@@ -1061,14 +1056,7 @@ async function addDraft() {
     id: Date.now(),
     l1, s2, b1, b2, avg, max, min, range,
     inSpec, inTrigger, inCL, outSpec, overall,
-    spc, longSpc, shortSpc, bobbinSpc,
-    // ─── ค่า Pass/Fail แยกตามหมวด — ใช้บันทึกลงคอลัมน์ schema ที่เตรียมไว้แต่ไม่เคยถูกใช้ ───
-    longFantailSpecPass: longOk ? 'Pass' : 'Fail',
-    longFantailTriggerPass: longCLOk ? 'Pass' : 'Fail',
-    shortFantailSpecPass: shortOk ? 'Pass' : 'Fail',
-    shortFantailTriggerPass: shortCLOk ? 'Pass' : 'Fail',
-    bobbinSpecPass: hasBobbin ? (bobbinOk ? 'Pass' : 'Fail') : null,
-    bobbinTriggerPass: hasBobbin ? (bobbinCLOk ? 'Pass' : 'Fail') : null,
+    spc, longSpc, shortSpc,
     remark: document.getElementById('m-remark')?.value.trim() || '',
     eblock_long: window.EP_VALS?.ebl_long ?? null,
     eblock_short: window.EP_VALS?.ebs_long ?? null,
@@ -1195,13 +1183,6 @@ async function _doSubmitDrafts() {
       trend: 'IN',
       nine_pt: 'IN',
       overall: d.overall,
-      // ─── ค่า Pass/Fail แยกตามหมวด Long/Short/Bobbin — map ลงคอลัมน์ schema ที่มีอยู่แล้ว ───
-      long_fantail_spec_pass: d.longFantailSpecPass,
-      long_fantail_trigger_pass: d.longFantailTriggerPass,
-      short_fantail_spec_pass: d.shortFantailSpecPass,
-      short_fantail_trigger_pass: d.shortFantailTriggerPass,
-      bobbin_spec_pass: d.bobbinSpecPass,
-      bobbin_trigger_pass: d.bobbinTriggerPass,
       savedAt: new Date().toISOString()
     };
     newRecords.push(rec);
@@ -1217,12 +1198,6 @@ async function _doSubmitDrafts() {
       avg: rec.avg, max: rec.max, min: rec.min, range: rec.range,
       spec_result: rec.spec_result, trigger: rec.trigger, out_cl: rec.out_cl,
       trend: rec.trend, nine_pt: rec.nine_pt, overall: rec.overall,
-      long_fantail_spec_pass: rec.long_fantail_spec_pass,
-      long_fantail_trigger_pass: rec.long_fantail_trigger_pass,
-      short_fantail_spec_pass: rec.short_fantail_spec_pass,
-      short_fantail_trigger_pass: rec.short_fantail_trigger_pass,
-      bobbin_spec_pass: rec.bobbin_spec_pass,
-      bobbin_trigger_pass: rec.bobbin_trigger_pass,
       spc_ucl: rec.spc_ucl, spc_cl: rec.spc_cl, spc_lcl: rec.spc_lcl,
       spc_trig: rec.spc_trig, spc_spec: rec.spc_spec,
       eblock_long: rec.eblock_long, eblock_short: rec.eblock_short, eblock_avg: rec.eblock_avg,
@@ -1234,35 +1209,29 @@ async function _doSubmitDrafts() {
 
   _recordsCache.push(...newRecords);
 
-  // ─── Alert check: REJECT (spec_result/trigger OUT) หรือ WARNING (นอกช่วง UCL/LCL) ───
-  // (เดิมตรวจแค่ spec_result/trigger และส่ง alert แค่ record แรกที่เจอ ทำให้ค่าที่นอก
-  //  UCL/LCL (out_cl = 'OUT') ไม่เคยถูกแจ้งเตือนเลย ถึงแม้จะเป็นเงื่อนไข Warning ตามที่ตั้งไว้)
-  const offendingRecs = newRecords.filter(r => r.spec_result === 'OUT' || r.trigger === 'OUT' || r.out_cl === 'OUT');
-  if (offendingRecs.length > 0) {
-    for (const failedRec of offendingRecs) {
-      const level = failedRec.spec_result === 'OUT' ? 'ng' : (failedRec.trigger === 'OUT' ? 'warn' : 'warn');
-      const alertMsg = failedRec.spec_result === 'OUT'
-        ? `Out of Spec: Min = ${failedRec.min.toFixed(2)} ${p.unit} (Spec ≥ ${failedRec.spc_spec})`
-        : failedRec.trigger === 'OUT'
-          ? `Out of Trigger: Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (Trigger ≥ ${failedRec.spc_trig})`
-          : `Out of Control Limit (UCL/LCL): Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (UCL=${failedRec.spc_ucl}, LCL=${failedRec.spc_lcl})`;
+  // Alert check
+  const isAlert = newRecords.some(r => r.spec_result === 'OUT' || r.trigger === 'OUT');
+  if (isAlert) {
+    const failedRec = newRecords.find(r => r.spec_result === 'OUT' || r.trigger === 'OUT') || newRecords[0];
+    const alertMsg = failedRec.spec_result === 'OUT'
+      ? `Out of Spec: Min = ${failedRec.min.toFixed(2)} ${p.unit} (Spec ≥ ${failedRec.spc_spec})`
+      : `Out of Trigger: Avg = ${failedRec.avg.toFixed(2)} ${p.unit} (Trigger ≥ ${failedRec.spc_trig})`;
 
-      const alertObj = {
-        id: failedRec.id, ts: failedRec.savedAt,
-        level,
-        product: p.label, mode: h.modeKey, modeLabel: failedRec.modeLabel,
-        coilType: h.typeKey, en: failedRec.en, traveler: failedRec.traveler,
-        oven: failedRec.oven, avg: failedRec.avg.toFixed(2), min: failedRec.min.toFixed(2),
-        spec_result: failedRec.spec_result, trigger: failedRec.trigger, msg: alertMsg,
-      };
-      _alertsCache.unshift(alertObj);
-      if (typeof triggerAutoEml === 'function') triggerAutoEml(failedRec, failedRec.spc_spec);
-
-      // Send alert to MySQL
-      await sendSystemAlert(alertObj.level, alertMsg, failedRec, p);
-    }
+    const alertObj = {
+      id: failedRec.id, ts: failedRec.savedAt,
+      level: failedRec.spec_result === 'OUT' ? 'ng' : 'warn',
+      product: p.label, mode: h.modeKey, modeLabel: failedRec.modeLabel,
+      coilType: h.typeKey, en: failedRec.en, traveler: failedRec.traveler,
+      oven: failedRec.oven, avg: failedRec.avg.toFixed(2), min: failedRec.min.toFixed(2),
+      spec_result: failedRec.spec_result, trigger: failedRec.trigger, msg: alertMsg,
+    };
+    _alertsCache.unshift(alertObj);
     renderAlerts();
     if (typeof updateBadge === 'function') updateBadge();
+    if (typeof triggerAutoEml === 'function') triggerAutoEml(failedRec, failedRec.spc_spec);
+
+    // Send alert to MySQL
+    await sendSystemAlert(alertObj.level, alertMsg, failedRec, p);
   }
 
   // Clear Form
@@ -2876,8 +2845,8 @@ async function confirmImport() {
     _recordsCache.push(rec);
     imported++;
 
-    // Alert logic — รวมเงื่อนไข REJECT (spec/trigger) และ WARNING (out_cl / นอกช่วง UCL-LCL)
-    const isAlert = specResult === 'OUT' || rec.trigger === 'OUT' || rec.out_cl === 'OUT';
+    // Alert logic
+    const isAlert = specResult === 'OUT' || rec.trigger === 'OUT';
     if (isAlert) {
       const alertObj = {
         id: rec.id + 1000000,
@@ -2896,9 +2865,7 @@ async function confirmImport() {
         trigger: rec.trigger,
         msg: specResult === 'OUT'
           ? `[Import] Out of Spec: Min=${fmt(rec.min)} ${p.unit} (Spec  ${spec})`
-          : rec.trigger === 'OUT'
-            ? `[Import] Out of Trigger: Avg=${fmt(rec.avg)} ${p.unit} (Trigger  ${trig})`
-            : `[Import] Out of Control Limit (UCL/LCL): Avg=${fmt(rec.avg)} ${p.unit} (UCL=${ucl}, LCL=${lcl})`,
+          : `[Import] Out of Trigger: Avg=${fmt(rec.avg)} ${p.unit} (Trigger  ${trig})`,
       };
       _alertsCache.unshift(alertObj);
       newAlerts.push(alertObj);

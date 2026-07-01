@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -85,18 +85,13 @@
 
                 <!-- MASTER PRODUCTS PANEL -->
                 <div id="cfg-panel-products" style="display:none;">
-                    <div
-                        style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #10b981; margin-bottom:16px;">
-                        <h3
-                            style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
+                    <div style="background:var(--bg2); padding:16px 20px; border-radius:8px; border-left:4px solid #10b981; margin-bottom:16px;">
+                        <h3 style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:14px; display:flex; align-items:center; gap:8px;">
                             📦 Master Products
                         </h3>
-                        <div class="form-grid"
-                            style="grid-template-columns:1fr 1fr 1fr 1fr auto; align-items:end; margin-bottom:16px; gap:12px;">
+                        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr auto; align-items:end; margin-bottom:16px; gap:12px;">
                             <div class="form-group">
-                                <label
-                                    style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก
-                                    Module</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก Module</label>
                                 <select id="sys-prod-module" class="form-select" style="width:100%; font-weight:600;">
                                     <option value="dispensing">Dispensing</option>
                                     <option value="laser">Laser Engraving</option>
@@ -105,9 +100,7 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label
-                                    style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type
-                                    Data</label>
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Type Data</label>
                                 <select id="sys-prod-type" class="form-select" style="width:100%; font-weight:600;">
                                     <option value="Buy-off">Buy-off</option>
                                     <option value="Roving">Roving</option>
@@ -116,23 +109,15 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label
-                                    style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Product
-                                    Key (e.g. cmr3d)</label>
-                                <input type="text" id="sys-prod-key" class="form-input"
-                                    style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Product Key (e.g. cmr3d)</label>
+                                <input type="text" id="sys-prod-key" class="form-input" style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
                             </div>
                             <div class="form-group">
-                                <label
-                                    style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Product
-                                    Name (e.g. Cimarron 3D)</label>
-                                <input type="text" id="sys-prod-name" class="form-input"
-                                    style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                                <label style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">Product Name (e.g. Cimarron 3D)</label>
+                                <input type="text" id="sys-prod-name" class="form-input" style="width:100%; border:1px solid var(--border); padding:8px; border-radius:6px;">
                             </div>
                             <div class="form-group">
-                                <button class="btn btn-primary" onclick="saveMasterProduct()"
-                                    style="background:#10b981; border:none; padding:9px 16px; font-weight:bold;">＋
-                                    เพิ่ม/แก้ไข</button>
+                                <button class="btn btn-primary" onclick="saveMasterProduct()" style="background:#10b981; border:none; padding:9px 16px; font-weight:bold;">＋ เพิ่ม/แก้ไข</button>
                             </div>
                         </div>
 
@@ -140,15 +125,9 @@
                             <table style="margin: 0; width: 100%;">
                                 <thead style="background: #f8fafc;">
                                     <tr>
-                                        <th
-                                            style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:left;">
-                                            Product Key</th>
-                                        <th
-                                            style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:left;">
-                                            Product Name</th>
-                                        <th
-                                            style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:center; width:100px;">
-                                            Actions</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:left;">Product Key</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:left;">Product Name</th>
+                                        <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:center; width:100px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sys-prod-tbody" style="background: #fff;"></tbody>
@@ -1387,1501 +1366,949 @@
                 }
             }
 
-            let currentPofCfg = {};
-            let currentDamperCfg = {};
-            let currentLaserCfg = {};
+            // Fill default configs for Dispensing if empty or missing
+            if (mod === 'dispensing') {
+                for (let k in PRODUCTS) {
+                    if (!currentSysCfg[k]) currentSysCfg[k] = {};
+                    if (!currentSysCfg[k + '_rov']) currentSysCfg[k + '_rov'] = {};
 
-            window.onload = function () {
-                // Load Dispensing
-                const lsKeyDisp = SYS_CFG_KEYS['dispensing'];
-                let dataDisp = localStorage.getItem(lsKeyDisp);
-                if (dataDisp) {
-                    try {
-                        let parsed = JSON.parse(dataDisp);
-                        currentSysCfg = parsed.configs || {};
-                    } catch (e) { }
+                    // Ensure all dims are present
+                    const dims = PRODUCTS[k].dims || [];
+                    dims.forEach(dim => {
+                        let param = typeof dim === 'string' ? dim : dim.id;
+                        if (!currentSysCfg[k][param]) currentSysCfg[k][param] = {};
+                        if (!currentSysCfg[k + '_rov'][param]) currentSysCfg[k + '_rov'][param] = {};
+                    });
+
+                    // Fill Buy off specs
+                    let defBuyoff = SPEC_BUYOFF[k] || {};
+                    for (let param in defBuyoff) {
+                        if (!currentSysCfg[k][param]) currentSysCfg[k][param] = {};
+                        currentSysCfg[k][param] = { ...defBuyoff[param], ...currentSysCfg[k][param] };
+                    }
+                    // Fill Roving specs
+                    let defRov = SPEC_ROVING[k] || {};
+                    for (let param in defRov) {
+                        if (!currentSysCfg[k + '_rov'][param]) currentSysCfg[k + '_rov'][param] = {};
+                        currentSysCfg[k + '_rov'][param] = { ...defRov[param], ...currentSysCfg[k + '_rov'][param] };
+                    }
                 }
-                if (typeof window.populateFilteredDropdown === 'function') {
-                    window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'Buy off', true);
-                }
-                renderSysConfigTable();
+            }
 
-                // Load Laser
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentLaserCfg[pMode]) currentLaserCfg[pMode] = {};
-                                currentLaserCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('laser', 'sys-laser-model', document.getElementById('sys-laser-datatype')?.value || 'Buy-off');
-                        }
-                        renderLaserConfigTable();
-                    }).catch(e => console.error(e));
+            // Populate products from MySQL
+            if (typeof window.populateFilteredDropdown === 'function') {
+                window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'buy-off', true);
+            }
 
-                // Load POF
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentPofCfg[pMode]) currentPofCfg[pMode] = {};
-                                currentPofCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('pof', 'sys-pof-model', document.getElementById('sys-pof-datatype')?.value || 'Buy-off');
-                        }
-                        renderPofConfigTable();
-                    }).catch(e => console.error(e));
+            renderSysConfigTable();
+        }
 
-                // Load Damper
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentDamperCfg[pMode]) currentDamperCfg[pMode] = {};
-                                currentDamperCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('damper', 'sys-damper-model', document.getElementById('sys-damper-datatype')?.value || 'Buy-off');
-                        }
-                        renderDamperConfigTable();
-                    }).catch(e => console.error(e));
-            };
+        function renderSysConfigTable() {
+            const tbody = document.getElementById('sys-cfg-tbody');
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
 
-            // --- DISPENSING JS ---
-            function renderSysConfigTable() {
-                const tbody = document.getElementById('sys-cfg-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!mod) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">กรุณาเลือก Product ด้านบนเพื่อจัดการพารามิเตอร์</td></tr>';
+                return;
+            }
 
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            const targetCfg = currentSysCfg[cfgKey] || {};
 
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                const targetCfg = currentSysCfg[cfgKey] || {};
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
+            let html = '';
+            Object.keys(targetCfg).forEach(param => {
+                const vals = targetCfg[param];
+                if (typeof vals !== 'object') return; // Skip non-parameter keys
+                html += `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
+                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#e2e8f0'"></td>
                     <td style="padding: 8px 16px; text-align:center;"><button class="btn btn-danger btn-sm" onclick="deleteSysConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button></td>
                 </tr>
             `;
+            });
+
+            if (!html) {
+                html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">ยังไม่มีพารามิเตอร์ กรุณากด ＋ เพิ่มพารามิเตอร์ ด้านบน</td></tr>';
+            }
+            tbody.innerHTML = html;
+        }
+
+        function addSysConfigRow() {
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!mod) return alert('กรุณาเลือก Product ก่อนเพิ่มพารามิเตอร์');
+
+            const param = prompt('ระบุชื่อ Parameter:');
+            if (!param) return;
+
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
+            if (currentSysCfg[cfgKey][param]) return alert('พารามิเตอร์นี้มีอยู่แล้ว');
+
+            currentSysCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null };
+            renderSysConfigTable();
+        }
+
+        function deleteSysConfigRow(param) {
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!confirm(`ลบพารามิเตอร์ ${param} หรือไม่?`)) return;
+
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (currentSysCfg[cfgKey]) {
+                delete currentSysCfg[cfgKey][param];
+            }
+            renderSysConfigTable();
+        }
+
+        function saveSysConfigs() {
+            const moduleName = document.getElementById('sys-cfg-module').value;
+
+            // Dispatch to specific save functions if needed
+            if (moduleName === 'laser') {
+                if (typeof saveGlobalLaserConfig === 'function') saveGlobalLaserConfig();
+                return;
+            } else if (moduleName === 'pof') {
+                if (typeof saveGlobalPofConfig === 'function') saveGlobalPofConfig();
+                return;
+            } else if (moduleName === 'damper') {
+                if (typeof saveGlobalDamperConfig === 'function') saveGlobalDamperConfig();
+                return;
+            }
+
+            // --- Dispensing Save Logic ---
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!mod) return alert('กรุณาเลือก Product');
+
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
+
+            const inputs = document.querySelectorAll('.sys-cfg-val');
+            inputs.forEach(inp => {
+                const param = inp.dataset.param;
+                const type = inp.dataset.type;
+                const val = inp.value === '' ? null : parseFloat(inp.value);
+                if (!currentSysCfg[cfgKey][param]) currentSysCfg[cfgKey][param] = {};
+                currentSysCfg[cfgKey][param][type] = val;
+            });
+
+            // Save back to local storage
+            const lsKey = SYS_CFG_KEYS[moduleName];
+            let data = localStorage.getItem(lsKey);
+            let parsed = {};
+            if (data) {
+                try { parsed = JSON.parse(data); } catch (e) { }
+            }
+
+            parsed.configs = currentSysCfg;
+            localStorage.setItem(lsKey, JSON.stringify(parsed));
+
+            // Push to MySQL
+            const limits = [];
+            Object.keys(currentSysCfg[cfgKey]).forEach(dim => {
+                const vals = currentSysCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype === 'Roving Audit' ? 'roving' : 'buyoff',
+                    product_key: mod,
+                    dimension_name: dim,
+                    usl: vals.usl !== undefined ? vals.usl : null,
+                    ucl: vals.ucl !== undefined ? vals.ucl : null,
+                    cl: vals.cl !== undefined ? vals.cl : null,
+                    lcl: vals.lcl !== undefined ? vals.lcl : null,
+                    lsl: vals.lsl !== undefined ? vals.lsl : null
                 });
+            });
 
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                alert(`✅ บันทึก Config ของ Dispensing สำเร็จ (อัปเดตลง MySQL แล้ว)`);
+            }).catch(e => {
+                console.error(e);
+                alert(`✅ บันทึก Config ของ Dispensing สำเร็จ (Local) แต่ไม่สามารถเชื่อมต่อ MySQL ได้`);
+            });
+        }
+
+        function resetSysModelConfig() {
+            if (!confirm('ยืนยันการล้างค่าพารามิเตอร์ทั้งหมดใน Product นี้?')) return;
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            currentSysCfg[cfgKey] = {};
+            renderSysConfigTable();
+        }
+
+        function exportSysConfig() {
+            const mod = document.getElementById('sys-cfg-module').value;
+            let dataToExport = {};
+
+            if (mod === 'dispensing') {
+                dataToExport = currentSysCfg;
+            } else {
+                const lsKey = SYS_CFG_KEYS[mod];
+                let data = localStorage.getItem(lsKey);
+                if (data) {
+                    try { dataToExport = JSON.parse(data); } catch (e) { }
                 }
-                tbody.innerHTML = html;
             }
 
-            function addSysConfigRow() {
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!mod) return alert('Select Product First');
-
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
-                if (currentSysCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentSysCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null };
-                renderSysConfigTable();
-            }
-
-            function deleteSysConfigRow(param) {
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (currentSysCfg[cfgKey]) {
-                    delete currentSysCfg[cfgKey][param];
-                }
-                renderSysConfigTable();
-            }
-
-            function saveSysConfigs() {
-                const moduleName = document.getElementById('sys-cfg-module').value;
-                if (moduleName === 'laser') {
-                    saveLaserConfigs();
-                    return;
-                } else if (moduleName === 'pof') {
-                    savePofConfigs();
-                    return;
-                } else if (moduleName === 'damper') {
-                    saveDamperConfigs();
-                    return;
-                }
-
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-cfg-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentSysCfg[cfgKey][param]) currentSysCfg[cfgKey][param] = {};
-                    currentSysCfg[cfgKey][param][type] = val;
-                });
-
-                const limits = [];
-                Object.keys(currentSysCfg[cfgKey]).forEach(dim => {
-                    const vals = currentSysCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Dispensing configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            const LASER_DEFAULT_PARAMS = ["lf_width", "lf_length", "lf_position", "sf_width", "sf_length", "sf_position", "z1_width", "z1_length", "z1_position", "z2_width", "z2_length", "z2_position", "z3_width", "z3_length", "z3_position"];
-            const POF_DEFAULT_PARAMS = ["long1", "short2", "eblock_long", "eblock_short", "coil_center", "coil_short", "coil_long", "bobbin_long", "bobbin_center", "bobbin_short"];
-            const DAMPER_DEFAULT_PARAMS = ["1. Datum", "2. Non-datum"];
-
-            // --- LASER JS ---
-            function renderLaserConfigTable() {
-                const tbody = document.getElementById('sys-laser-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-                const targetCfg = currentLaserCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    LASER_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px; text-align:center;">
-                        ${vals.locked ? '<span style="color:#94a3b8;font-size:12px;font-weight:600;">Locked (Std)</span>' : `<button class="btn btn-danger btn-sm" onclick="deleteLaserConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button>`}
-                    </td>
-                </tr>
-            `;
-                });
-
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
-                }
-                tbody.innerHTML = html;
-            }
-
-            function addLaserConfigRow() {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!mod) return alert('Select Product First');
-
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-                if (currentLaserCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentLaserCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderLaserConfigTable();
-            }
-
-            function deleteLaserConfigRow(param) {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentLaserCfg[cfgKey]) {
-                    delete currentLaserCfg[cfgKey][param];
-                }
-                renderLaserConfigTable();
-            }
-
-            function saveLaserConfigs() {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-laser-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentLaserCfg[cfgKey][param]) currentLaserCfg[cfgKey][param] = {};
-                    currentLaserCfg[cfgKey][param][type] = val;
-                });
-
-                const limits = [];
-                Object.keys(currentLaserCfg[cfgKey]).forEach(dim => {
-                    const vals = currentLaserCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Laser configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            // --- POF JS ---
-            function renderPofConfigTable() {
-                const tbody = document.getElementById('sys-pof-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
-                const targetCfg = currentPofCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    POF_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px; text-align:center;">
-                        ${vals.locked ? '<span style="color:#94a3b8;font-size:12px;font-weight:600;">Locked (Std)</span>' : `<button class="btn btn-danger btn-sm" onclick="deletePofConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button>`}
-                    </td>
-                </tr>
-            `;
-                });
-
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
-                }
-                tbody.innerHTML = html;
-            }
-
-            function addPofConfigRow() {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!mod) return alert('Select Product First');
-
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
-                if (currentPofCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentPofCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderPofConfigTable();
-            }
-
-            function deletePofConfigRow(param) {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentPofCfg[cfgKey]) {
-                    delete currentPofCfg[cfgKey][param];
-                }
-                renderPofConfigTable();
-            }
-
-            function savePofConfigs() {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-pof-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentPofCfg[cfgKey][param]) currentPofCfg[cfgKey][param] = {};
-                    currentPofCfg[cfgKey][param][type] = val;
-                });
-
-                const limits = [];
-                Object.keys(currentPofCfg[cfgKey]).forEach(dim => {
-                    const vals = currentPofCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved POF configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            // --- DAMPER JS ---
-            function renderDamperConfigTable() {
-                const tbody = document.getElementById('sys-damper-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
-                const targetCfg = currentDamperCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    DAMPER_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px; text-align:center;">
-                        ${vals.locked ? '<span style="color:#94a3b8;font-size:12px;font-weight:600;">Locked (Std)</span>' : `<button class="btn btn-danger btn-sm" onclick="deleteDamperConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button>`}
-                    </td>
-                </tr>
-            `;
-                });
-
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
-                }
-                tbody.innerHTML = html;
-            }
-
-            function addDamperConfigRow() {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!mod) return alert('Select Product First');
-
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
-                if (currentDamperCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentDamperCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderDamperConfigTable();
-            }
-
-            function deleteDamperConfigRow(param) {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentDamperCfg[cfgKey]) {
-                    delete currentDamperCfg[cfgKey][param];
-                }
-                renderDamperConfigTable();
-            }
-
-            function saveDamperConfigs() {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-damper-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentDamperCfg[cfgKey][param]) currentDamperCfg[cfgKey][param] = {};
-                    currentDamperCfg[cfgKey][param][type] = val;
-                });
-
-                const limits = [];
-                Object.keys(currentDamperCfg[cfgKey]).forEach(dim => {
-                    const vals = currentDamperCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Damper configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            function resetSysModelConfig() {
-                if (!confirm('ยืนยันการล้างค่าพารามิเตอร์ทั้งหมดใน Product นี้?')) return;
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                currentSysCfg[cfgKey] = {};
-                renderSysConfigTable();
-            }
-
-            function exportSysConfig() {
-                const mod = document.getElementById('sys-cfg-module').value;
-                let dataToExport = {};
-
-                if (mod === 'dispensing') {
-                    dataToExport = currentSysCfg;
-                } else {
-                    const lsKey = SYS_CFG_KEYS[mod];
-                    let data = localStorage.getItem(lsKey);
-                    if (data) {
-                        try { dataToExport = JSON.parse(data); } catch (e) { }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+            const node = document.createElement('a');
+            node.setAttribute("href", dataStr);
+            node.setAttribute("download", `system_config_${mod}_export.json`);
+            document.body.appendChild(node);
+            node.click();
+            node.remove();
+        }
+
+        function importSysConfig(input) {
+            if (!input.files || !input.files[0]) return;
+            const mod = document.getElementById('sys-cfg-module').value;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    let parsed = JSON.parse(e.target.result);
+                    if (mod === 'dispensing') {
+                        currentSysCfg = parsed;
+                        alert("Import สำเร็จ! กรุณากดบันทึกเพื่อบันทึกลงระบบ");
+                        renderSysConfigTable();
+                    } else {
+                        const lsKey = SYS_CFG_KEYS[mod];
+                        localStorage.setItem(lsKey, JSON.stringify(parsed));
+                        alert(`Import ${mod.toUpperCase()} Config สำเร็จ!`);
+                        if (mod === 'laser' && typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
+                        if (mod === 'pof' && typeof loadGlobalPofConfig === 'function') loadGlobalPofConfig();
+                        if (mod === 'damper' && typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
                     }
+                } catch (err) {
+                    alert("รูปแบบไฟล์ไม่ถูกต้อง");
                 }
+                input.value = "";
+            };
+            reader.readAsText(input.files[0]);
+        }
 
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
-                const node = document.createElement('a');
-                node.setAttribute("href", dataStr);
-                node.setAttribute("download", `system_config_${mod}_export.json`);
-                document.body.appendChild(node);
-                node.click();
-                node.remove();
-            }
-
-            function importSysConfig(input) {
-                if (!input.files || !input.files[0]) return;
-                const mod = document.getElementById('sys-cfg-module').value;
-                const reader = new FileReader();
-                reader.onload = e => {
-                    try {
-                        let parsed = JSON.parse(e.target.result);
-                        if (mod === 'dispensing') {
-                            currentSysCfg = parsed;
-                            alert("Import สำเร็จ! กรุณากดบันทึกเพื่อบันทึกลงระบบ");
-                            renderSysConfigTable();
-                        } else {
-                            const lsKey = SYS_CFG_KEYS[mod];
-                            localStorage.setItem(lsKey, JSON.stringify(parsed));
-                            alert(`Import ${mod.toUpperCase()} Config สำเร็จ!`);
-                            if (mod === 'laser' && typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
-                            if (mod === 'pof' && typeof loadGlobalPofConfig === 'function') loadGlobalPofConfig();
-                            if (mod === 'damper' && typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
-                        }
-                    } catch (err) {
-                        alert("รูปแบบไฟล์ไม่ถูกต้อง");
-                    }
-                    input.value = "";
-                };
-                reader.readAsText(input.files[0]);
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            //  POF Config — Epoxy Picker Init
-            // ═══════════════════════════════════════════════════════════
-            function initEpoxyPickers() {
-                const zones = [
-                    { id: 'reject', cls: 'active-reject', hidden: 'gc-pof-epoxy-reject', label: 'ep-label-reject', badge: 'ep-result-reject', def: 10 },
-                    { id: 'hold', cls: 'active-hold', hidden: 'gc-pof-epoxy-hold', label: 'ep-label-hold', badge: 'ep-result-hold', def: 30 },
-                    { id: 'accept', cls: 'active-accept', hidden: 'gc-pof-epoxy-accept', label: 'ep-label-accept', badge: 'ep-result-accept', def: 30 },
-                ];
-                zones.forEach(zone => {
-                    const picker = document.getElementById('ep-picker-' + zone.id);
-                    if (!picker) return;
-                    picker.innerHTML = '';
-                    for (let v = 0; v <= 100; v += 10) {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'ep-pct-btn';
-                        btn.textContent = v + '%';
-                        btn.dataset.val = v;
-                        btn.onclick = () => setEpoxyPicker(zone, v);
-                        picker.appendChild(btn);
-                    }
-                    // Set default
-                    const saved = parseInt(document.getElementById(zone.hidden)?.value) || zone.def;
-                    setEpoxyPicker(zone, saved);
-                });
-                updateEpoxySummary();
-            }
-
-            function setEpoxyPicker(zone, val) {
-                const hidden = document.getElementById(zone.hidden);
-                if (hidden) hidden.value = val;
+        // ═══════════════════════════════════════════════════════════
+        //  POF Config — Epoxy Picker Init
+        // ═══════════════════════════════════════════════════════════
+        function initEpoxyPickers() {
+            const zones = [
+                { id: 'reject', cls: 'active-reject', hidden: 'gc-pof-epoxy-reject', label: 'ep-label-reject', badge: 'ep-result-reject', def: 10 },
+                { id: 'hold', cls: 'active-hold', hidden: 'gc-pof-epoxy-hold', label: 'ep-label-hold', badge: 'ep-result-hold', def: 30 },
+                { id: 'accept', cls: 'active-accept', hidden: 'gc-pof-epoxy-accept', label: 'ep-label-accept', badge: 'ep-result-accept', def: 30 },
+            ];
+            zones.forEach(zone => {
                 const picker = document.getElementById('ep-picker-' + zone.id);
-                if (picker) {
-                    picker.querySelectorAll('.ep-pct-btn').forEach(b => {
-                        b.classList.remove('active-reject', 'active-hold', 'active-accept');
-                        if (parseInt(b.dataset.val) === val) b.classList.add(zone.cls);
-                    });
+                if (!picker) return;
+                picker.innerHTML = '';
+                for (let v = 0; v <= 100; v += 10) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'ep-pct-btn';
+                    btn.textContent = v + '%';
+                    btn.dataset.val = v;
+                    btn.onclick = () => setEpoxyPicker(zone, v);
+                    picker.appendChild(btn);
                 }
-                const labelEl = document.getElementById(zone.label);
-                if (labelEl) labelEl.textContent = val + ' %';
-                updateEpoxySummary();
-            }
+                // Set default
+                const saved = parseInt(document.getElementById(zone.hidden)?.value) || zone.def;
+                setEpoxyPicker(zone, saved);
+            });
+            updateEpoxySummary();
+        }
 
-            function updateEpoxySummary() {
-                const rejVal = document.getElementById('gc-pof-epoxy-reject')?.value;
-                const reject = (rejVal !== '' && rejVal !== undefined) ? parseInt(rejVal) : 10;
-                const holdVal = document.getElementById('gc-pof-epoxy-hold')?.value;
-                const hold = (holdVal !== '' && holdVal !== undefined) ? parseInt(holdVal) : 30;
-                const el = document.getElementById('ep-summary-text');
-                if (el) {
-                    el.innerHTML = `0%–${reject}% → <b style="color:#dc2626">Reject</b> &nbsp;|&nbsp; ${reject + 10}%–${hold - 1}% → <b style="color:#b45309">Hold</b> &nbsp;|&nbsp; ≥${hold}% → <b style="color:#16a34a">Accept</b>`;
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            //  POF Config — Load / Save / Reset
-            // ═══════════════════════════════════════════════════════════
-            // ──────────────────────────────────────────────
-            //  LASER — Global Frequency Config (E-block / Bobbin)
-            //  Backend: laser_config (product_key, eblock_qty, bobbin_qty)
-            //  Previously missing entirely — product selector called this
-            //  function but it didn't exist, so nothing happened when a
-            //  product was chosen (looked like "product not found").
-            // ──────────────────────────────────────────────
-            let _laserConfigCache = null;
-
-            async function _fetchLaserConfig(force) {
-                if (_laserConfigCache && !force) return _laserConfigCache;
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config');
-                    const data = await res.json();
-                    _laserConfigCache = (data.success && data.data) ? data.data : [];
-                } catch (e) {
-                    console.error('Failed to load laser_config', e);
-                    _laserConfigCache = [];
-                }
-                return _laserConfigCache;
-            }
-
-            async function loadGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                const category = document.getElementById('gc-laser-category')?.value || 'E-block';
-                const rows = await _fetchLaserConfig();
-                const row = rows.find(r => r.product_key === prodKey) || {};
-
-                const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v ?? ''); };
-                setVal('gc-laser-freq', category === 'Bobbin' ? row.bobbin_qty : row.eblock_qty);
-
-                const eEl = document.getElementById('gc-laser-stored-eblock');
-                const bEl = document.getElementById('gc-laser-stored-bobbin');
-                if (eEl) eEl.textContent = row.eblock_qty ?? '—';
-                if (bEl) bEl.textContent = row.bobbin_qty ?? '—';
-
-                const infoEl = document.getElementById('gc-laser-freq-info');
-                if (infoEl) infoEl.textContent = prodKey === 'DEFAULT'
-                    ? 'ค่าเริ่มต้นสำหรับทุกรุ่นที่ไม่ได้ตั้งค่าเฉพาะ'
-                    : `กำลังตั้งค่าเฉพาะรุ่น: ${prodKey}`;
-            }
-
-            async function saveGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                const category = document.getElementById('gc-laser-category')?.value || 'E-block';
-                const freqVal = document.getElementById('gc-laser-freq')?.value;
-
-                const rows = await _fetchLaserConfig(true);
-                const existing = rows.find(r => r.product_key === prodKey) || {};
-                const payload = {
-                    product_key: prodKey,
-                    eblock_qty: category === 'E-block' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.eblock_qty ?? null),
-                    bobbin_qty: category === 'Bobbin' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.bobbin_qty ?? null)
-                };
-
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!res.ok) throw new Error('save failed');
-                    await _fetchLaserConfig(true);
-                    loadGlobalLaserConfig();
-                    if (typeof showToast === 'function') showToast(`✅ บันทึก Laser Frequency สำหรับ "${prodKey}" สำเร็จ`, 'success');
-                    else alert('✅ บันทึก Laser Settings สำเร็จ');
-                } catch (e) {
-                    console.error('Save laser config failed', e);
-                    if (typeof showToast === 'function') showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'warn');
-                    else alert('❌ บันทึกไม่สำเร็จ: ' + e.message);
-                }
-            }
-
-            async function resetGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                if (!confirm(`ล้างค่า Frequency ทั้งหมดของ "${prodKey}" ?`)) return;
-                try {
-                    if (prodKey === 'DEFAULT') {
-                        await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ product_key: 'DEFAULT', eblock_qty: null, bobbin_qty: null })
-                        });
-                    } else {
-                        await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config/' + encodeURIComponent(prodKey), { method: 'DELETE' });
-                    }
-                    await _fetchLaserConfig(true);
-                    loadGlobalLaserConfig();
-                    if (typeof showToast === 'function') showToast('ล้างค่า Laser Frequency เรียบร้อย', 'warn');
-                } catch (e) {
-                    console.error('Reset laser config failed', e);
-                }
-            }
-
-            // ──────────────────────────────────────────────
-            //  DAMPER — Global Specs Config (Datum / Non-datum SPC limits + Frequency)
-            //  Backend: damper_config (process_mode, product_key, dimension_name, lsl..usl)
-            //           via /api/config/damper (GET) + /api/config/damper/batch (POST)
-            //  Frequency (ชิ้น/Batch) has no dedicated column, so it's persisted the same
-            //  way POF stores its per-product blob: localStorage 'belton_damper_config_v1'
-            //  synced to MySQL via the generic /api/system/config key-value store.
-            //  Previously missing entirely — product selector called this function but it
-            //  didn't exist, so nothing happened when a product was chosen.
-            // ──────────────────────────────────────────────
-            async function loadGlobalDamperConfig() {
-                let prodKey = document.getElementById('gc-dmp-product')?.value;
-                if (!prodKey) prodKey = 'default';
-                const dt = document.getElementById('gc-dmp-datatype')?.value || 'buyoff';
-
-                if (typeof filterDamperRows === 'function') filterDamperRows();
-
-                const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v ?? ''); };
-
-                // SPC limits from damper_config
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper');
-                    const data = await res.json();
-                    const rows = (data.success && data.data) ? data.data : [];
-                    const findRow = (dim) => rows.find(r => r.product_key === prodKey && (r.process_mode || 'buyoff') === dt && r.dimension_name === dim) || {};
-                    const datum = findRow('Datum');
-                    const nonDatum = findRow('Non-datum');
-                    setVal('gc-dmp-datum-usl', datum.usl); setVal('gc-dmp-datum-ucl', datum.ucl); setVal('gc-dmp-datum-cl', datum.cl); setVal('gc-dmp-datum-lcl', datum.lcl); setVal('gc-dmp-datum-lsl', datum.lsl);
-                    setVal('gc-dmp-nondatum-usl', nonDatum.usl); setVal('gc-dmp-nondatum-ucl', nonDatum.ucl); setVal('gc-dmp-nondatum-cl', nonDatum.cl); setVal('gc-dmp-nondatum-lcl', nonDatum.lcl); setVal('gc-dmp-nondatum-lsl', nonDatum.lsl);
-                } catch (e) {
-                    console.error('Failed to load damper_config', e);
-                }
-
-                // Frequency from localStorage blob
-                let saved = {};
-                try { saved = JSON.parse(localStorage.getItem('belton_damper_config_v1') || '{}'); } catch { }
-                const freqCfg = (saved[prodKey] && saved[prodKey][dt]) || {};
-                setVal('gc-dmp-freq-buyoff', freqCfg.freq);
-                setVal('gc-dmp-freq-roving', freqCfg.freq);
-            }
-
-            async function saveGlobalDamperConfig() {
-                let prodKey = document.getElementById('gc-dmp-product')?.value;
-                if (!prodKey) prodKey = 'default';
-                const dt = document.getElementById('gc-dmp-datatype')?.value || 'buyoff';
-
-                const getN = (id) => { const el = document.getElementById(id); return (!el || el.value === '') ? null : parseFloat(el.value); };
-                const getInt = (id) => { const el = document.getElementById(id); return (!el || el.value === '') ? null : parseInt(el.value); };
-
-                const limits = [
-                    { process_mode: dt, product_key: prodKey, dimension_name: 'Datum', usl: getN('gc-dmp-datum-usl'), ucl: getN('gc-dmp-datum-ucl'), cl: getN('gc-dmp-datum-cl'), lcl: getN('gc-dmp-datum-lcl'), lsl: getN('gc-dmp-datum-lsl'), locked: 0 },
-                    { process_mode: dt, product_key: prodKey, dimension_name: 'Non-datum', usl: getN('gc-dmp-nondatum-usl'), ucl: getN('gc-dmp-nondatum-ucl'), cl: getN('gc-dmp-nondatum-cl'), lcl: getN('gc-dmp-nondatum-lcl'), lsl: getN('gc-dmp-nondatum-lsl'), locked: 0 }
-                ];
-
-                // Frequency -> localStorage blob (auto-synced to MySQL by api.js since key contains "config")
-                const freqVal = dt === 'roving' ? getInt('gc-dmp-freq-roving') : getInt('gc-dmp-freq-buyoff');
-                let existing = {};
-                try { existing = JSON.parse(localStorage.getItem('belton_damper_config_v1') || '{}'); } catch { }
-                if (!existing[prodKey]) existing[prodKey] = {};
-                existing[prodKey][dt] = { freq: freqVal };
-                localStorage.setItem('belton_damper_config_v1', JSON.stringify(existing));
-
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ limits })
-                    });
-                    if (!res.ok) throw new Error('save failed');
-                    if (typeof showToast === 'function') showToast(`✅ บันทึก Damper Specs สำหรับ "${prodKey}" สำเร็จ`, 'success');
-                    else alert('✅ บันทึก Damper Specs สำเร็จ');
-                } catch (e) {
-                    console.error('Save damper config failed', e);
-                    if (typeof showToast === 'function') showToast('✅ บันทึก Frequency (Local) แต่บันทึก SPC ลง MySQL ไม่สำเร็จ: ' + e.message, 'warn');
-                    else alert('บันทึกไม่สำเร็จ: ' + e.message);
-                }
-            }
-
-            function resetGlobalDamperConfig() {
-                let prodKey = document.getElementById('gc-dmp-product')?.value;
-                if (!prodKey) prodKey = 'default';
-                if (!confirm(`ล้างค่าทั้งหมดของ "${prodKey}" ?`)) return;
-
-                ['gc-dmp-datum-usl', 'gc-dmp-datum-ucl', 'gc-dmp-datum-cl', 'gc-dmp-datum-lcl', 'gc-dmp-datum-lsl',
-                    'gc-dmp-nondatum-usl', 'gc-dmp-nondatum-ucl', 'gc-dmp-nondatum-cl', 'gc-dmp-nondatum-lcl', 'gc-dmp-nondatum-lsl',
-                    'gc-dmp-freq-buyoff', 'gc-dmp-freq-roving'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-
-                let existing = {};
-                try { existing = JSON.parse(localStorage.getItem('belton_damper_config_v1') || '{}'); } catch { }
-                delete existing[prodKey];
-                localStorage.setItem('belton_damper_config_v1', JSON.stringify(existing));
-
-                if (typeof showToast === 'function') showToast('ล้างค่าในฟอร์มแล้ว — กด "บันทึก" เพื่อบันทึกค่าว่างลงระบบ', 'warn');
-            }
-
-            function loadGlobalPofConfig() {
-                let prodKey = document.getElementById('gc-pof-product')?.value;
-                const formEl = document.getElementById('gc-pof-form');
-                if (!formEl) return;
-
-                if (!prodKey) prodKey = 'default';
-                formEl.style.display = 'block';
-
-                // Load saved config
-                let saved = {};
-                try { saved = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
-                const cfg = (saved[prodKey] || {});
-
-                const applyVis = (mode) => {
-                    let hasBobbin = false;
-                    let hasSl = true;
-                    if (!prodKey || prodKey === 'default') {
-                        hasBobbin = true;
-                        hasSl = true;
-                    } else {
-                        const prod = prodKey.toLowerCase();
-                        hasBobbin = POF_BOBBIN_PRODUCTS.has(prodKey);
-
-                        if (prod.includes('cimarron 5d') && mode === 'roving') hasBobbin = true;
-                        if (prod.includes('dorado 10d noar') && ['buyoff', 'roving', 'special'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('dorado 5d al') && prod.includes('bb') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('m11 p') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('rosewood 1d') && !prod.includes('ksf') && !prod.includes('sbr') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('v11 1d') && ['buyoff', 'roving'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('marlin 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 1d ksf') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 1d sbr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 2d kgr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('summit 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
-
-                        if (prod.includes('dorado 10d') && !prod.includes('noar') && mode === 'oba') hasSl = true;
-                        if (prod.includes('dorado 5d') && !prod.includes('al') && mode === 'oba') hasSl = true;
-                    }
-                    const elBobbinWrap = document.getElementById(`gc-pof-bobbin-wrap-${mode}`);
-                    const elBobbinSep = document.getElementById(`gc-pof-bobbin-sep-${mode}`);
-                    if (elBobbinWrap) elBobbinWrap.style.display = hasBobbin ? '' : 'none';
-                    if (elBobbinSep) elBobbinSep.style.display = hasBobbin ? '' : 'none';
-
-                    const longLsl = document.getElementById(`gc-pof-${mode}-long-lsl`);
-                    if (longLsl) {
-                        const trLong = longLsl.closest('tr');
-                        const sepLong = trLong.previousElementSibling;
-                        trLong.style.display = hasSl ? '' : 'none';
-                        if (sepLong) sepLong.style.display = hasSl ? '' : 'none';
-                    }
-                    const shortLsl = document.getElementById(`gc-pof-${mode}-short-lsl`);
-                    if (shortLsl) {
-                        const trShort = shortLsl.closest('tr');
-                        const sepShort = trShort.previousElementSibling;
-                        trShort.style.display = hasSl ? '' : 'none';
-                        if (sepShort) sepShort.style.display = hasSl ? '' : 'none';
-                    }
-                };
-                ['buyoff', 'roving', 'oba', 'special'].forEach(applyVis);
-
-
-                // Unit + Frequency
-                const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
-                setVal('gc-pof-unit', cfg.unit || 'Lbs');
-                setVal('gc-pof-freq', cfg.freq || '');
-
-                // Buy Off — Long Fantail
-                const bo = cfg.buyoff || {};
-                setVal('gc-pof-buyoff-long-lsl', bo.long_lsl ?? '');
-                setVal('gc-pof-buyoff-long-lcl', bo.long_lcl ?? '');
-                setVal('gc-pof-buyoff-long-cl', bo.long_cl ?? '');
-                setVal('gc-pof-buyoff-long-ucl', bo.long_ucl ?? '');
-                setVal('gc-pof-buyoff-long-usl', bo.long_usl ?? '');
-                // Buy Off — Short Fantail
-                setVal('gc-pof-buyoff-short-lsl', bo.short_lsl ?? '');
-                setVal('gc-pof-buyoff-short-lcl', bo.short_lcl ?? '');
-                setVal('gc-pof-buyoff-short-cl', bo.short_cl ?? '');
-                setVal('gc-pof-buyoff-short-ucl', bo.short_ucl ?? '');
-                setVal('gc-pof-buyoff-short-usl', bo.short_usl ?? '');
-                // Buy Off — Bobbin
-                setVal('gc-pof-buyoff-bobbin-lsl', bo.bobbin_lsl ?? '');
-                setVal('gc-pof-buyoff-bobbin-lcl', bo.bobbin_lcl ?? '');
-                setVal('gc-pof-buyoff-bobbin-cl', bo.bobbin_cl ?? '');
-                setVal('gc-pof-buyoff-bobbin-ucl', bo.bobbin_ucl ?? '');
-                setVal('gc-pof-buyoff-bobbin-usl', bo.bobbin_usl ?? '');
-
-                // Roving — Long Fantail
-                const ro = cfg.roving || {};
-                setVal('gc-pof-roving-long-lsl', ro.long_lsl ?? '');
-                setVal('gc-pof-roving-long-lcl', ro.long_lcl ?? '');
-                setVal('gc-pof-roving-long-cl', ro.long_cl ?? '');
-                setVal('gc-pof-roving-long-ucl', ro.long_ucl ?? '');
-                setVal('gc-pof-roving-long-usl', ro.long_usl ?? '');
-                // Roving — Short Fantail
-                setVal('gc-pof-roving-short-lsl', ro.short_lsl ?? '');
-                setVal('gc-pof-roving-short-lcl', ro.short_lcl ?? '');
-                setVal('gc-pof-roving-short-cl', ro.short_cl ?? '');
-                setVal('gc-pof-roving-short-ucl', ro.short_ucl ?? '');
-                setVal('gc-pof-roving-short-usl', ro.short_usl ?? '');
-                // Roving — Bobbin
-                setVal('gc-pof-roving-bobbin-lsl', ro.bobbin_lsl ?? '');
-                setVal('gc-pof-roving-bobbin-lcl', ro.bobbin_lcl ?? '');
-                setVal('gc-pof-roving-bobbin-cl', ro.bobbin_cl ?? '');
-                setVal('gc-pof-roving-bobbin-ucl', ro.bobbin_ucl ?? '');
-                setVal('gc-pof-roving-bobbin-usl', ro.bobbin_usl ?? '');
-
-                // OBA — Long Fantail
-                const oba = cfg.oba || {};
-                setVal('gc-pof-oba-long-lsl', oba.long_lsl ?? '');
-                setVal('gc-pof-oba-long-lcl', oba.long_lcl ?? '');
-                setVal('gc-pof-oba-long-cl', oba.long_cl ?? '');
-                setVal('gc-pof-oba-long-ucl', oba.long_ucl ?? '');
-                setVal('gc-pof-oba-long-usl', oba.long_usl ?? '');
-                // OBA — Short Fantail
-                setVal('gc-pof-oba-short-lsl', oba.short_lsl ?? '');
-                setVal('gc-pof-oba-short-lcl', oba.short_lcl ?? '');
-                setVal('gc-pof-oba-short-cl', oba.short_cl ?? '');
-                setVal('gc-pof-oba-short-ucl', oba.short_ucl ?? '');
-                setVal('gc-pof-oba-short-usl', oba.short_usl ?? '');
-                // OBA — Bobbin
-                setVal('gc-pof-oba-bobbin-lsl', oba.bobbin_lsl ?? '');
-                setVal('gc-pof-oba-bobbin-lcl', oba.bobbin_lcl ?? '');
-                setVal('gc-pof-oba-bobbin-cl', oba.bobbin_cl ?? '');
-                setVal('gc-pof-oba-bobbin-ucl', oba.bobbin_ucl ?? '');
-                setVal('gc-pof-oba-bobbin-usl', oba.bobbin_usl ?? '');
-
-                // Special — Long Fantail
-                const sp = cfg.special || {};
-                setVal('gc-pof-special-long-lsl', sp.long_lsl ?? '');
-                setVal('gc-pof-special-long-lcl', sp.long_lcl ?? '');
-                setVal('gc-pof-special-long-cl', sp.long_cl ?? '');
-                setVal('gc-pof-special-long-ucl', sp.long_ucl ?? '');
-                setVal('gc-pof-special-long-usl', sp.long_usl ?? '');
-                // Special — Short Fantail
-                setVal('gc-pof-special-short-lsl', sp.short_lsl ?? '');
-                setVal('gc-pof-special-short-lcl', sp.short_lcl ?? '');
-                setVal('gc-pof-special-short-cl', sp.short_cl ?? '');
-                setVal('gc-pof-special-short-ucl', sp.short_ucl ?? '');
-                setVal('gc-pof-special-short-usl', sp.short_usl ?? '');
-                // Special — Bobbin
-                setVal('gc-pof-special-bobbin-lsl', sp.bobbin_lsl ?? '');
-                setVal('gc-pof-special-bobbin-lcl', sp.bobbin_lcl ?? '');
-                setVal('gc-pof-special-bobbin-cl', sp.bobbin_cl ?? '');
-                setVal('gc-pof-special-bobbin-ucl', sp.bobbin_ucl ?? '');
-                setVal('gc-pof-special-bobbin-usl', sp.bobbin_usl ?? '');
-
-                // Epoxy pickers
-                const epoxy = cfg.epoxy || {};
-                const hiddenReject = document.getElementById('gc-pof-epoxy-reject');
-                const hiddenHold = document.getElementById('gc-pof-epoxy-hold');
-                const hiddenAccept = document.getElementById('gc-pof-epoxy-accept');
-                if (hiddenReject) hiddenReject.value = epoxy.reject ?? 10;
-                if (hiddenHold) hiddenHold.value = epoxy.hold ?? 30;
-                if (hiddenAccept) hiddenAccept.value = epoxy.accept ?? 30;
-                initEpoxyPickers();
-
-                if (typeof filterPofRows === 'function') {
-                    filterPofRows();
-                }
-            }
-
-            function saveGlobalPofConfig() {
-                let prodKey = document.getElementById('gc-pof-product')?.value;
-                if (!prodKey) prodKey = 'default';
-
-                const getN = (id) => {
-                    const el = document.getElementById(id);
-                    if (!el || el.value === '') return null;
-                    return parseFloat(el.value);
-                };
-                const getInt = (id) => {
-                    const el = document.getElementById(id);
-                    if (!el || el.value === '') return null;
-                    return parseInt(el.value);
-                };
-                const getStr = (id) => document.getElementById(id)?.value || '';
-
-                const cfg = {
-                    unit: getStr('gc-pof-unit'),
-                    freq: getInt('gc-pof-freq'),
-                    buyoff: {
-                        long_lsl: getN('gc-pof-buyoff-long-lsl'),
-                        long_lcl: getN('gc-pof-buyoff-long-lcl'),
-                        long_cl: getN('gc-pof-buyoff-long-cl'),
-                        long_ucl: getN('gc-pof-buyoff-long-ucl'),
-                        long_usl: getN('gc-pof-buyoff-long-usl'),
-                        short_lsl: getN('gc-pof-buyoff-short-lsl'),
-                        short_lcl: getN('gc-pof-buyoff-short-lcl'),
-                        short_cl: getN('gc-pof-buyoff-short-cl'),
-                        short_ucl: getN('gc-pof-buyoff-short-ucl'),
-                        short_usl: getN('gc-pof-buyoff-short-usl'),
-                        bobbin_lsl: getN('gc-pof-buyoff-bobbin-lsl'),
-                        bobbin_lcl: getN('gc-pof-buyoff-bobbin-lcl'),
-                        bobbin_cl: getN('gc-pof-buyoff-bobbin-cl'),
-                        bobbin_ucl: getN('gc-pof-buyoff-bobbin-ucl'),
-                        bobbin_usl: getN('gc-pof-buyoff-bobbin-usl'),
-                    },
-                    roving: {
-                        long_lsl: getN('gc-pof-roving-long-lsl'),
-                        long_lcl: getN('gc-pof-roving-long-lcl'),
-                        long_cl: getN('gc-pof-roving-long-cl'),
-                        long_ucl: getN('gc-pof-roving-long-ucl'),
-                        long_usl: getN('gc-pof-roving-long-usl'),
-                        short_lsl: getN('gc-pof-roving-short-lsl'),
-                        short_lcl: getN('gc-pof-roving-short-lcl'),
-                        short_cl: getN('gc-pof-roving-short-cl'),
-                        short_ucl: getN('gc-pof-roving-short-ucl'),
-                        short_usl: getN('gc-pof-roving-short-usl'),
-                        bobbin_lsl: getN('gc-pof-roving-bobbin-lsl'),
-                        bobbin_lcl: getN('gc-pof-roving-bobbin-lcl'),
-                        bobbin_cl: getN('gc-pof-roving-bobbin-cl'),
-                        bobbin_ucl: getN('gc-pof-roving-bobbin-ucl'),
-                        bobbin_usl: getN('gc-pof-roving-bobbin-usl'),
-                    },
-                    oba: {
-                        long_lsl: getN('gc-pof-oba-long-lsl'),
-                        long_lcl: getN('gc-pof-oba-long-lcl'),
-                        long_cl: getN('gc-pof-oba-long-cl'),
-                        long_ucl: getN('gc-pof-oba-long-ucl'),
-                        long_usl: getN('gc-pof-oba-long-usl'),
-                        short_lsl: getN('gc-pof-oba-short-lsl'),
-                        short_lcl: getN('gc-pof-oba-short-lcl'),
-                        short_cl: getN('gc-pof-oba-short-cl'),
-                        short_ucl: getN('gc-pof-oba-short-ucl'),
-                        short_usl: getN('gc-pof-oba-short-usl'),
-                        bobbin_lsl: getN('gc-pof-oba-bobbin-lsl'),
-                        bobbin_lcl: getN('gc-pof-oba-bobbin-lcl'),
-                        bobbin_cl: getN('gc-pof-oba-bobbin-cl'),
-                        bobbin_ucl: getN('gc-pof-oba-bobbin-ucl'),
-                        bobbin_usl: getN('gc-pof-oba-bobbin-usl'),
-                    },
-                    special: {
-                        long_lsl: getN('gc-pof-special-long-lsl'),
-                        long_lcl: getN('gc-pof-special-long-lcl'),
-                        long_cl: getN('gc-pof-special-long-cl'),
-                        long_ucl: getN('gc-pof-special-long-ucl'),
-                        long_usl: getN('gc-pof-special-long-usl'),
-                        short_lsl: getN('gc-pof-special-short-lsl'),
-                        short_lcl: getN('gc-pof-special-short-lcl'),
-                        short_cl: getN('gc-pof-special-short-cl'),
-                        short_ucl: getN('gc-pof-special-short-ucl'),
-                        short_usl: getN('gc-pof-special-short-usl'),
-                        bobbin_lsl: getN('gc-pof-special-bobbin-lsl'),
-                        bobbin_lcl: getN('gc-pof-special-bobbin-lcl'),
-                        bobbin_cl: getN('gc-pof-special-bobbin-cl'),
-                        bobbin_ucl: getN('gc-pof-special-bobbin-ucl'),
-                        bobbin_usl: getN('gc-pof-special-bobbin-usl'),
-                    },
-
-                    epoxy: {
-                        reject: getInt('gc-pof-epoxy-reject') ?? 10,
-                        hold: getInt('gc-pof-epoxy-hold') ?? 30,
-                        accept: getInt('gc-pof-epoxy-accept') ?? 30,
-                    }
-                };
-
-                let existing = {};
-                try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
-                existing[prodKey] = cfg;
-
-                const cfgStr = JSON.stringify(existing);
-                localStorage.setItem('belton_pof_config_v1', cfgStr);
-
-                // Sync with generic config
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ belton_pof_config_v1: cfgStr })
-                }).catch(e => console.error("Sync to DB failed", e));
-
-                // Sync with pof_config table
-                const limits = [];
-                const buildLim = (dt, tp, prefix, src) => {
-                    if (!src) return;
-                    const lim = {
-                        product_key: prodKey, data_type: dt, type_parameter: tp, frequency: cfg.freq || null,
-                        usl: src[prefix + '_usl'] !== undefined ? src[prefix + '_usl'] : null,
-                        ucl: src[prefix + '_ucl'] !== undefined ? src[prefix + '_ucl'] : null,
-                        cl: src[prefix + '_cl'] !== undefined ? src[prefix + '_cl'] : null,
-                        lcl: src[prefix + '_lcl'] !== undefined ? src[prefix + '_lcl'] : null,
-                        lsl: src[prefix + '_lsl'] !== undefined ? src[prefix + '_lsl'] : null
-                    };
-                    if (lim.usl !== null || lim.ucl !== null || lim.cl !== null || lim.lcl !== null || lim.lsl !== null || lim.frequency !== null) {
-                        limits.push(lim);
-                    }
-                };
-
-                buildLim('buyoff', 'long_fantail', 'long', cfg.buyoff);
-                buildLim('buyoff', 'short_fantail', 'short', cfg.buyoff);
-                buildLim('buyoff', 'bobbin', 'bobbin', cfg.buyoff);
-
-                buildLim('roving', 'long_fantail', 'long', cfg.roving);
-                buildLim('roving', 'short_fantail', 'short', cfg.roving);
-                buildLim('roving', 'bobbin', 'bobbin', cfg.roving);
-
-                buildLim('oba', 'long_fantail', 'long', cfg.oba);
-                buildLim('oba', 'short_fantail', 'short', cfg.oba);
-                buildLim('oba', 'bobbin', 'bobbin', cfg.oba);
-
-                buildLim('special', 'long_fantail', 'long', cfg.special);
-                buildLim('special', 'short_fantail', 'short', cfg.special);
-                buildLim('special', 'bobbin', 'bobbin', cfg.special);
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => {
-                    if (typeof showToast === 'function') {
-                        showToast(`✅ บันทึก POF Config สำหรับ "${prodKey}" สำเร็จ`, 'success');
-                    } else {
-                        alert('✅ บันทึก POF Config สำเร็จ');
-                    }
-                }).catch(e => {
-                    console.error("Sync to pof_config DB failed", e);
-                    if (typeof showToast === 'function') {
-                        showToast(`✅ บันทึก POF Config สำเร็จ (Local) แต่บันทึกลง MySQL ไม่สำเร็จ`, 'warn');
-                    } else {
-                        alert('✅ บันทึก POF Config สำเร็จ (Local)');
-                    }
+        function setEpoxyPicker(zone, val) {
+            const hidden = document.getElementById(zone.hidden);
+            if (hidden) hidden.value = val;
+            const picker = document.getElementById('ep-picker-' + zone.id);
+            if (picker) {
+                picker.querySelectorAll('.ep-pct-btn').forEach(b => {
+                    b.classList.remove('active-reject', 'active-hold', 'active-accept');
+                    if (parseInt(b.dataset.val) === val) b.classList.add(zone.cls);
                 });
             }
+            const labelEl = document.getElementById(zone.label);
+            if (labelEl) labelEl.textContent = val + ' %';
+            updateEpoxySummary();
+        }
 
-            function resetGlobalPofConfig() {
-                let prodKey = document.getElementById('gc-pof-product')?.value;
-                if (!prodKey) prodKey = 'default';
-                if (!confirm(`ล้างค่าทั้งหมดของ "${prodKey}" และ Reset เป็นค่าเริ่มต้น?`)) return;
-
-                let existing = {};
-                try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
-                delete existing[prodKey];
-                localStorage.setItem('belton_pof_config_v1', JSON.stringify(existing));
-                loadGlobalPofConfig();
-
-                if (typeof showToast === 'function') {
-                    showToast('ล้างค่า POF Config เรียบร้อย', 'warn');
-                } else {
-                    alert('ล้างค่า POF Config เรียบร้อย');
-                }
+        function updateEpoxySummary() {
+            const rejVal = document.getElementById('gc-pof-epoxy-reject')?.value;
+            const reject = (rejVal !== '' && rejVal !== undefined) ? parseInt(rejVal) : 10;
+            const holdVal = document.getElementById('gc-pof-epoxy-hold')?.value;
+            const hold = (holdVal !== '' && holdVal !== undefined) ? parseInt(holdVal) : 30;
+            const el = document.getElementById('ep-summary-text');
+            if (el) {
+                el.innerHTML = `0%–${reject}% → <b style="color:#dc2626">Reject</b> &nbsp;|&nbsp; ${reject + 10}%–${hold - 1}% → <b style="color:#b45309">Hold</b> &nbsp;|&nbsp; ≥${hold}% → <b style="color:#16a34a">Accept</b>`;
             }
-            document.addEventListener('DOMContentLoaded', async () => {
-                try {
-                    // Sync configs from MySQL to localStorage FIRST
-                    try {
-                        const cfgRes = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config');
-                        if (cfgRes.ok) {
-                            const dbCfg = await cfgRes.json();
-                            if (dbCfg.belton_pof_config_v1) localStorage.setItem('belton_pof_config_v1', dbCfg.belton_pof_config_v1);
-                            if (dbCfg.belton_laser_config_v1) localStorage.setItem('belton_laser_config_v1', dbCfg.belton_laser_config_v1);
-                            if (dbCfg.belton_damper_v3_config) localStorage.setItem('belton_damper_v3_config', dbCfg.belton_damper_v3_config);
-                            if (dbCfg.belton_dispensing_v2_config) localStorage.setItem('belton_dispensing_v2_config', dbCfg.belton_dispensing_v2_config);
-                            if (dbCfg.belton_pof_spc_rules) localStorage.setItem('belton_pof_spc_rules', dbCfg.belton_pof_spc_rules);
-                        }
-                    } catch (e) { console.error("Failed to sync system config from DB", e); }
+        }
 
-                    // Fetch products dynamically instead of relying solely on shared_products.js
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/products');
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.success && data.products) {
-                            window.PRODUCTS = {};
-                            data.products.forEach(p => {
-                                let dims = [];
-                                try { dims = typeof p.dims === 'string' ? JSON.parse(p.dims) : p.dims; } catch (e) { }
-                                window.PRODUCTS[p.product_key] = {
-                                    label: p.product_name,
-                                    dims: dims || []
-                                };
+        // ═══════════════════════════════════════════════════════════
+        //  POF Config — Load / Save / Reset
+        // ═══════════════════════════════════════════════════════════
+        function loadGlobalPofConfig() {
+            let prodKey = document.getElementById('gc-pof-product')?.value;
+            const formEl = document.getElementById('gc-pof-form');
+            if (!formEl) return;
+
+            if (!prodKey) prodKey = 'default';
+            formEl.style.display = 'block';
+
+            // Load saved config
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
+            const cfg = (saved[prodKey] || {});
+
+            const applyVis = (mode) => {
+                let hasBobbin = false;
+                let hasSl = true;
+                if (!prodKey || prodKey === 'default') {
+                    hasBobbin = true;
+                    hasSl = true;
+                } else {
+                    const prod = prodKey.toLowerCase();
+                    hasBobbin = POF_BOBBIN_PRODUCTS.has(prodKey);
+                    
+                    if (prod.includes('cimarron 5d') && mode === 'roving') hasBobbin = true;
+                    if (prod.includes('dorado 10d noar') && ['buyoff', 'roving', 'special'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('dorado 5d al') && prod.includes('bb') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('m11 p') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('rosewood 1d') && !prod.includes('ksf') && !prod.includes('sbr') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('v11 1d') && ['buyoff', 'roving'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('marlin 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 1d ksf') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 1d sbr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 2d kgr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('summit 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
+
+                    if (prod.includes('dorado 10d') && !prod.includes('noar') && mode === 'oba') hasSl = true;
+                    if (prod.includes('dorado 5d') && !prod.includes('al') && mode === 'oba') hasSl = true;
+                }
+                const elBobbinWrap = document.getElementById(`gc-pof-bobbin-wrap-${mode}`);
+                const elBobbinSep = document.getElementById(`gc-pof-bobbin-sep-${mode}`);
+                if (elBobbinWrap) elBobbinWrap.style.display = hasBobbin ? '' : 'none';
+                if (elBobbinSep) elBobbinSep.style.display = hasBobbin ? '' : 'none';
+
+                const longLsl = document.getElementById(`gc-pof-${mode}-long-lsl`);
+                if (longLsl) {
+                    const trLong = longLsl.closest('tr');
+                    const sepLong = trLong.previousElementSibling;
+                    trLong.style.display = hasSl ? '' : 'none';
+                    if (sepLong) sepLong.style.display = hasSl ? '' : 'none';
+                }
+                const shortLsl = document.getElementById(`gc-pof-${mode}-short-lsl`);
+                if (shortLsl) {
+                    const trShort = shortLsl.closest('tr');
+                    const sepShort = trShort.previousElementSibling;
+                    trShort.style.display = hasSl ? '' : 'none';
+                    if (sepShort) sepShort.style.display = hasSl ? '' : 'none';
+                }
+            };
+            ['buyoff', 'roving', 'oba', 'special'].forEach(applyVis);
+
+
+            // Unit + Frequency
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+            setVal('gc-pof-unit', cfg.unit || 'Lbs');
+            setVal('gc-pof-freq', cfg.freq || '');
+
+            // Buy Off — Long Fantail
+            const bo = cfg.buyoff || {};
+            setVal('gc-pof-buyoff-long-lsl', bo.long_lsl ?? '');
+            setVal('gc-pof-buyoff-long-lcl', bo.long_lcl ?? '');
+            setVal('gc-pof-buyoff-long-cl', bo.long_cl ?? '');
+            setVal('gc-pof-buyoff-long-ucl', bo.long_ucl ?? '');
+            setVal('gc-pof-buyoff-long-usl', bo.long_usl ?? '');
+            // Buy Off — Short Fantail
+            setVal('gc-pof-buyoff-short-lsl', bo.short_lsl ?? '');
+            setVal('gc-pof-buyoff-short-lcl', bo.short_lcl ?? '');
+            setVal('gc-pof-buyoff-short-cl', bo.short_cl ?? '');
+            setVal('gc-pof-buyoff-short-ucl', bo.short_ucl ?? '');
+            setVal('gc-pof-buyoff-short-usl', bo.short_usl ?? '');
+            // Buy Off — Bobbin
+            setVal('gc-pof-buyoff-bobbin-lsl', bo.bobbin_lsl ?? '');
+            setVal('gc-pof-buyoff-bobbin-lcl', bo.bobbin_lcl ?? '');
+            setVal('gc-pof-buyoff-bobbin-cl', bo.bobbin_cl ?? '');
+            setVal('gc-pof-buyoff-bobbin-ucl', bo.bobbin_ucl ?? '');
+            setVal('gc-pof-buyoff-bobbin-usl', bo.bobbin_usl ?? '');
+
+            // Roving — Long Fantail
+            const ro = cfg.roving || {};
+            setVal('gc-pof-roving-long-lsl', ro.long_lsl ?? '');
+            setVal('gc-pof-roving-long-lcl', ro.long_lcl ?? '');
+            setVal('gc-pof-roving-long-cl', ro.long_cl ?? '');
+            setVal('gc-pof-roving-long-ucl', ro.long_ucl ?? '');
+            setVal('gc-pof-roving-long-usl', ro.long_usl ?? '');
+            // Roving — Short Fantail
+            setVal('gc-pof-roving-short-lsl', ro.short_lsl ?? '');
+            setVal('gc-pof-roving-short-lcl', ro.short_lcl ?? '');
+            setVal('gc-pof-roving-short-cl', ro.short_cl ?? '');
+            setVal('gc-pof-roving-short-ucl', ro.short_ucl ?? '');
+            setVal('gc-pof-roving-short-usl', ro.short_usl ?? '');
+            // Roving — Bobbin
+            setVal('gc-pof-roving-bobbin-lsl', ro.bobbin_lsl ?? '');
+            setVal('gc-pof-roving-bobbin-lcl', ro.bobbin_lcl ?? '');
+            setVal('gc-pof-roving-bobbin-cl', ro.bobbin_cl ?? '');
+            setVal('gc-pof-roving-bobbin-ucl', ro.bobbin_ucl ?? '');
+            setVal('gc-pof-roving-bobbin-usl', ro.bobbin_usl ?? '');
+
+            // OBA — Long Fantail
+            const oba = cfg.oba || {};
+            setVal('gc-pof-oba-long-lsl', oba.long_lsl ?? '');
+            setVal('gc-pof-oba-long-lcl', oba.long_lcl ?? '');
+            setVal('gc-pof-oba-long-cl', oba.long_cl ?? '');
+            setVal('gc-pof-oba-long-ucl', oba.long_ucl ?? '');
+            setVal('gc-pof-oba-long-usl', oba.long_usl ?? '');
+            // OBA — Short Fantail
+            setVal('gc-pof-oba-short-lsl', oba.short_lsl ?? '');
+            setVal('gc-pof-oba-short-lcl', oba.short_lcl ?? '');
+            setVal('gc-pof-oba-short-cl', oba.short_cl ?? '');
+            setVal('gc-pof-oba-short-ucl', oba.short_ucl ?? '');
+            setVal('gc-pof-oba-short-usl', oba.short_usl ?? '');
+            // OBA — Bobbin
+            setVal('gc-pof-oba-bobbin-lsl', oba.bobbin_lsl ?? '');
+            setVal('gc-pof-oba-bobbin-lcl', oba.bobbin_lcl ?? '');
+            setVal('gc-pof-oba-bobbin-cl', oba.bobbin_cl ?? '');
+            setVal('gc-pof-oba-bobbin-ucl', oba.bobbin_ucl ?? '');
+            setVal('gc-pof-oba-bobbin-usl', oba.bobbin_usl ?? '');
+
+            // Special — Long Fantail
+            const sp = cfg.special || {};
+            setVal('gc-pof-special-long-lsl', sp.long_lsl ?? '');
+            setVal('gc-pof-special-long-lcl', sp.long_lcl ?? '');
+            setVal('gc-pof-special-long-cl', sp.long_cl ?? '');
+            setVal('gc-pof-special-long-ucl', sp.long_ucl ?? '');
+            setVal('gc-pof-special-long-usl', sp.long_usl ?? '');
+            // Special — Short Fantail
+            setVal('gc-pof-special-short-lsl', sp.short_lsl ?? '');
+            setVal('gc-pof-special-short-lcl', sp.short_lcl ?? '');
+            setVal('gc-pof-special-short-cl', sp.short_cl ?? '');
+            setVal('gc-pof-special-short-ucl', sp.short_ucl ?? '');
+            setVal('gc-pof-special-short-usl', sp.short_usl ?? '');
+            // Special — Bobbin
+            setVal('gc-pof-special-bobbin-lsl', sp.bobbin_lsl ?? '');
+            setVal('gc-pof-special-bobbin-lcl', sp.bobbin_lcl ?? '');
+            setVal('gc-pof-special-bobbin-cl', sp.bobbin_cl ?? '');
+            setVal('gc-pof-special-bobbin-ucl', sp.bobbin_ucl ?? '');
+            setVal('gc-pof-special-bobbin-usl', sp.bobbin_usl ?? '');
+
+            // Epoxy pickers
+            const epoxy = cfg.epoxy || {};
+            const hiddenReject = document.getElementById('gc-pof-epoxy-reject');
+            const hiddenHold = document.getElementById('gc-pof-epoxy-hold');
+            const hiddenAccept = document.getElementById('gc-pof-epoxy-accept');
+            if (hiddenReject) hiddenReject.value = epoxy.reject ?? 10;
+            if (hiddenHold) hiddenHold.value = epoxy.hold ?? 30;
+            if (hiddenAccept) hiddenAccept.value = epoxy.accept ?? 30;
+            initEpoxyPickers();
+
+            if (typeof filterPofRows === 'function') {
+                filterPofRows();
+            }
+        }
+
+        function saveGlobalPofConfig() {
+            let prodKey = document.getElementById('gc-pof-product')?.value;
+            if (!prodKey) prodKey = 'default';
+
+            const getN = (id) => {
+                const el = document.getElementById(id);
+                if (!el || el.value === '') return null;
+                return parseFloat(el.value);
+            };
+            const getInt = (id) => {
+                const el = document.getElementById(id);
+                if (!el || el.value === '') return null;
+                return parseInt(el.value);
+            };
+            const getStr = (id) => document.getElementById(id)?.value || '';
+
+            const cfg = {
+                unit: getStr('gc-pof-unit'),
+                freq: getInt('gc-pof-freq'),
+                buyoff: {
+                    long_lsl: getN('gc-pof-buyoff-long-lsl'),
+                    long_lcl: getN('gc-pof-buyoff-long-lcl'),
+                    long_cl: getN('gc-pof-buyoff-long-cl'),
+                    long_ucl: getN('gc-pof-buyoff-long-ucl'),
+                    long_usl: getN('gc-pof-buyoff-long-usl'),
+                    short_lsl: getN('gc-pof-buyoff-short-lsl'),
+                    short_lcl: getN('gc-pof-buyoff-short-lcl'),
+                    short_cl: getN('gc-pof-buyoff-short-cl'),
+                    short_ucl: getN('gc-pof-buyoff-short-ucl'),
+                    short_usl: getN('gc-pof-buyoff-short-usl'),
+                    bobbin_lsl: getN('gc-pof-buyoff-bobbin-lsl'),
+                    bobbin_lcl: getN('gc-pof-buyoff-bobbin-lcl'),
+                    bobbin_cl: getN('gc-pof-buyoff-bobbin-cl'),
+                    bobbin_ucl: getN('gc-pof-buyoff-bobbin-ucl'),
+                    bobbin_usl: getN('gc-pof-buyoff-bobbin-usl'),
+                },
+                roving: {
+                    long_lsl: getN('gc-pof-roving-long-lsl'),
+                    long_lcl: getN('gc-pof-roving-long-lcl'),
+                    long_cl: getN('gc-pof-roving-long-cl'),
+                    long_ucl: getN('gc-pof-roving-long-ucl'),
+                    long_usl: getN('gc-pof-roving-long-usl'),
+                    short_lsl: getN('gc-pof-roving-short-lsl'),
+                    short_lcl: getN('gc-pof-roving-short-lcl'),
+                    short_cl: getN('gc-pof-roving-short-cl'),
+                    short_ucl: getN('gc-pof-roving-short-ucl'),
+                    short_usl: getN('gc-pof-roving-short-usl'),
+                    bobbin_lsl: getN('gc-pof-roving-bobbin-lsl'),
+                    bobbin_lcl: getN('gc-pof-roving-bobbin-lcl'),
+                    bobbin_cl: getN('gc-pof-roving-bobbin-cl'),
+                    bobbin_ucl: getN('gc-pof-roving-bobbin-ucl'),
+                    bobbin_usl: getN('gc-pof-roving-bobbin-usl'),
+                },
+                oba: {
+                    long_lsl: getN('gc-pof-oba-long-lsl'),
+                    long_lcl: getN('gc-pof-oba-long-lcl'),
+                    long_cl: getN('gc-pof-oba-long-cl'),
+                    long_ucl: getN('gc-pof-oba-long-ucl'),
+                    long_usl: getN('gc-pof-oba-long-usl'),
+                    short_lsl: getN('gc-pof-oba-short-lsl'),
+                    short_lcl: getN('gc-pof-oba-short-lcl'),
+                    short_cl: getN('gc-pof-oba-short-cl'),
+                    short_ucl: getN('gc-pof-oba-short-ucl'),
+                    short_usl: getN('gc-pof-oba-short-usl'),
+                    bobbin_lsl: getN('gc-pof-oba-bobbin-lsl'),
+                    bobbin_lcl: getN('gc-pof-oba-bobbin-lcl'),
+                    bobbin_cl: getN('gc-pof-oba-bobbin-cl'),
+                    bobbin_ucl: getN('gc-pof-oba-bobbin-ucl'),
+                    bobbin_usl: getN('gc-pof-oba-bobbin-usl'),
+                },
+                special: {
+                    long_lsl: getN('gc-pof-special-long-lsl'),
+                    long_lcl: getN('gc-pof-special-long-lcl'),
+                    long_cl: getN('gc-pof-special-long-cl'),
+                    long_ucl: getN('gc-pof-special-long-ucl'),
+                    long_usl: getN('gc-pof-special-long-usl'),
+                    short_lsl: getN('gc-pof-special-short-lsl'),
+                    short_lcl: getN('gc-pof-special-short-lcl'),
+                    short_cl: getN('gc-pof-special-short-cl'),
+                    short_ucl: getN('gc-pof-special-short-ucl'),
+                    short_usl: getN('gc-pof-special-short-usl'),
+                    bobbin_lsl: getN('gc-pof-special-bobbin-lsl'),
+                    bobbin_lcl: getN('gc-pof-special-bobbin-lcl'),
+                    bobbin_cl: getN('gc-pof-special-bobbin-cl'),
+                    bobbin_ucl: getN('gc-pof-special-bobbin-ucl'),
+                    bobbin_usl: getN('gc-pof-special-bobbin-usl'),
+                },
+
+                epoxy: {
+                    reject: getInt('gc-pof-epoxy-reject') ?? 10,
+                    hold: getInt('gc-pof-epoxy-hold') ?? 30,
+                    accept: getInt('gc-pof-epoxy-accept') ?? 30,
+                }
+            };
+
+            let existing = {};
+            try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
+            existing[prodKey] = cfg;
+
+            const cfgStr = JSON.stringify(existing);
+            localStorage.setItem('belton_pof_config_v1', cfgStr);
+
+            // Sync with generic config
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ belton_pof_config_v1: cfgStr })
+            }).catch(e => console.error("Sync to DB failed", e));
+
+            // Sync with pof_config table
+            const limits = [];
+            const buildLim = (dt, tp, prefix, src) => {
+                if (!src) return;
+                const lim = {
+                    product_key: prodKey, data_type: dt, type_parameter: tp, frequency: cfg.freq || null,
+                    usl: src[prefix + '_usl'] !== undefined ? src[prefix + '_usl'] : null,
+                    ucl: src[prefix + '_ucl'] !== undefined ? src[prefix + '_ucl'] : null,
+                    cl: src[prefix + '_cl'] !== undefined ? src[prefix + '_cl'] : null,
+                    lcl: src[prefix + '_lcl'] !== undefined ? src[prefix + '_lcl'] : null,
+                    lsl: src[prefix + '_lsl'] !== undefined ? src[prefix + '_lsl'] : null
+                };
+                if (lim.usl !== null || lim.ucl !== null || lim.cl !== null || lim.lcl !== null || lim.lsl !== null || lim.frequency !== null) {
+                    limits.push(lim);
+                }
+            };
+
+            buildLim('buyoff', 'long_fantail', 'long', cfg.buyoff);
+            buildLim('buyoff', 'short_fantail', 'short', cfg.buyoff);
+            buildLim('buyoff', 'bobbin', 'bobbin', cfg.buyoff);
+
+            buildLim('roving', 'long_fantail', 'long', cfg.roving);
+            buildLim('roving', 'short_fantail', 'short', cfg.roving);
+            buildLim('roving', 'bobbin', 'bobbin', cfg.roving);
+
+            buildLim('oba', 'long_fantail', 'long', cfg.oba);
+            buildLim('oba', 'short_fantail', 'short', cfg.oba);
+            buildLim('oba', 'bobbin', 'bobbin', cfg.oba);
+
+            buildLim('special', 'long_fantail', 'long', cfg.special);
+            buildLim('special', 'short_fantail', 'short', cfg.special);
+            buildLim('special', 'bobbin', 'bobbin', cfg.special);
+
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                if (typeof showToast === 'function') {
+                    showToast(`✅ บันทึก POF Config สำหรับ "${prodKey}" สำเร็จ`, 'success');
+                } else {
+                    alert('✅ บันทึก POF Config สำเร็จ');
+                }
+            }).catch(e => {
+                console.error("Sync to pof_config DB failed", e);
+                if (typeof showToast === 'function') {
+                    showToast(`✅ บันทึก POF Config สำเร็จ (Local) แต่บันทึกลง MySQL ไม่สำเร็จ`, 'warn');
+                } else {
+                    alert('✅ บันทึก POF Config สำเร็จ (Local)');
+                }
+            });
+        }
+
+        function resetGlobalPofConfig() {
+            let prodKey = document.getElementById('gc-pof-product')?.value;
+            if (!prodKey) prodKey = 'default';
+            if (!confirm(`ล้างค่าทั้งหมดของ "${prodKey}" และ Reset เป็นค่าเริ่มต้น?`)) return;
+
+            let existing = {};
+            try { existing = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}'); } catch { }
+            delete existing[prodKey];
+            localStorage.setItem('belton_pof_config_v1', JSON.stringify(existing));
+            loadGlobalPofConfig();
+
+            if (typeof showToast === 'function') {
+                showToast('ล้างค่า POF Config เรียบร้อย', 'warn');
+            } else {
+                alert('ล้างค่า POF Config เรียบร้อย');
+            }
+        }
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Sync configs from MySQL to localStorage FIRST
+                try {
+                    const cfgRes = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config');
+                    if (cfgRes.ok) {
+                        const dbCfg = await cfgRes.json();
+                        if (dbCfg.belton_pof_config_v1) localStorage.setItem('belton_pof_config_v1', dbCfg.belton_pof_config_v1);
+                        if (dbCfg.belton_laser_config_v1) localStorage.setItem('belton_laser_config_v1', dbCfg.belton_laser_config_v1);
+                        if (dbCfg.belton_damper_v3_config) localStorage.setItem('belton_damper_v3_config', dbCfg.belton_damper_v3_config);
+                        if (dbCfg.belton_dispensing_v2_config) localStorage.setItem('belton_dispensing_v2_config', dbCfg.belton_dispensing_v2_config);
+                        if (dbCfg.belton_pof_spc_rules) localStorage.setItem('belton_pof_spc_rules', dbCfg.belton_pof_spc_rules);
+                    }
+                } catch(e) { console.error("Failed to sync system config from DB", e); }
+
+                // Fetch products dynamically instead of relying solely on shared_products.js
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/products');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.products) {
+                        window.PRODUCTS = {};
+                        data.products.forEach(p => {
+                            let dims = [];
+                            try { dims = typeof p.dims === 'string' ? JSON.parse(p.dims) : p.dims; } catch (e) { }
+                            window.PRODUCTS[p.product_key] = {
+                                label: p.product_name,
+                                dims: dims || []
+                            };
+                        });
+
+
+                        // Fetch individual module product lists (from MySQL module tables) for filtering
+                        window.MODULE_PRODUCTS = {};
+                        const fetchModule = async (modName) => {
+                            try {
+                                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/' + modName + '/products_list');
+                                const data = await res.json();
+                                if (data.success) {
+                                    window.MODULE_PRODUCTS[modName] = data.products;
+                                }
+                            } catch (e) { }
+                        };
+                        await Promise.all([fetchModule('pof'), fetchModule('laser'), fetchModule('damper'), fetchModule('dispensing')]);
+
+                        // Initial population without filter
+                        window.populateFilteredDropdown = function (modName, selectId, modeFilter, isDispensing = false) {
+                            const el = document.getElementById(selectId);
+                            if (!el || !window.MODULE_PRODUCTS[modName]) return;
+                            const curVal = el.value;
+                            while (el.options.length > 1) el.remove(1);
+
+                            let dbMode = modeFilter ? modeFilter.toLowerCase().trim() : null;
+                            if (dbMode === 'buyoff' || dbMode === 'buy off') dbMode = 'buy-off';
+                            if (dbMode === 'roving audit') dbMode = 'roving';
+
+                            const list = window.MODULE_PRODUCTS[modName];
+                            const filtered = list.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode);
+
+                            // dedupe by product_name — DB มีหลาย rows ต่อ product (long/short/bobbin)
+                            // ใช้ product_name เป็น value ตรงๆ ทุก module เพื่อให้ filterPofCategoryByProduct เปรียบได้
+                            const seen = new Set();
+                            filtered.forEach(p => {
+                                if (seen.has(p.product_name)) return;
+                                seen.add(p.product_name);
+                                const o = document.createElement('option');
+                                o.value = p.product_name;
+                                o.textContent = p.product_name;
+                                el.appendChild(o);
                             });
 
+                            if (curVal && Array.from(el.options).some(o => o.value === curVal)) {
+                                el.value = curVal;
+                            }
+                        };
 
-                            // Fetch individual module product lists (from MySQL module tables) for filtering
-                            window.MODULE_PRODUCTS = {};
-                            const fetchModule = async (modName) => {
-                                try {
-                                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/' + modName + '/products_list');
-                                    const data = await res.json();
-                                    if (data.success) {
-                                        window.MODULE_PRODUCTS[modName] = data.products;
-                                    }
-                                } catch (e) { }
-                            };
-                            await Promise.all([fetchModule('pof'), fetchModule('laser'), fetchModule('damper'), fetchModule('dispensing')]);
+                        // Populate initial drops (default to all or initial dropdown values)
+                        window.populateFilteredDropdown('pof', 'gc-pof-product', document.getElementById('gc-pof-datatype')?.value || 'buyoff');
+                        window.populateFilteredDropdown('laser', 'gc-laser-product', document.getElementById('gc-laser-datatype')?.value || 'buyoff');
+                        window.populateFilteredDropdown('damper', 'gc-dmp-product', document.getElementById('gc-dmp-datatype')?.value || 'buyoff');
+                        window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'buy-off', true);
 
-                            // Initial population without filter
-                            window.populateFilteredDropdown = function (modName, selectId, modeFilter, isDispensing = false) {
-                                const el = document.getElementById(selectId);
-                                if (!el || !window.MODULE_PRODUCTS[modName]) return;
-                                const curVal = el.value;
-                                while (el.options.length > 1) el.remove(1);
-
-                                let dbMode = modeFilter ? modeFilter.toLowerCase().trim() : null;
-                                if (dbMode === 'buyoff' || dbMode === 'buy off') dbMode = 'buy-off';
-                                if (dbMode === 'roving audit') dbMode = 'roving';
-
-                                const list = window.MODULE_PRODUCTS[modName];
-                                const filtered = list.filter(p => !dbMode || dbMode === 'all' || (p.mode || '').toLowerCase() === dbMode || (p.mode || '') === '');
-
-                                // dedupe by product_name — DB มีหลาย rows ต่อ product (long/short/bobbin)
-                                // ใช้ product_name เป็น value ตรงๆ ทุก module เพื่อให้ filterPofCategoryByProduct เปรียบได้
-                                const seen = new Set();
-                                filtered.forEach(p => {
-                                    if (seen.has(p.product_name)) return;
-                                    seen.add(p.product_name);
-                                    const o = document.createElement('option');
-                                    o.value = p.product_name;
-                                    o.textContent = p.product_name;
-                                    el.appendChild(o);
-                                });
-
-                                if (curVal && Array.from(el.options).some(o => o.value === curVal)) {
-                                    el.value = curVal;
-                                }
-                            };
-
-                            // Populate initial drops (default to all or initial dropdown values)
-                            window.populateFilteredDropdown('pof', 'gc-pof-product', document.getElementById('gc-pof-datatype')?.value || 'buyoff');
-                            window.populateFilteredDropdown('laser', 'gc-laser-product', document.getElementById('gc-laser-datatype')?.value || 'buyoff');
-                            window.populateFilteredDropdown('damper', 'gc-dmp-product', document.getElementById('gc-dmp-datatype')?.value || 'buyoff');
-                            window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'buy-off', true);
-
-                        }
                     }
-                } catch (e) {
-                    console.error('Failed to load dynamic products:', e);
                 }
-
-                if (typeof sysConfigModuleChange === 'function') {
-                    sysConfigModuleChange();
-                }
-                // Init epoxy pickers with defaults
-                initEpoxyPickers();
-            });
-            // ──────────────────────────────────────────────────────────
-            //  POF: ซ่อน/แสดง Bobbin option ตาม types[] ของ product
-            // ──────────────────────────────────────────────────────────
-            // รายชื่อ product ที่มี Bobbin (ตาม DB จริง)
-            const POF_BOBBIN_PRODUCTS = new Set([
-                'Cimarron BP 4D', 'Cimarron BP 5D',
-                'Dorado 5D AL BB',
-                'Dorado 10D', 'Dorado 10D_NOAR',
-                'DR 10D', 'DR 10D NOAR', 'DR 10D NOAR-AAD',
-                'Marlin 10D', 'Rosewood 2D', 'Summit 10D'
-            ]);
-
-            function filterPofCategoryByProduct() {
-                const productKey = document.getElementById('gc-pof-product')?.value || '';
-
-                const applyVis = (mode) => {
-                    let hasBobbin = false;
-                    let hasSl = true;
-                    if (!productKey || productKey === 'default') {
-                        hasBobbin = true;
-                        hasSl = true;
-                    } else {
-                        const prod = productKey.toLowerCase();
-                        hasBobbin = POF_BOBBIN_PRODUCTS.has(productKey);
-
-                        if (prod.includes('cimarron 5d') && mode === 'roving') hasBobbin = true;
-                        if (prod.includes('dorado 10d noar') && ['buyoff', 'roving', 'special'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('dorado 5d al') && prod.includes('bb') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('m11 p') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('rosewood 1d') && !prod.includes('ksf') && !prod.includes('sbr') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('v11 1d') && ['buyoff', 'roving'].includes(mode)) hasBobbin = true;
-                        if (prod.includes('marlin 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 1d ksf') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 1d sbr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('rosewood 2d kgr') && mode === 'special') hasBobbin = true;
-                        if (prod.includes('summit 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
-
-                        if (prod.includes('dorado 10d') && !prod.includes('noar') && mode === 'oba') hasSl = true;
-                        if (prod.includes('dorado 5d') && !prod.includes('al') && mode === 'oba') hasSl = true;
-                    }
-                    const elBobbinWrap = document.getElementById(`gc-pof-bobbin-wrap-${mode}`);
-                    const elBobbinSep = document.getElementById(`gc-pof-bobbin-sep-${mode}`);
-                    if (elBobbinWrap) elBobbinWrap.style.display = hasBobbin ? '' : 'none';
-                    if (elBobbinSep) elBobbinSep.style.display = hasBobbin ? '' : 'none';
-
-                    const longLsl = document.getElementById(`gc-pof-${mode}-long-lsl`);
-                    if (longLsl) {
-                        const trLong = longLsl.closest('tr');
-                        const sepLong = trLong.previousElementSibling;
-                        trLong.style.display = hasSl ? '' : 'none';
-                        if (sepLong) sepLong.style.display = hasSl ? '' : 'none';
-                    }
-                    const shortLsl = document.getElementById(`gc-pof-${mode}-short-lsl`);
-                    if (shortLsl) {
-                        const trShort = shortLsl.closest('tr');
-                        const sepShort = trShort.previousElementSibling;
-                        trShort.style.display = hasSl ? '' : 'none';
-                        if (sepShort) sepShort.style.display = hasSl ? '' : 'none';
-                    }
-                };
-                ['buyoff', 'roving', 'oba', 'special'].forEach(applyVis);
+            } catch (e) {
+                console.error('Failed to load dynamic products:', e);
             }
 
-            // ──────────────────────────────────────────────────────────
-            //  POF SPC Rules — toggle + save/load
-            // ──────────────────────────────────────────────────────────
-            const POF_RULES_LS_KEY = 'belton_pof_spc_rules';
+            if (typeof sysConfigModuleChange === 'function') {
+                sysConfigModuleChange();
+            }
+            // Init epoxy pickers with defaults
+            initEpoxyPickers();
+        });
+        // ──────────────────────────────────────────────────────────
+        //  POF: ซ่อน/แสดง Bobbin option ตาม types[] ของ product
+        // ──────────────────────────────────────────────────────────
+        // รายชื่อ product ที่มี Bobbin (ตาม DB จริง)
+        const POF_BOBBIN_PRODUCTS = new Set([
+            'Cimarron BP 4D', 'Cimarron BP 5D',
+            'Dorado 5D AL BB',
+            'Dorado 10D', 'Dorado 10D_NOAR',
+            'DR 10D', 'DR 10D NOAR', 'DR 10D NOAR-AAD',
+            'Marlin 10D', 'Rosewood 2D', 'Summit 10D'
+        ]);
 
-            function onPofRuleToggle(ruleId) {
-                const chk = document.getElementById(`pof-${ruleId}-chk`);
-                const badge = document.getElementById(`pof-${ruleId}-badge`);
-                const slider = document.getElementById(`pof-${ruleId}-slider`);
-                if (!chk || !badge) return;
+        function filterPofCategoryByProduct() {
+            const productKey = document.getElementById('gc-pof-product')?.value || '';
 
-                const colors = { rule1: '#dc2626', rule2: '#2563eb', rule3: '#b45309' };
-                if (chk.checked) {
-                    badge.style.background = 'rgba(22,163,74,.12)';
-                    badge.style.color = '#16a34a';
-                    badge.textContent = 'เปิดใช้งาน';
-                    if (slider) slider.style.background = colors[ruleId] || '#10b981';
-                    // move knob right
-                    const knob = slider?.querySelector('span');
-                    if (knob) knob.style.transform = 'translateX(20px)';
+            const applyVis = (mode) => {
+                let hasBobbin = false;
+                let hasSl = true;
+                if (!productKey || productKey === 'default') {
+                    hasBobbin = true;
+                    hasSl = true;
                 } else {
-                    badge.style.background = 'rgba(100,116,139,.12)';
-                    badge.style.color = '#64748b';
-                    badge.textContent = 'ปิดใช้งาน';
-                    if (slider) slider.style.background = '#cbd5e1';
-                    const knob = slider?.querySelector('span');
-                    if (knob) knob.style.transform = 'translateX(0px)';
-                }
-            }
+                    const prod = productKey.toLowerCase();
+                    hasBobbin = POF_BOBBIN_PRODUCTS.has(productKey);
+                    
+                    if (prod.includes('cimarron 5d') && mode === 'roving') hasBobbin = true;
+                    if (prod.includes('dorado 10d noar') && ['buyoff', 'roving', 'special'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('dorado 5d al') && prod.includes('bb') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('m11 p') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('rosewood 1d') && !prod.includes('ksf') && !prod.includes('sbr') && ['buyoff', 'roving', 'oba'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('v11 1d') && ['buyoff', 'roving'].includes(mode)) hasBobbin = true;
+                    if (prod.includes('marlin 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 1d ksf') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 1d sbr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('rosewood 2d kgr') && mode === 'special') hasBobbin = true;
+                    if (prod.includes('summit 10d') && prod.includes('sbr') && mode === 'special') hasBobbin = true;
 
-            function savePofRules() {
-                const payload = {};
+                    if (prod.includes('dorado 10d') && !prod.includes('noar') && mode === 'oba') hasSl = true;
+                    if (prod.includes('dorado 5d') && !prod.includes('al') && mode === 'oba') hasSl = true;
+                }
+                const elBobbinWrap = document.getElementById(`gc-pof-bobbin-wrap-${mode}`);
+                const elBobbinSep = document.getElementById(`gc-pof-bobbin-sep-${mode}`);
+                if (elBobbinWrap) elBobbinWrap.style.display = hasBobbin ? '' : 'none';
+                if (elBobbinSep) elBobbinSep.style.display = hasBobbin ? '' : 'none';
+
+                const longLsl = document.getElementById(`gc-pof-${mode}-long-lsl`);
+                if (longLsl) {
+                    const trLong = longLsl.closest('tr');
+                    const sepLong = trLong.previousElementSibling;
+                    trLong.style.display = hasSl ? '' : 'none';
+                    if (sepLong) sepLong.style.display = hasSl ? '' : 'none';
+                }
+                const shortLsl = document.getElementById(`gc-pof-${mode}-short-lsl`);
+                if (shortLsl) {
+                    const trShort = shortLsl.closest('tr');
+                    const sepShort = trShort.previousElementSibling;
+                    trShort.style.display = hasSl ? '' : 'none';
+                    if (sepShort) sepShort.style.display = hasSl ? '' : 'none';
+                }
+            };
+            ['buyoff', 'roving', 'oba', 'special'].forEach(applyVis);
+        }
+
+        // ──────────────────────────────────────────────────────────
+        //  POF SPC Rules — toggle + save/load
+        // ──────────────────────────────────────────────────────────
+        const POF_RULES_LS_KEY = 'belton_pof_spc_rules';
+
+        function onPofRuleToggle(ruleId) {
+            const chk = document.getElementById(`pof-${ruleId}-chk`);
+            const badge = document.getElementById(`pof-${ruleId}-badge`);
+            const slider = document.getElementById(`pof-${ruleId}-slider`);
+            if (!chk || !badge) return;
+
+            const colors = { rule1: '#dc2626', rule2: '#2563eb', rule3: '#b45309' };
+            if (chk.checked) {
+                badge.style.background = 'rgba(22,163,74,.12)';
+                badge.style.color = '#16a34a';
+                badge.textContent = 'เปิดใช้งาน';
+                if (slider) slider.style.background = colors[ruleId] || '#10b981';
+                // move knob right
+                const knob = slider?.querySelector('span');
+                if (knob) knob.style.transform = 'translateX(20px)';
+            } else {
+                badge.style.background = 'rgba(100,116,139,.12)';
+                badge.style.color = '#64748b';
+                badge.textContent = 'ปิดใช้งาน';
+                if (slider) slider.style.background = '#cbd5e1';
+                const knob = slider?.querySelector('span');
+                if (knob) knob.style.transform = 'translateX(0px)';
+            }
+        }
+
+        function savePofRules() {
+            const payload = {};
+            ['rule1', 'rule2', 'rule3'].forEach(k => {
+                const chk = document.getElementById(`pof-${k}-chk`);
+                payload[k] = { enabled: chk ? chk.checked : true };
+            });
+            localStorage.setItem(POF_RULES_LS_KEY, JSON.stringify(payload));
+
+            // พยายาม sync ขึ้น DB
+            const apiBase = (typeof API_BASE !== 'undefined' ? API_BASE : '');
+            fetch(apiBase + '/api/system/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: POF_RULES_LS_KEY, value: JSON.stringify(payload) })
+            }).catch(() => { });
+
+            // Toast
+            if (typeof showToast === 'function') {
+                showToast('บันทึก POF Rules สำเร็จ ✅', 'success');
+            } else {
+                alert('บันทึก POF Rules สำเร็จ');
+            }
+        }
+
+        function loadPofRules() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(POF_RULES_LS_KEY) || '{}');
                 ['rule1', 'rule2', 'rule3'].forEach(k => {
                     const chk = document.getElementById(`pof-${k}-chk`);
-                    payload[k] = { enabled: chk ? chk.checked : true };
+                    if (chk && saved[k] !== undefined) {
+                        chk.checked = !!saved[k].enabled;
+                        onPofRuleToggle(k);
+                    }
                 });
-                localStorage.setItem(POF_RULES_LS_KEY, JSON.stringify(payload));
+            } catch (e) { /* ignore */ }
+        }
 
-                // พยายาม sync ขึ้น DB
-                const apiBase = (typeof API_BASE !== 'undefined' ? API_BASE : '');
-                fetch(apiBase + '/api/system/config', {
+        // โหลด rules เมื่อหน้าพร้อม
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPofRules();
+            // ซ่อน bobbin เริ่มต้นถ้ายังไม่เลือก product (แสดงไว้ก่อน)
+        });
+
+        function filterPofRows() {
+            const dt = document.getElementById('gc-pof-datatype')?.value || 'buyoff';
+
+            if (typeof window.populateFilteredDropdown === 'function') {
+                window.populateFilteredDropdown('pof', 'gc-pof-product', dt);
+            }
+
+            // แสดงเฉพาะ table ที่ตรงกับ Data Type ที่เลือก
+            // Long / Short / Bobbin แสดงพร้อมกันทั้งหมดใน table เดียว
+            const buyoffHdr = document.getElementById('hdr-pof-buyoff');
+            const buyoffWrap = document.getElementById('wrap-pof-buyoff');
+            if (buyoffHdr) buyoffHdr.style.display = (dt === 'buyoff') ? '' : 'none';
+            if (buyoffWrap) buyoffWrap.style.display = (dt === 'buyoff') ? '' : 'none';
+
+            const rovingHdr = document.getElementById('hdr-pof-roving');
+            const rovingWrap = document.getElementById('wrap-pof-roving');
+            if (rovingHdr) rovingHdr.style.display = (dt === 'roving') ? '' : 'none';
+            if (rovingWrap) rovingWrap.style.display = (dt === 'roving') ? '' : 'none';
+
+            const obaHdr = document.getElementById('hdr-pof-oba');
+            const obaWrap = document.getElementById('wrap-pof-oba');
+            if (obaHdr) obaHdr.style.display = (dt === 'oba') ? '' : 'none';
+            if (obaWrap) obaWrap.style.display = (dt === 'oba') ? '' : 'none';
+
+            const specialHdr = document.getElementById('hdr-pof-special');
+            const specialWrap = document.getElementById('wrap-pof-special');
+            if (specialHdr) specialHdr.style.display = (dt === 'special') ? '' : 'none';
+            if (specialWrap) specialWrap.style.display = (dt === 'special') ? '' : 'none';
+
+            // อัปเดต bobbin rows ตาม product ที่เลือก
+            filterPofCategoryByProduct();
+        }
+        async function loadEmailConfig() {
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config');
+                const data = await res.json();
+                document.getElementById('sys-email-sender').value = data.SENDER_EMAIL || '';
+                document.getElementById('sys-email-pass').value = data.SENDER_PASS || '';
+            } catch (err) {
+                console.error("Failed to load email config", err);
+            }
+        }
+
+        async function saveEmailConfig() {
+            const sender = document.getElementById('sys-email-sender').value.trim();
+            const pass = document.getElementById('sys-email-pass').value.trim();
+            
+            try {
+                await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: POF_RULES_LS_KEY, value: JSON.stringify(payload) })
-                }).catch(() => { });
-
-                // Toast
+                    body: JSON.stringify({ SENDER_EMAIL: sender, SENDER_PASS: pass })
+                });
                 if (typeof showToast === 'function') {
-                    showToast('บันทึก POF Rules สำเร็จ ✅', 'success');
+                    showToast('✅ บันทึกตั้งค่า Email สำเร็จ', 'success');
                 } else {
-                    alert('บันทึก POF Rules สำเร็จ');
+                    alert('✅ บันทึกตั้งค่า Email สำเร็จ');
                 }
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
             }
+        }
 
-            function loadPofRules() {
-                try {
-                    const saved = JSON.parse(localStorage.getItem(POF_RULES_LS_KEY) || '{}');
-                    ['rule1', 'rule2', 'rule3'].forEach(k => {
-                        const chk = document.getElementById(`pof-${k}-chk`);
-                        if (chk && saved[k] !== undefined) {
-                            chk.checked = !!saved[k].enabled;
-                            onPofRuleToggle(k);
-                        }
-                    });
-                } catch (e) { /* ignore */ }
+        async function testEmailConfig() {
+            const sender = document.getElementById('sys-email-sender').value.trim();
+            const pass = document.getElementById('sys-email-pass').value.trim();
+            if (!sender || !pass) {
+                alert('กรุณากรอก Email และ Password ก่อนทดสอบครับ');
+                return;
             }
-
-            // โหลด rules เมื่อหน้าพร้อม
-            document.addEventListener('DOMContentLoaded', () => {
-                loadPofRules();
-                // ซ่อน bobbin เริ่มต้นถ้ายังไม่เลือก product (แสดงไว้ก่อน)
-            });
-
-            function filterPofRows() {
-                const dt = document.getElementById('gc-pof-datatype')?.value || 'buyoff';
-
-                if (typeof window.populateFilteredDropdown === 'function') {
-                    window.populateFilteredDropdown('pof', 'gc-pof-product', dt);
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/test-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: sender, pass: pass })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') showToast('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!', 'success');
+                    else alert('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!');
+                } else {
+                    throw new Error(data.error);
                 }
-
-                // แสดงเฉพาะ table ที่ตรงกับ Data Type ที่เลือก
-                // Long / Short / Bobbin แสดงพร้อมกันทั้งหมดใน table เดียว
-                const buyoffHdr = document.getElementById('hdr-pof-buyoff');
-                const buyoffWrap = document.getElementById('wrap-pof-buyoff');
-                if (buyoffHdr) buyoffHdr.style.display = (dt === 'buyoff') ? '' : 'none';
-                if (buyoffWrap) buyoffWrap.style.display = (dt === 'buyoff') ? '' : 'none';
-
-                const rovingHdr = document.getElementById('hdr-pof-roving');
-                const rovingWrap = document.getElementById('wrap-pof-roving');
-                if (rovingHdr) rovingHdr.style.display = (dt === 'roving') ? '' : 'none';
-                if (rovingWrap) rovingWrap.style.display = (dt === 'roving') ? '' : 'none';
-
-                const obaHdr = document.getElementById('hdr-pof-oba');
-                const obaWrap = document.getElementById('wrap-pof-oba');
-                if (obaHdr) obaHdr.style.display = (dt === 'oba') ? '' : 'none';
-                if (obaWrap) obaWrap.style.display = (dt === 'oba') ? '' : 'none';
-
-                const specialHdr = document.getElementById('hdr-pof-special');
-                const specialWrap = document.getElementById('wrap-pof-special');
-                if (specialHdr) specialHdr.style.display = (dt === 'special') ? '' : 'none';
-                if (specialWrap) specialWrap.style.display = (dt === 'special') ? '' : 'none';
-
-                // อัปเดต bobbin rows ตาม product ที่เลือก
-                filterPofCategoryByProduct();
-            }
-            async function loadEmailConfig() {
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config');
-                    const data = await res.json();
-                    document.getElementById('sys-email-sender').value = data.SENDER_EMAIL || '';
-                    document.getElementById('sys-email-pass').value = data.SENDER_PASS || '';
-                } catch (err) {
-                    console.error("Failed to load email config", err);
-                }
-            }
-
-            async function saveEmailConfig() {
-                const sender = document.getElementById('sys-email-sender').value.trim();
-                const pass = document.getElementById('sys-email-pass').value.trim();
-
-                try {
-                    await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ SENDER_EMAIL: sender, SENDER_PASS: pass })
-                    });
-                    if (typeof showToast === 'function') {
-                        showToast('✅ บันทึกตั้งค่า Email สำเร็จ', 'success');
-                    } else {
-                        alert('✅ บันทึกตั้งค่า Email สำเร็จ');
-                    }
-                } catch (err) {
-                    alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
-                }
-            }
-
-            async function testEmailConfig() {
-                const sender = document.getElementById('sys-email-sender').value.trim();
-                const pass = document.getElementById('sys-email-pass').value.trim();
-                if (!sender || !pass) {
-                    alert('กรุณากรอก Email และ Password ก่อนทดสอบครับ');
-                    return;
-                }
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/test-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: sender, pass: pass })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        if (typeof showToast === 'function') showToast('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!', 'success');
-                        else alert('✅ ทดสอบการเชื่อมต่อ SMTP สำเร็จ!');
-                    } else {
-                        throw new Error(data.error);
-                    }
-                } catch (err) {
-                    alert('❌ ล้มเหลวในการเชื่อมต่อ: ' + err.message);
-                }
+            } catch (err) {
+                alert('❌ ล้มเหลวในการเชื่อมต่อ: ' + err.message);
             }
         }
     </script>
