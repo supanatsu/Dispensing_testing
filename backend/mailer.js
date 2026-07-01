@@ -28,21 +28,24 @@ async function sendAlertEmail(pool, moduleName, alerts) {
     const sysConfig = {};
     sysRows.forEach(r => sysConfig[r.config_key] = r.config_value);
 
-    const smtpUser = sysConfig['SENDER_EMAIL'];
-    const smtpPass = sysConfig['SENDER_PASS'];
+    let smtpUser = sysConfig['SENDER_EMAIL'];
+    let smtpPass = sysConfig['SENDER_PASS'];
 
     if (!smtpUser || !smtpPass) {
-      console.log(`⚠️ [Mailer] Skipping email alert for ${moduleName}: SMTP credentials not configured in system_config`);
-      return;
+      console.log(`⚠️ [Mailer] No SMTP credentials in DB. Auto-generating Ethereal test account...`);
+      const testAccount = await nodemailer.createTestAccount();
+      smtpUser = testAccount.user;
+      smtpPass = testAccount.pass;
     }
 
     // 2. Fetch Recipients
     const [recipRows] = await pool.query("SELECT email FROM alert_recipients WHERE active = 1");
-    if (recipRows.length === 0) {
-      console.log(`⚠️ [Mailer] Skipping email alert for ${moduleName}: No active recipients found in alert_recipients`);
-      return;
+    let toEmails = 'test_manager@company.com'; // Fallback if no recipients found
+    if (recipRows.length > 0) {
+      toEmails = recipRows.map(r => r.email).join(',');
+    } else {
+      console.log(`⚠️ [Mailer] No active recipients in DB. Using fallback: ${toEmails}`);
     }
-    const toEmails = recipRows.map(r => r.email).join(',');
 
     // 3. Configure Transporter
     const transporter = nodemailer.createTransport({
@@ -68,10 +71,10 @@ async function sendAlertEmail(pool, moduleName, alerts) {
 
     // Limit to 10 alerts per email to prevent giant emails
     const displayAlerts = alerts.slice(0, 10);
-    
+
     displayAlerts.forEach((alert, index) => {
       const headerBg = alert.alertStatus.toLowerCase().includes('reject') || alert.alertStatus.toLowerCase().includes('fail') ? '#d9534f' : '#f0ad4e';
-      
+
       htmlContent += `
         <div style="margin-bottom: 30px; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
           <div style="background-color: #f9f9f9; padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">

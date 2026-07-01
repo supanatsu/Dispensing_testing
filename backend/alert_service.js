@@ -6,7 +6,7 @@ async function processAlerts(pool, moduleName, alerts) {
     // Filter to true alerts if needed (some modules send "ACCEPT" alerts too, though usually they only send Fails)
     const validAlerts = alerts.filter(a => {
         const statusStr = (a.level || a.status || a.alertStatus || a.overall || a.msg || '').toLowerCase();
-        return ['fail', 'reject', 'warning', 'higher', 'lower', 'ng', 'out of spec'].some(k => statusStr.includes(k));
+        return ['fail', 'reject', 'warning', 'warn', 'hold', 'alert', 'higher', 'lower', 'ng', 'out of spec'].some(k => statusStr.includes(k));
     });
 
     if (validAlerts.length === 0) return;

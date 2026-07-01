@@ -107,16 +107,29 @@ process.on('uncaughtException', (error) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// อ่านการตั้งค่า Laser (frequency ต่อ product) — ใช้โดย system_config.html: loadGlobalLaserConfig()
+app.get('/api/laser_config', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT product_key, eblock_qty, bobbin_qty FROM laser_config');
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Error fetching laser config:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // บันทึกการตั้งค่า Laser
 app.post('/api/laser_config', async (req, res) => {
   const { product_key, eblock_qty, bobbin_qty } = req.body;
   try {
     const key = product_key || 'DEFAULT';
+    const e_val = (eblock_qty === null || eblock_qty === '' || eblock_qty === undefined || isNaN(parseInt(eblock_qty))) ? null : parseInt(eblock_qty);
+    const b_val = (bobbin_qty === null || bobbin_qty === '' || bobbin_qty === undefined || isNaN(parseInt(bobbin_qty))) ? null : parseInt(bobbin_qty);
     await pool.query(
       `INSERT INTO laser_config (product_key, eblock_qty, bobbin_qty) 
        VALUES (?, ?, ?) 
        ON DUPLICATE KEY UPDATE eblock_qty = VALUES(eblock_qty), bobbin_qty = VALUES(bobbin_qty)`,
-      [key, eblock_qty, bobbin_qty]
+      [key, e_val, b_val]
     );
     res.json({ success: true });
   } catch (err) {
@@ -173,12 +186,53 @@ async function autoSeedData() {
       console.log('✅ Auto-migrated dispensing_measurements for VARCHAR support');
     } catch (e) { }
 
-    // NOTE: dispensing_config and alert_recipients are already created with the
-    // correct schema by schema.sql above. A stray duplicate CREATE TABLE for
-    // dispensing_config with a (config_key, config_value) shape used to live
-    // here and could shadow the real (process_mode, product_key, dimension_name,
-    // lsl, lcl, cl, ucl, usl) table if schema.sql ever failed to run first —
-    // removed to avoid that race.
+    // Auto-migrate: make sure laser_config has eblock_qty / bobbin_qty columns.
+    // A laser_config table created BEFORE this fix (with an old/different column set)
+    // will still be sitting in the live DB, because "CREATE TABLE IF NOT EXISTS" in
+    // schema.sql never touches a table that already exists. That mismatch is exactly
+    // what produced "Unknown column 'eblock_qty' in field list" on the seed INSERT.
+    // We check information_schema first (works on old MySQL too) and only ALTER the
+    // columns that are actually missing, so existing data is never touched.
+    try {
+      const [existingCols] = await pool.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'laser_config'`
+      );
+      const colNames = existingCols.map(c => c.COLUMN_NAME.toLowerCase());
+      if (colNames.length > 0) { // table exists
+        if (!colNames.includes('eblock_qty')) {
+          await pool.query('ALTER TABLE laser_config ADD COLUMN eblock_qty INT DEFAULT NULL');
+          console.log('✅ Auto-migrated laser_config: added eblock_qty column');
+        }
+        if (!colNames.includes('bobbin_qty')) {
+          await pool.query('ALTER TABLE laser_config ADD COLUMN bobbin_qty INT DEFAULT NULL');
+          console.log('✅ Auto-migrated laser_config: added bobbin_qty column');
+        }
+      }
+    } catch (e) {
+      console.error('⚠️ Could not auto-migrate laser_config columns:', e.message);
+    }
+
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS dispensing_config (
+          config_key VARCHAR(100) PRIMARY KEY,
+          config_value TEXT
+        );
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS alert_recipients (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          email VARCHAR(255) UNIQUE,
+          name VARCHAR(255),
+          role VARCHAR(100),
+          active BOOLEAN DEFAULT true
+        );
+      `);
+      console.log('✅ Verified dispensing config & alert tables exist.');
+    } catch (e) {
+      console.error('⚠️ Could not verify config tables:', e.message);
+    }
 
     const [laserRows] = await pool.query('SELECT COUNT(*) as cnt FROM laser_records');
     if (laserRows[0].cnt === 0) {
@@ -469,12 +523,6 @@ app.post('/api/pof/sync', async (req, res) => {
       const out_cl = r.out_cl || null;
       const trend = r.trend || null;
       const nine_pt = r.nine_pt || null;
-      const long_fantail_spec_pass = r.long_fantail_spec_pass || null;
-      const long_fantail_trigger_pass = r.long_fantail_trigger_pass || null;
-      const short_fantail_spec_pass = r.short_fantail_spec_pass || null;
-      const short_fantail_trigger_pass = r.short_fantail_trigger_pass || null;
-      const bobbin_spec_pass = r.bobbin_spec_pass || null;
-      const bobbin_trigger_pass = r.bobbin_trigger_pass || null;
       const eblock_long = r.eblock_long != null ? parseFloat(r.eblock_long) : null;
       const eblock_short = r.eblock_short != null ? parseFloat(r.eblock_short) : null;
       const eblock_avg = r.eblock_avg != null ? parseFloat(r.eblock_avg) : null;
@@ -487,19 +535,19 @@ app.post('/api/pof/sync', async (req, res) => {
 
       if (existingId) {
         await connection.query(
-          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, coil_type=?, product_label=?, unit=?, overall=?, spc_ucl=?, spc_cl=?, spc_lcl=?, spc_trig=?, spc_spec=?, remark=?, en=?, traveler=?, long1=?, short2=?, avg_val=?, max_val=?, min_val=?, range_val=?, spec_result=?, trigger_val=?, out_cl=?, trend=?, nine_pt=?, long_fantail_spec_pass=?, long_fantail_trigger_pass=?, short_fantail_spec_pass=?, short_fantail_trigger_pass=?, bobbin_spec_pass=?, bobbin_trigger_pass=?, eblock_long=?, eblock_short=?, eblock_avg=?, coil_short=?, coil_center=?, coil_long=?, bobbin_short=?, bobbin_center=?, bobbin_long=?, values_json=? WHERE id=?`,
+          `UPDATE pof_records SET product=?, fixture=?, pt_number=?, test_date=?, oven=?, team=?, op=?, data_type=?, category=?, status=?, config_id=?, mode=?, coil_type=?, product_label=?, unit=?, overall=?, spc_ucl=?, spc_cl=?, spc_lcl=?, spc_trig=?, spc_spec=?, remark=?, en=?, traveler=?, long1=?, short2=?, avg_val=?, max_val=?, min_val=?, range_val=?, spec_result=?, trigger_val=?, out_cl=?, trend=?, nine_pt=?, eblock_long=?, eblock_short=?, eblock_avg=?, coil_short=?, coil_center=?, coil_long=?, bobbin_short=?, bobbin_center=?, bobbin_long=?, values_json=? WHERE id=?`,
           [
             r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
-            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson, existingId
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson, existingId
           ]
         );
       } else {
         await connection.query(
-          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO pof_records (id, product, fixture, pt_number, test_date, oven, team, op, data_type, category, status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, values_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             null, r.product || '', r.fixture || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
-            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, long_fantail_spec_pass, long_fantail_trigger_pass, short_fantail_spec_pass, short_fantail_trigger_pass, bobbin_spec_pass, bobbin_trigger_pass, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
+            dataType, r.condition || r.category || 'NTC', status, config_id, mode, coil_type, product_label, unit, overall, spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec, remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val, spec_result, trigger_val, out_cl, trend, nine_pt, eblock_long, eblock_short, eblock_avg, coil_short, coil_center, coil_long, bobbin_short, bobbin_center, bobbin_long, valuesJson
           ]
         );
       }
@@ -1435,11 +1483,12 @@ app.post('/api/dispensing/sync', async (req, res) => {
           newAlerts.push(a);
         }
 
+        const parsedVal = (a.value != null && !isNaN(parseFloat(a.value))) ? parseFloat(a.value) : null;
         await connection.query(
           `INSERT INTO system_alert (process_type, alert_time, level, product, fixture, oven, param, value_val, spec_str, msg) VALUES ('Dispensing', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             alertTime, a.level || '', a.product || '', a.fixture || '', a.oven || '',
-            a.param || '', a.value != null ? parseFloat(a.value) : null, a.spec || '', a.msg || ''
+            a.param || '', parsedVal, a.specStr || a.spec || '', a.msg || ''
           ]
         );
       }
@@ -1565,7 +1614,7 @@ app.get('/api/system/config', async (req, res) => {
     // Provide default email config if needed by frontend
     config.SENDER_EMAIL = '';
     config.SENDER_PASS = '';
-    
+
     res.json(config);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1592,7 +1641,7 @@ app.post('/api/system/config', async (req, res) => {
 app.post('/api/test-email', async (req, res) => {
   const { email, pass } = req.body;
   if (!email || !pass) return res.status(400).json({ success: false, error: "Missing email or pass" });
-  
+
   try {
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
@@ -1818,34 +1867,17 @@ app.get('/api/dashboard/summary', async (req, res) => {
 });
 
 
-// -------------------------------------------------------------------------
-// NEW ROUTE: LASER CONFIGURATION (Save to MySQL)
-// -------------------------------------------------------------------------
-app.post('/api/laser_config', async (req, res) => {
+// NOTE: the "delete when both qty are null" behaviour from the old duplicate
+// /api/laser_config route has been merged into resetGlobalLaserConfig() on the
+// frontend (calls DELETE below) — this route was a dead duplicate (Express only
+// ever ran the first-registered /api/laser_config POST handler, above).
+app.delete('/api/laser_config/:product_key', async (req, res) => {
   try {
-    const { product_key, eblock_qty, bobbin_qty } = req.body;
-    if (!product_key) {
-      return res.status(400).json({ error: 'Missing product_key' });
-    }
-
-    const e_val = (eblock_qty === null || eblock_qty === '' || isNaN(parseInt(eblock_qty))) ? null : parseInt(eblock_qty);
-    const b_val = (bobbin_qty === null || bobbin_qty === '' || isNaN(parseInt(bobbin_qty))) ? null : parseInt(bobbin_qty);
-
-    // if both are null and it's not DEFAULT, delete it.
-    if (e_val === null && b_val === null && product_key !== 'DEFAULT') {
-      await pool.query('DELETE FROM laser_config WHERE product_key = ?', [product_key]);
-    } else {
-      await pool.query(
-        `INSERT INTO laser_config (product_key, eblock_qty, bobbin_qty) 
-                 VALUES (?, ?, ?)
-                 ON DUPLICATE KEY UPDATE eblock_qty = VALUES(eblock_qty), bobbin_qty = VALUES(bobbin_qty)`,
-        [product_key, e_val, b_val]
-      );
-    }
-    res.json({ message: 'Laser config updated successfully' });
+    await pool.query('DELETE FROM laser_config WHERE product_key = ?', [req.params.product_key]);
+    res.json({ success: true });
   } catch (err) {
-    console.error('Error updating laser config:', err);
-    res.status(500).json({ error: 'Database error', details: err.message });
+    console.error('Error deleting laser config:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1865,8 +1897,14 @@ app.get('/api/system-alerts', async (req, res) => {
       params.push(process_type);
     }
     if (level) {
-      query += ' AND level = ?';
-      params.push(level);
+      if (level.toUpperCase() === 'NG' || level.toUpperCase() === 'CRITICAL') {
+        query += " AND LOWER(level) IN ('ng', 'critical', 'fail', 'reject', 'out of spec')";
+      } else if (level.toUpperCase() === 'WARNING') {
+        query += " AND LOWER(level) IN ('warning', 'warn', 'hold', 'alert')";
+      } else {
+        query += ' AND level = ?';
+        params.push(level);
+      }
     }
 
     query += ' ORDER BY alert_time DESC';
@@ -1924,7 +1962,10 @@ app.delete('/api/system-alerts', async (req, res) => {
 app.get('/api/dispensing/products_list', async (req, res) => {
   try {
     const q = `
-      SELECT * FROM dispensing_product ORDER BY product_name`;
+      SELECT product_name, mode, product_key FROM dispensing_product
+      UNION
+      SELECT product_name, '' AS mode, product_key FROM master_products
+      ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
@@ -1935,7 +1976,10 @@ app.get('/api/dispensing/products_list', async (req, res) => {
 app.get('/api/laser/products_list', async (req, res) => {
   try {
     const q = `
-      SELECT * FROM laser_product ORDER BY product_name`;
+      SELECT product_name, mode FROM laser_product
+      UNION
+      SELECT product_name, '' AS mode FROM master_products
+      ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
@@ -1946,7 +1990,10 @@ app.get('/api/laser/products_list', async (req, res) => {
 app.get('/api/pof/products_list', async (req, res) => {
   try {
     const q = `
-      SELECT * FROM pof_product ORDER BY product_name`;
+      SELECT product_name, mode FROM pof_product
+      UNION
+      SELECT product_name, '' AS mode FROM master_products
+      ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
   } catch (err) {
@@ -1960,6 +2007,8 @@ app.get('/api/damper/products_list', async (req, res) => {
       SELECT dp.product_name AS product_key, COALESCE(mp.product_name, dp.product_name) AS product_name, dp.mode 
       FROM damper_product dp 
       LEFT JOIN master_products mp ON dp.product_name = mp.product_key 
+      UNION
+      SELECT product_key, product_name, '' AS mode FROM master_products
       ORDER BY product_name ASC
     `;
     const [rows] = await pool.query(q);
@@ -1973,6 +2022,7 @@ app.get('/api/damper/products_list', async (req, res) => {
 // SYSTEM CONFIG & SPC LIMITS API
 // ==========================================
 
+// Get products for a module
 app.get('/api/system/products', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT product_key, product_name, dims FROM master_products ORDER BY product_key');
@@ -2027,6 +2077,68 @@ app.get('/api/system/products', async (req, res) => {
   }
 });
 
+app.post('/api/system/products', async (req, res) => {
+  const { module, type_data, product_key, product_name, dims } = req.body;
+  if (!product_name) return res.status(400).json({ success: false, error: 'product_name is required' });
+  const pKey = product_key || product_name;
+
+  try {
+    const dimsStr = dims ? JSON.stringify(dims) : '[]';
+    await pool.query(
+      `INSERT INTO master_products (product_key, product_name, dims) 
+       VALUES (?, ?, ?) 
+       ON DUPLICATE KEY UPDATE product_name = VALUES(product_name)`,
+      [pKey, product_name, dimsStr]
+    );
+
+    if (module && type_data) {
+      let tableName = '';
+      if (module === 'dispensing') tableName = 'dispensing_product';
+      else if (module === 'laser') tableName = 'laser_product';
+      else if (module === 'pof') tableName = 'pof_product';
+      else if (module === 'damper') tableName = 'damper_product';
+
+      if (tableName) {
+        if (tableName === 'dispensing_product') {
+          await pool.query(
+            `INSERT INTO dispensing_product (product_name, mode, product_key) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE product_key = VALUES(product_key)`,
+            [product_name, type_data, pKey]
+          );
+        } else {
+          await pool.query(
+            `INSERT IGNORE INTO ${tableName} (product_name, mode) VALUES (?, ?)`,
+            [product_name, type_data]
+          );
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/system/products', async (req, res) => {
+  const { key, name, module, mode } = req.query;
+  try {
+    let tableName = '';
+    if (module === 'dispensing') tableName = 'dispensing_product';
+    else if (module === 'laser') tableName = 'laser_product';
+    else if (module === 'pof') tableName = 'pof_product';
+    else if (module === 'damper') tableName = 'damper_product';
+
+    if (tableName && name && mode && mode !== '-' && mode !== 'undefined') {
+      await pool.query(`DELETE FROM ${tableName} WHERE product_name = ? AND mode = ?`, [name, mode]);
+    } else if (key) {
+      await pool.query('DELETE FROM master_products WHERE product_key = ?', [key]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/config/dispensing', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM dispensing_config ORDER BY product_key, dimension_name');
@@ -2052,8 +2164,8 @@ app.post('/api/config/dispensing/batch', async (req, res) => {
 
 app.get('/api/config/pof', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM pof_config ORDER BY product_key, data_type, type_parameter');
-    res.json({ success: true, limits: rows });
+    const [rows] = await pool.query('SELECT * FROM pof_config ORDER BY product_key');
+    res.json({ success: true, data: rows });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
@@ -2063,10 +2175,10 @@ app.post('/api/config/pof/batch', async (req, res) => {
     if (!limits || !limits.length) return res.json({ success: true });
     for (const lim of limits) {
       await pool.query(
-        `INSERT INTO pof_config (product_key, data_type, type_parameter, frequency, usl, ucl, cl, lcl, lsl)
+        `INSERT INTO pof_config (process_mode, product_key, dimension_name, locked, lsl, lcl, cl, ucl, usl)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE frequency=VALUES(frequency), usl=VALUES(usl), ucl=VALUES(ucl), cl=VALUES(cl), lcl=VALUES(lcl), lsl=VALUES(lsl)`,
-        [lim.product_key, lim.data_type, lim.type_parameter, lim.frequency, lim.usl, lim.ucl, lim.cl, lim.lcl, lim.lsl]
+         ON DUPLICATE KEY UPDATE locked=VALUES(locked), lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl)`,
+        [lim.process_mode, lim.product_key, lim.dimension_name, lim.locked || 0, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl]
       );
     }
     res.json({ success: true });
@@ -2075,8 +2187,8 @@ app.post('/api/config/pof/batch', async (req, res) => {
 
 app.get('/api/config/damper', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM damper_config ORDER BY product_key, data_type, process_mode, damper_type');
-    res.json({ success: true, limits: rows });
+    const [rows] = await pool.query('SELECT * FROM damper_config ORDER BY product_key');
+    res.json({ success: true, data: rows });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
@@ -2086,10 +2198,10 @@ app.post('/api/config/damper/batch', async (req, res) => {
     if (!limits || !limits.length) return res.json({ success: true });
     for (const lim of limits) {
       await pool.query(
-        `INSERT INTO damper_config (product_key, process_mode, data_type, damper_type, frequency, usl, ucl, cl, lcl, lsl)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE frequency=VALUES(frequency), usl=VALUES(usl), ucl=VALUES(ucl), cl=VALUES(cl), lcl=VALUES(lcl), lsl=VALUES(lsl)`,
-        [lim.product_key, lim.process_mode, lim.data_type, lim.damper_type, lim.frequency, lim.usl, lim.ucl, lim.cl, lim.lcl, lim.lsl]
+        `INSERT INTO damper_config (process_mode, product_key, dimension_name, locked, lsl, lcl, cl, ucl, usl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE locked=VALUES(locked), lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl)`,
+        [lim.process_mode, lim.product_key, lim.dimension_name, lim.locked || 0, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl]
       );
     }
     res.json({ success: true });
@@ -2099,7 +2211,7 @@ app.post('/api/config/damper/batch', async (req, res) => {
 app.get('/api/config/laser', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM laser_config ORDER BY product_key');
-    res.json({ success: true, limits: rows });
+    res.json({ success: true, data: rows });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
@@ -2109,10 +2221,10 @@ app.post('/api/config/laser/batch', async (req, res) => {
     if (!limits || !limits.length) return res.json({ success: true });
     for (const lim of limits) {
       await pool.query(
-        `INSERT INTO laser_config (product_key, data_type, qty_eblock, qty_bobbin, frequency, laser_fixture, laser_shift)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE qty_eblock=VALUES(qty_eblock), qty_bobbin=VALUES(qty_bobbin), frequency=VALUES(frequency), laser_fixture=VALUES(laser_fixture), laser_shift=VALUES(laser_shift)`,
-        [lim.product_key, lim.data_type, lim.qty_eblock, lim.qty_bobbin, lim.frequency, lim.laser_fixture, lim.laser_shift]
+        `INSERT INTO laser_config (process_mode, product_key, dimension_name, locked, lsl, lcl, cl, ucl, usl)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE locked=VALUES(locked), lsl=VALUES(lsl), lcl=VALUES(lcl), cl=VALUES(cl), ucl=VALUES(ucl), usl=VALUES(usl)`,
+        [lim.process_mode, lim.product_key, lim.dimension_name, lim.locked || 0, lim.lsl, lim.lcl, lim.cl, lim.ucl, lim.usl]
       );
     }
     res.json({ success: true });
@@ -2181,42 +2293,36 @@ app.post('/api/pof/records', async (req, res) => {
             spc_ucl, spc_cl, spc_lcl, spc_trig, spc_spec,
             remark, en, traveler, long1, short2, avg_val, max_val, min_val, range_val,
             spec_result, trigger_val, out_cl, trend, nine_pt,
-            long_fantail_spec_pass, long_fantail_trigger_pass,
-            short_fantail_spec_pass, short_fantail_trigger_pass,
-            bobbin_spec_pass, bobbin_trigger_pass,
             eblock_long, eblock_short, eblock_avg,
             coil_short, coil_center, coil_long,
             bobbin_short, bobbin_center, bobbin_long, values_json)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           r.product || '', r.ptno || '', r.date || new Date(), r.oven || '', r.team || '', en,
           dataType, r.condition || 'NTC', status,
           r.mode || 'buyoff', r.coil_type || r.coilType || 'sl', r.product_label || r.productLabel || '', r.unit || 'Lbs', r.overall || 'Pass',
-          r.spc_ucl != null ? parseFloat(r.spc_ucl) : null,
-          r.spc_cl != null ? parseFloat(r.spc_cl) : null,
-          r.spc_lcl != null ? parseFloat(r.spc_lcl) : null,
-          r.spc_trig != null ? parseFloat(r.spc_trig) : null,
-          r.spc_spec != null ? parseFloat(r.spc_spec) : null,
+          (r.spc_ucl != null && !isNaN(parseFloat(r.spc_ucl))) ? parseFloat(r.spc_ucl) : null,
+          (r.spc_cl != null && !isNaN(parseFloat(r.spc_cl))) ? parseFloat(r.spc_cl) : null,
+          (r.spc_lcl != null && !isNaN(parseFloat(r.spc_lcl))) ? parseFloat(r.spc_lcl) : null,
+          (r.spc_trig != null && !isNaN(parseFloat(r.spc_trig))) ? parseFloat(r.spc_trig) : null,
+          (r.spc_spec != null && !isNaN(parseFloat(r.spc_spec))) ? parseFloat(r.spc_spec) : null,
           r.remark || '', en, r.traveler || '',
-          r.long1 != null ? parseFloat(r.long1) : null,
-          r.short2 != null ? parseFloat(r.short2) : null,
-          r.avg != null ? parseFloat(r.avg) : null,
-          r.max != null ? parseFloat(r.max) : null,
-          r.min != null ? parseFloat(r.min) : null,
-          r.range != null ? parseFloat(r.range) : null,
+          (r.long1 != null && !isNaN(parseFloat(r.long1))) ? parseFloat(r.long1) : null,
+          (r.short2 != null && !isNaN(parseFloat(r.short2))) ? parseFloat(r.short2) : null,
+          (r.avg != null && !isNaN(parseFloat(r.avg))) ? parseFloat(r.avg) : null,
+          (r.max != null && !isNaN(parseFloat(r.max))) ? parseFloat(r.max) : null,
+          (r.min != null && !isNaN(parseFloat(r.min))) ? parseFloat(r.min) : null,
+          (r.range != null && !isNaN(parseFloat(r.range))) ? parseFloat(r.range) : null,
           r.spec_result || null, r.trigger || null, r.out_cl || null, r.trend || null, r.nine_pt || null,
-          r.long_fantail_spec_pass || null, r.long_fantail_trigger_pass || null,
-          r.short_fantail_spec_pass || null, r.short_fantail_trigger_pass || null,
-          r.bobbin_spec_pass || null, r.bobbin_trigger_pass || null,
-          r.eblock_long != null ? parseFloat(r.eblock_long) : null,
-          r.eblock_short != null ? parseFloat(r.eblock_short) : null,
-          r.eblock_avg != null ? parseFloat(r.eblock_avg) : null,
-          r.coil_short != null ? parseFloat(r.coil_short) : null,
-          r.coil_center != null ? parseFloat(r.coil_center) : null,
-          r.coil_long != null ? parseFloat(r.coil_long) : null,
-          r.bobbin_short != null ? parseFloat(r.bobbin_short) : null,
-          r.bobbin_center != null ? parseFloat(r.bobbin_center) : null,
-          r.bobbin_long != null ? parseFloat(r.bobbin_long) : null,
+          (r.eblock_long != null && !isNaN(parseFloat(r.eblock_long))) ? parseFloat(r.eblock_long) : null,
+          (r.eblock_short != null && !isNaN(parseFloat(r.eblock_short))) ? parseFloat(r.eblock_short) : null,
+          (r.eblock_avg != null && !isNaN(parseFloat(r.eblock_avg))) ? parseFloat(r.eblock_avg) : null,
+          (r.coil_short != null && !isNaN(parseFloat(r.coil_short))) ? parseFloat(r.coil_short) : null,
+          (r.coil_center != null && !isNaN(parseFloat(r.coil_center))) ? parseFloat(r.coil_center) : null,
+          (r.coil_long != null && !isNaN(parseFloat(r.coil_long))) ? parseFloat(r.coil_long) : null,
+          (r.bobbin_short != null && !isNaN(parseFloat(r.bobbin_short))) ? parseFloat(r.bobbin_short) : null,
+          (r.bobbin_center != null && !isNaN(parseFloat(r.bobbin_center))) ? parseFloat(r.bobbin_center) : null,
+          (r.bobbin_long != null && !isNaN(parseFloat(r.bobbin_long))) ? parseFloat(r.bobbin_long) : null,
           JSON.stringify(r),
         ]
       );
@@ -2243,7 +2349,7 @@ app.post('/api/pof/alert', async (req, res) => {
         new Date(), level || 'ng',
         product || '',
         oven || '', traveler || en || '',
-        avg != null ? parseFloat(avg) : null,
+        (avg != null && !isNaN(parseFloat(avg))) ? parseFloat(avg) : null,
         spec_result || '', msg || '',
         JSON.stringify(req.body),
       ]

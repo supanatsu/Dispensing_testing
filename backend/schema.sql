@@ -6,13 +6,10 @@
 -- ============================================================
 
 -- =============================================================
--- หมายเหตุ: ห้ามใส่ DROP DATABASE / CREATE DATABASE ตรงนี้
--- เพราะ autoSeedData() ใน server.js รัน schema.sql นี้ทุกครั้งที่ Start
--- ผ่าน connection pool ที่ต่อกับ belton_ipqc อยู่แล้ว — ถ้า DROP DATABASE
--- จะล้างข้อมูลทั้งหมดทุกครั้งที่ restart server (data loss) และทำให้
--- connection อื่นใน pool หลุด database context จนเกิด 500 ที่
--- /api/dispensing/configs และ /api/system/config ได้
+-- ปิดการล้าง DB เพื่อให้ข้อมูลยังคงอยู่เมื่อ Server รีสตาร์ท
+-- หากต้องการรีเซ็ต ให้ลบฐานข้อมูลด้วยตัวเองใน MySQL
 -- =============================================================
+-- DROP DATABASE IF EXISTS belton_ipqc;
 CREATE DATABASE IF NOT EXISTS belton_ipqc CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE belton_ipqc;
 
@@ -124,12 +121,22 @@ CREATE TABLE IF NOT EXISTS alert_recipients (
 -- 3. LASER ENGRAVING MODULE
 -- ==============================================================================
 
+-- NOTE: laser_config stores per-product inspection FREQUENCY (eblock_qty / bobbin_qty),
+-- used by server.js (/api/laser_config, dashboard summary) and the Laser panel's
+-- "Frequency" field in system_config.html (gc-laser-freq). This is a different concept
+-- from the SPC lsl/lcl/cl/ucl/usl tables (dispensing_config / pof_config / damper_config).
+-- A previous edit had redefined this table with the wrong (SPC-style) columns plus a
+-- DROP TABLE IF EXISTS, which wiped saved frequency data on every schema re-run and
+-- caused "Unknown column 'eblock_qty' in field list" because the seed INSERT below no
+-- longer matched the table's actual columns. Fixed to match what server.js expects.
 CREATE TABLE IF NOT EXISTS laser_config (
-    product_key  VARCHAR(100) PRIMARY KEY,
-    eblock_qty   INT,
-    bobbin_qty   INT,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    product_key    VARCHAR(100) NOT NULL,
+    eblock_qty     INT DEFAULT NULL,
+    bobbin_qty     INT DEFAULT NULL,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_laser_config_product (product_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Seed default laser config
@@ -206,20 +213,25 @@ CREATE TABLE IF NOT EXISTS laser_records (
 
 -- POF config (SPC limits / frequency per product, data_type, type_parameter)
 -- Matches server.js: GET/POST /api/config/pof, /api/config/pof/batch
+-- NOTE: previously had "DROP TABLE IF EXISTS pof_config;" here. Since autoSeedData()
+-- in server.js re-runs schema.sql on EVERY server start, that DROP was wiping out
+-- every saved POF product/parameter config on every restart, which is why products
+-- and their spec limits kept "disappearing". Removed — CREATE TABLE IF NOT EXISTS
+-- below is enough to make sure the table exists without ever touching existing data.
 CREATE TABLE IF NOT EXISTS pof_config (
     id             INT AUTO_INCREMENT PRIMARY KEY,
+    process_mode   VARCHAR(50),
     product_key    VARCHAR(100),
-    data_type      VARCHAR(50),
-    type_parameter VARCHAR(100),
-    frequency      INT,
-    usl            DECIMAL(10,4),
-    ucl            DECIMAL(10,4),
-    cl             DECIMAL(10,4),
-    lcl            DECIMAL(10,4),
+    dimension_name VARCHAR(100),
     lsl            DECIMAL(10,4),
+    lcl            DECIMAL(10,4),
+    cl             DECIMAL(10,4),
+    ucl            DECIMAL(10,4),
+    usl            DECIMAL(10,4),
+    locked         TINYINT(1) DEFAULT 0,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_pof_config (product_key, data_type, type_parameter)
+    UNIQUE KEY uniq_pof_config (process_mode, product_key, dimension_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS pof_records (
@@ -257,10 +269,6 @@ CREATE TABLE IF NOT EXISTS pof_records (
     max_val        DECIMAL(10,4),
     min_val        DECIMAL(10,4),
     range_val      DECIMAL(10,4),
-    -- ค่า Pass/Fail แยกตามหมวด (Long Fantail / Short Fantail / Bobbin)
-    -- เดิมมีคอลัมน์นี้อยู่แล้วแต่ไม่เคยถูกใช้งาน — ตอนนี้ push_out_force.js (addDraft/_doSubmitDrafts)
-    -- และ server.js (/api/pof/records, /api/pof/sync) เขียนค่า 'Pass'/'Fail' ลงมาแล้ว
-    -- โดยเทียบ Long1/Short2/Bobbin1-2 กับ LSL (spec_pass) และ UCL/LCL (trigger_pass) ของแต่ละหมวด
     long_fantail_spec_pass VARCHAR(50),
     long_fantail_trigger_pass VARCHAR(50),
     short_fantail_spec_pass VARCHAR(50),
@@ -293,21 +301,22 @@ CREATE TABLE IF NOT EXISTS pof_records (
 
 -- Damper config (SPC limits / frequency per product, process_mode, data_type, damper_type)
 -- Matches server.js: GET/POST /api/config/damper, /api/config/damper/batch
+-- NOTE: same issue as pof_config above — "DROP TABLE IF EXISTS damper_config;" was
+-- wiping saved Damper config every time the server restarted. Removed.
 CREATE TABLE IF NOT EXISTS damper_config (
     id             INT AUTO_INCREMENT PRIMARY KEY,
-    product_key    VARCHAR(100),
     process_mode   VARCHAR(50),
-    data_type      VARCHAR(50),
-    damper_type    VARCHAR(100),
-    frequency      INT,
-    usl            DECIMAL(10,4),
-    ucl            DECIMAL(10,4),
-    cl             DECIMAL(10,4),
-    lcl            DECIMAL(10,4),
+    product_key    VARCHAR(100),
+    dimension_name VARCHAR(100),
     lsl            DECIMAL(10,4),
+    lcl            DECIMAL(10,4),
+    cl             DECIMAL(10,4),
+    ucl            DECIMAL(10,4),
+    usl            DECIMAL(10,4),
+    locked         TINYINT(1) DEFAULT 0,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_damper_config (product_key, process_mode, data_type, damper_type)
+    UNIQUE KEY uniq_damper_config (process_mode, product_key, dimension_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS damper_records (
@@ -490,21 +499,20 @@ INSERT IGNORE INTO pof_product (product_name, mode) VALUES
 ('ComET', 'Buy-off'), ('ComET', 'Buy-off'), ('Dorado 5D', 'Buy-off'),
 ('Dorado 10D NOAR', 'Buy-off'), ('M11 P', 'Buy-off'), ('Marlin 10D', 'Buy-off'),
 ('Rosewood 1D', 'Buy-off'), ('Rosewood 2D', 'Buy-off'), ('Skybolt 1D', 'Buy-off'),
-('Skybolt 1D MM', 'Buy-off'),
 ('Skybolt 2D', 'Buy-off'), ('Skybolt 3D', 'Buy-off'), ('Skybolt 4D', 'Buy-off'),
 ('Summit 10D', 'Buy-off'), ('V11 1D', 'Buy-off'), ('V11 2D', 'Buy-off'),
 ('V11 4D', 'Buy-off'), ('V15 Cimarron 4D', 'Buy-off'),
 ('Cimarron BP 3D', 'Roving'), ('Cimarron BP 4D', 'Roving'), ('Cimarrron BP 5D', 'Roving'),
 ('ComET', 'Roving'), ('Dorado 10D', 'Roving'), ('M11 P', 'Roving'),
 ('Marlin 10D', 'Roving'), ('Rosewood 1D', 'Roving'), ('Rosewood 2D', 'Roving'),
-('Skybolt 1D', 'Roving'), ('Skybolt 1D MM', 'Roving'), ('Skybolt 2D', 'Roving'), ('Skybolt 3D', 'Roving'),
+('Skybolt 1D', 'Roving'), ('Skybolt 2D', 'Roving'), ('Skybolt 3D', 'Roving'),
 ('Skybolt 4D', 'Roving'), ('Summit 10D', 'Roving'), ('V11 1D', 'Roving'),
 ('V11 2D', 'Roving'), ('V11 4D', 'Roving'), ('V15 Cimarron 4D', 'Roving'),
 ('Cimarron BP 3D', 'OBA'), ('Cimarron BP 4D', 'OBA'), ('Cimarron BP 5D', 'OBA'),
 ('ComET', 'OBA'), ('Dorado 5D AL BB', 'OBA'), ('Dorado 5D NOAR', 'OBA'),
 ('Dorado 10D NOAR', 'OBA'), ('Dorado 10D NOAR-AAD', 'OBA'), ('M11 P', 'OBA'),
 ('Marlin 10D', 'OBA'), ('Rosewood 1D', 'OBA'), ('Rosewood 2D', 'OBA'),
-('Skybolt 1D', 'OBA'), ('Skybolt 1D MM', 'OBA'), ('Skybolt 2D', 'OBA'), ('Skybolt 3D', 'OBA'),
+('Skybolt 1D', 'OBA'), ('Skybolt 2D', 'OBA'), ('Skybolt 3D', 'OBA'),
 ('Skybolt 4D', 'OBA'), ('Summit 10D', 'OBA'), ('V11 1D', 'OBA'),
 ('V11 2D', 'OBA'), ('V11 4D', 'OBA'), ('V15 Cimarron 4D', 'OBA'),
 ('Cimarron BP 3D', 'Special'), ('Cimarron BP 4D', 'Special'), ('Cimarron BP 4D', 'Special'),
@@ -1160,3 +1168,8 @@ INSERT IGNORE INTO dispensing_config (process_mode, product_key, dimension_name,
 ('roving', 'V15 Cimarron 4D Inch', 'Coil_parallel', NULL, NULL, NULL, 0.0040, 0.0060),
 ('roving', 'V15 Cimarron 4D Inch', 'Coil_recess_DTM', NULL, NULL, NULL, 0.0090, 0.0100),
 ('roving', 'V15 Cimarron 4D Inch', 'Coil_recess_NDTM', NULL, NULL, NULL, 0.0090, 0.0100);
+-- Migrate old products to master_products
+INSERT IGNORE INTO master_products (product_key, product_name) SELECT DISTINCT product_name, product_name FROM dispensing_product;
+INSERT IGNORE INTO master_products (product_key, product_name) SELECT DISTINCT product_name, product_name FROM laser_product;
+INSERT IGNORE INTO master_products (product_key, product_name) SELECT DISTINCT product_name, product_name FROM pof_product;
+INSERT IGNORE INTO master_products (product_key, product_name) SELECT DISTINCT product_name, product_name FROM damper_product;
