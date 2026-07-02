@@ -754,12 +754,15 @@ function onProductChange() {
     grpBobbin.style.display = hasBobbin ? '' : 'none';
     const grpEpoxyBobbin = document.getElementById('grp-epoxy-bobbin');
     if (grpEpoxyBobbin) grpEpoxyBobbin.style.display = hasBobbin ? '' : 'none';
+    const bWrap = document.getElementById('spc-wrap-bobbin');
+    if (bWrap) bWrap.style.display = hasBobbin ? '' : 'none';
   }
 
   if (p && spc) {
-    // ── Load separate Long/Short SPC specs from localStorage (new config schema) ──
+    // ── Load separate Long/Short/Bobbin SPC specs from localStorage (new config schema) ──
     let longSpc = { ...spc };
     let shortSpc = { ...spc };
+    let bobbinSpc = { ...spc };
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
       const pCfg = allCfg[prodKey] || allCfg['default'];
@@ -780,6 +783,14 @@ function onProductChange() {
         if (bc.long_cl != null) longSpc.cl = bc.long_cl;
         if (bc.long_lcl != null) longSpc.lcl = bc.long_lcl;
         if (bc.long_usl != null) longSpc.usl = bc.long_usl;
+        if (bc.long1) { // system_config.html format fallback
+          if (bc.long1.lsl != null) longSpc.spec = bc.long1.lsl;
+          if (bc.long1.ucl != null) { longSpc.trigger = bc.long1.ucl; longSpc.ucl = bc.long1.ucl; }
+          if (bc.long1.cl != null) longSpc.cl = bc.long1.cl;
+          if (bc.long1.lcl != null) longSpc.lcl = bc.long1.lcl;
+          if (bc.long1.usl != null) longSpc.usl = bc.long1.usl;
+        }
+
         // Short Fantail overrides
         if (bc.short_lsl != null) shortSpc.spec = bc.short_lsl;
         if (bc.short_ucl != null) shortSpc.trigger = bc.short_ucl;
@@ -787,12 +798,35 @@ function onProductChange() {
         if (bc.short_cl != null) shortSpc.cl = bc.short_cl;
         if (bc.short_lcl != null) shortSpc.lcl = bc.short_lcl;
         if (bc.short_usl != null) shortSpc.usl = bc.short_usl;
+        if (bc.short2) { // system_config.html format fallback
+          if (bc.short2.lsl != null) shortSpc.spec = bc.short2.lsl;
+          if (bc.short2.ucl != null) { shortSpc.trigger = bc.short2.ucl; shortSpc.ucl = bc.short2.ucl; }
+          if (bc.short2.cl != null) shortSpc.cl = bc.short2.cl;
+          if (bc.short2.lcl != null) shortSpc.lcl = bc.short2.lcl;
+          if (bc.short2.usl != null) shortSpc.usl = bc.short2.usl;
+        }
+
+        // Bobbin overrides
+        if (bc.bobbin_lsl != null) bobbinSpc.spec = bc.bobbin_lsl;
+        if (bc.bobbin_ucl != null) bobbinSpc.trigger = bc.bobbin_ucl;
+        if (bc.bobbin_ucl != null) bobbinSpc.ucl = bc.bobbin_ucl;
+        if (bc.bobbin_cl != null) bobbinSpc.cl = bc.bobbin_cl;
+        if (bc.bobbin_lcl != null) bobbinSpc.lcl = bc.bobbin_lcl;
+        if (bc.bobbin_usl != null) bobbinSpc.usl = bc.bobbin_usl;
+        if (bc.bobbin) { // system_config.html format fallback
+          if (bc.bobbin.lsl != null) bobbinSpc.spec = bc.bobbin.lsl;
+          if (bc.bobbin.ucl != null) { bobbinSpc.trigger = bc.bobbin.ucl; bobbinSpc.ucl = bc.bobbin.ucl; }
+          if (bc.bobbin.cl != null) bobbinSpc.cl = bc.bobbin.cl;
+          if (bc.bobbin.lcl != null) bobbinSpc.lcl = bc.bobbin.lcl;
+          if (bc.bobbin.usl != null) bobbinSpc.usl = bc.bobbin.usl;
+        }
       }
     } catch { }
 
     // Store separate specs for use in calcResult
     window._pofSpcLong = longSpc;
     window._pofSpcShort = shortSpc;
+    window._pofSpcBobbin = bobbinSpc;
 
     if (specLabel) {
       specLabel.textContent =
@@ -810,16 +844,12 @@ function onProductChange() {
 
     const l1 = document.getElementById('label-long1');
     const s2 = document.getElementById('label-short2');
-    if (l1) l1.textContent = `Long Fantail (${p.unit})`;
-    if (s2) s2.textContent = `Short Fantail (${p.unit})`;
-
-    // Gauge ticks (use long spc for display)
-    const tl = document.getElementById('t-lcl');
-    const tc = document.getElementById('t-cl');
-    const tu = document.getElementById('t-ucl');
-    if (tl) tl.textContent = longSpc.lcl;
-    if (tc) tc.textContent = longSpc.cl;
-    if (tu) tu.textContent = longSpc.ucl;
+    const b1 = document.getElementById('label-bobbin1');
+    const b2 = document.getElementById('label-bobbin2');
+    if (l1) l1.textContent = `LONG FANTAIL (${p.unit})`;
+    if (s2) s2.textContent = `SHORT FANTAIL (${p.unit})`;
+    if (b1) b1.textContent = `BOBBIN 1 (${p.unit})`;
+    if (b2) b2.textContent = `BOBBIN 2 (${p.unit})`;
 
     document.getElementById('page-sub').textContent = `Push Out Force  ${p.label}  v4.0`;
   } else {
@@ -846,7 +876,7 @@ function onProductChange() {
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
       const pCfg = allCfg[prodKey] || allCfg['default'];
-      
+
       let activeFreq = null;
       if (pCfg && pCfg.freq) {
         if (modeKey === 'buyoff' || modeKey === 'oba' || modeKey.includes('roving')) {
@@ -887,9 +917,10 @@ function calcResult() {
   const spc = (prodKey && modeKey) ? getSPC(prodKey, modeKey, typeKey) : null;
   const p = prodKey ? PRODUCTS[prodKey] : null;
 
-  // Use separate Long/Short specs if available (from new config), else fall back to shared spc
+  // Use separate Long/Short/Bobbin specs if available (from new config), else fall back to shared spc
   const longSpc = window._pofSpcLong || spc;
   const shortSpc = window._pofSpcShort || spc;
+  const bobbinSpc = window._pofSpcBobbin || spc;
 
   const vals = [];
   if (!isNaN(l1)) vals.push(l1);
@@ -934,8 +965,21 @@ function calcResult() {
   colorInput('m-bobbin1', b1, spc?.spec ?? 25);
   colorInput('m-bobbin2', b2, spc?.spec ?? 25);
 
-  // Gauge uses long spc for display
-  if (longSpc) updateGauge(avg, longSpc);
+  // Gauge uses separate spc for display
+  if (longSpc && !isNaN(l1)) updateGaugeFor('long', l1, longSpc);
+  else updateGaugeFor('long', NaN, longSpc);
+
+  if (shortSpc && !isNaN(s2)) updateGaugeFor('short', s2, shortSpc);
+  else updateGaugeFor('short', NaN, shortSpc);
+
+  const b_wrap = document.getElementById('spc-wrap-bobbin');
+  if (p && p.types?.includes('bobbin')) {
+    if (b_wrap) b_wrap.style.display = '';
+    const b_val = (!isNaN(b1) && !isNaN(b2)) ? (b1 + b2) / 2 : (isNaN(b1) ? b2 : b1);
+    updateGaugeFor('bobbin', b_val, bobbinSpc);
+  } else {
+    if (b_wrap) b_wrap.style.display = 'none';
+  }
 }
 
 function colorInput(id, val, specMin) {
@@ -952,20 +996,48 @@ function resetResultBox() {
     const el = document.getElementById(id);
     if (el) { el.textContent = '—'; el.style.color = 'var(--text3)'; }
   });
-  const chips = document.getElementById('spc-chips');
-  if (chips) chips.innerHTML = '';
+  ['long', 'short', 'bobbin'].forEach(prefix => {
+    const chips = document.getElementById('spc-chips-' + prefix);
+    if (chips) chips.innerHTML = '';
+    const needle = document.getElementById('spc-needle-' + prefix);
+    if (needle) needle.style.left = '50%';
+  });
 }
 
-function updateGauge(avg, spc) {
-  const needle = document.getElementById('spc-needle');
-  const chips = document.getElementById('spc-chips');
-  if (!needle || !spc) return;
-  const range = spc.ucl - spc.lcl;
-  const pos = range > 0 ? Math.max(0, Math.min(100, ((avg - spc.lcl) / range) * 100)) : 50;
+function updateGaugeFor(prefix, val, spc) {
+  const wrap = document.getElementById('spc-wrap-' + prefix);
+  const needle = document.getElementById('spc-needle-' + prefix);
+  const chips = document.getElementById('spc-chips-' + prefix);
+
+  if (!wrap || !needle || !spc || isNaN(val)) {
+    if (wrap) wrap.style.opacity = '0.3';
+    if (chips) chips.innerHTML = '';
+    return;
+  }
+  wrap.style.opacity = '1';
+
+  const usl = spc.usl ?? (spc.ucl + (spc.ucl - spc.cl));
+  const lsl = spc.spec ?? spc.lsl ?? (spc.lcl - (spc.cl - spc.lcl));
+
+  const setTxt = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = fmt(text, 2); };
+  setTxt('t-lsl-' + prefix, lsl);
+  setTxt('t-lcl-' + prefix, spc.lcl);
+  setTxt('t-cl-' + prefix, spc.cl);
+  setTxt('t-ucl-' + prefix, spc.ucl);
+  setTxt('t-usl-' + prefix, usl);
+
+  const range = usl - lsl;
+  let pos = 50;
+  if (range > 0) {
+    const ratio = (val - lsl) / range;
+    pos = 10 + (ratio * 80);
+    pos = Math.max(0, Math.min(100, pos));
+  }
   needle.style.left = pos + '%';
-  const inSpec = avg >= spc.spec;
-  const inTrigger = avg >= spc.trigger;
-  const inCL = avg >= spc.lcl && avg <= spc.ucl;
+
+  const inSpec = val >= (spc.spec ?? lsl);
+  const inTrigger = val >= spc.trigger;
+  const inCL = val >= spc.lcl && val <= spc.ucl;
   if (chips) chips.innerHTML = [
     { label: 'Spec', ok: inSpec },
     { label: 'Trigger', ok: inTrigger },
@@ -1058,17 +1130,13 @@ async function addDraft() {
     inSpec, inTrigger, inCL, outSpec, overall,
     spc, longSpc, shortSpc,
     remark: document.getElementById('m-remark')?.value.trim() || '',
-    eblock_long: window.EP_VALS?.ebl_long ?? null,
-    eblock_short: window.EP_VALS?.ebs_long ?? null,
+    eblock_long: window.EP_VALS?.long_long ?? null,
+    eblock_short: window.EP_VALS?.short_long ?? null,
     eblock_avg: document.getElementById('m-eblock-avg')?.value !== '' ? parseFloat(document.getElementById('m-eblock-avg').value) : null,
-    ebl_long: window.EP_VALS?.ebl_long, ebl_center: window.EP_VALS?.ebl_center, ebl_short: window.EP_VALS?.ebl_short,
-    ebs_long: window.EP_VALS?.ebs_long, ebs_center: window.EP_VALS?.ebs_center, ebs_short: window.EP_VALS?.ebs_short,
-    coil_short: document.getElementById('m-coil-short')?.value ? parseFloat(document.getElementById('m-coil-short').value) : null,
-    coil_center: document.getElementById('m-coil-center')?.value ? parseFloat(document.getElementById('m-coil-center').value) : null,
-    coil_long: document.getElementById('m-coil-long')?.value ? parseFloat(document.getElementById('m-coil-long').value) : null,
-    bobbin_short: document.getElementById('m-bobbin-short')?.value ? parseFloat(document.getElementById('m-bobbin-short').value) : null,
-    bobbin_center: document.getElementById('m-bobbin-center')?.value ? parseFloat(document.getElementById('m-bobbin-center').value) : null,
-    bobbin_long: document.getElementById('m-bobbin-long')?.value ? parseFloat(document.getElementById('m-bobbin-long').value) : null
+    ebl_long: window.EP_VALS?.long_long, ebl_center: window.EP_VALS?.long_center, ebl_short: window.EP_VALS?.long_short,
+    ebs_long: window.EP_VALS?.short_long, ebs_center: window.EP_VALS?.short_center, ebs_short: window.EP_VALS?.short_short,
+    coil_long: window.EP_VALS?.coil_long, coil_center: window.EP_VALS?.coil_center, coil_short: window.EP_VALS?.coil_short,
+    bobbin_long: window.EP_VALS?.bobbin_long, bobbin_center: window.EP_VALS?.bobbin_center, bobbin_short: window.EP_VALS?.bobbin_short
   };
 
   DRAFT_STATE.drafts.push(draftItem);
@@ -1366,37 +1434,45 @@ function highlightEpoxyPick(pickerId, val) {
 
 function initEpoxyPickers() {
   loadEpoxyCfgFromStorage();
-  buildEpoxyPicker('ep-picker-ebl_long', 'ebl_long');
-  buildEpoxyPicker('ep-picker-ebl_center', 'ebl_center');
-  buildEpoxyPicker('ep-picker-ebl_short', 'ebl_short');
-  buildEpoxyPicker('ep-picker-ebs_long', 'ebs_long');
-  buildEpoxyPicker('ep-picker-ebs_center', 'ebs_center');
-  buildEpoxyPicker('ep-picker-ebs_short', 'ebs_short');
+  buildEpoxyPicker('ep-picker-long_long', 'long_long');
+  buildEpoxyPicker('ep-picker-long_center', 'long_center');
+  buildEpoxyPicker('ep-picker-long_short', 'long_short');
+  buildEpoxyPicker('ep-picker-short_long', 'short_long');
+  buildEpoxyPicker('ep-picker-short_center', 'short_center');
+  buildEpoxyPicker('ep-picker-short_short', 'short_short');
+  buildEpoxyPicker('ep-picker-bobbin_long', 'bobbin_long');
+  buildEpoxyPicker('ep-picker-bobbin_center', 'bobbin_center');
+  buildEpoxyPicker('ep-picker-bobbin_short', 'bobbin_short');
+  buildEpoxyPicker('ep-picker-coil_long', 'coil_long');
+  buildEpoxyPicker('ep-picker-coil_center', 'coil_center');
+  buildEpoxyPicker('ep-picker-coil_short', 'coil_short');
 }
 
 function epStep(key, delta) {
-  // Legacy fallback (called from old HTML — no-op if picker UI is used)
   EP_VALS[key] = Math.min(100, Math.max(0, (EP_VALS[key] || 0) + delta));
   calcEpoxyAvg();
 }
 
 function calcEpoxyAvg() {
-  const avgEbl = Math.round((EP_VALS.ebl_long + EP_VALS.ebl_center + EP_VALS.ebl_short) / 3);
-  const avgEbs = Math.round((EP_VALS.ebs_long + EP_VALS.ebs_center + EP_VALS.ebs_short) / 3);
+  const avgLong = Math.round(((EP_VALS.long_long || 0) + (EP_VALS.long_center || 0) + (EP_VALS.long_short || 0)) / 3);
+  const avgShort = Math.round(((EP_VALS.short_long || 0) + (EP_VALS.short_center || 0) + (EP_VALS.short_short || 0)) / 3);
+  const avgBobbin = Math.round(((EP_VALS.bobbin_long || 0) + (EP_VALS.bobbin_center || 0) + (EP_VALS.bobbin_short || 0)) / 3);
+  const avgCoil = Math.round(((EP_VALS.coil_long || 0) + (EP_VALS.coil_center || 0) + (EP_VALS.coil_short || 0)) / 3);
 
-  const elEbl = document.getElementById('epavg-ebl');
-  const elEbs = document.getElementById('epavg-ebs');
-  if (elEbl) elEbl.textContent = avgEbl;
-  if (elEbs) elEbs.textContent = avgEbs;
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('epavg-long', avgLong);
+  setTxt('epavg-short', avgShort);
+  setTxt('epavg-bobbin', avgBobbin);
+  setTxt('epavg-coil', avgCoil);
 
-  // sync hidden inputs for saveRecord()
   const setHidden = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-  setHidden('m-eblock-long', avgEbl);
-  setHidden('m-eblock-short', avgEbs);
-  const overallAvg = Math.round((avgEbl + avgEbs) / 2);
+  setHidden('m-eblock-long', avgLong);
+  setHidden('m-eblock-short', avgShort);
+  setHidden('m-bobbin-long', avgBobbin);
+  setHidden('m-coil-long', avgCoil);
+  const overallAvg = Math.round((avgLong + avgShort + avgBobbin + avgCoil) / 4);
   setHidden('m-eblock-avg', overallAvg);
 
-  // Determine result using config thresholds
   let result = overallAvg >= EP_CFG.passMin ? 'pass'
     : overallAvg > EP_CFG.rejectBelow ? 'hold' : 'fail';
 
@@ -1405,28 +1481,28 @@ function calcEpoxyAvg() {
     if (btn) btn.className = 'ep-pill' + (result === r ? ' ep-' + r : '');
   });
 
-  // auto-set Overall Result toggle to match
   if (result === 'pass') setOverallPF('Pass');
   else if (result === 'hold') setOverallPF('Hold');
   else setOverallPF('Fail');
 
-  // Re-highlight pickers to reflect thresholds
-  highlightEpoxyPick('ep-picker-ebl_long', EP_VALS.ebl_long);
-  highlightEpoxyPick('ep-picker-ebl_center', EP_VALS.ebl_center);
-  highlightEpoxyPick('ep-picker-ebl_short', EP_VALS.ebl_short);
-  highlightEpoxyPick('ep-picker-ebs_long', EP_VALS.ebs_long);
-  highlightEpoxyPick('ep-picker-ebs_center', EP_VALS.ebs_center);
-  highlightEpoxyPick('ep-picker-ebs_short', EP_VALS.ebs_short);
+  ['long_long', 'long_center', 'long_short', 'short_long', 'short_center', 'short_short', 'bobbin_long', 'bobbin_center', 'bobbin_short', 'coil_long', 'coil_center', 'coil_short'].forEach(k => {
+    highlightEpoxyPick('ep-picker-' + k, EP_VALS[k] || 0);
+  });
 }
 
 function resetEpoxySteppers() {
   Object.keys(EP_VALS).forEach(k => { EP_VALS[k] = 0; });
-  ['ep-picker-ebl_long', 'ep-picker-ebl_center', 'ep-picker-ebl_short', 'ep-picker-ebs_long', 'ep-picker-ebs_center', 'ep-picker-ebs_short'].forEach(pid => {
-    const el = document.getElementById(pid);
+  const keys = ['long_long', 'long_center', 'long_short', 'short_long', 'short_center', 'short_short', 'bobbin_long', 'bobbin_center', 'bobbin_short', 'coil_long', 'coil_center', 'coil_short'];
+  keys.forEach(k => {
+    const el = document.getElementById('ep-picker-' + k);
     if (el) el.querySelectorAll('.ep-pick-btn').forEach(b =>
       b.classList.remove('ep-sel-reject', 'ep-sel-hold', 'ep-sel-accept'));
+    const epv = document.getElementById('epv-' + k);
+    if (epv) epv.textContent = '0';
+    const epavg = document.getElementById('epavg-' + k);
+    if (epavg) epavg.textContent = '0';
   });
-  ['epavg-ebl_long', 'epavg-ebl_center', 'epavg-ebl_short', 'epavg-ebs_long', 'epavg-ebs_center', 'epavg-ebs_short', 'epavg-ebl', 'epavg-ebs'].forEach(id => {
+  ['epavg-long', 'epavg-short', 'epavg-bobbin', 'epavg-coil'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '0';
   });
@@ -1434,13 +1510,9 @@ function resetEpoxySteppers() {
     const el = document.getElementById(id);
     if (el) el.className = 'ep-pill';
   });
-  ['m-eblock-long', 'm-eblock-short', 'm-eblock-avg'].forEach(id => {
+  ['m-eblock-long', 'm-eblock-short', 'm-eblock-avg', 'm-bobbin-long', 'm-coil-long'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
-  });
-  ['ebl_long', 'ebl_center', 'ebl_short', 'ebs_long', 'ebs_center', 'ebs_short'].forEach(k => {
-    const el = document.getElementById('epv-' + k);
-    if (el) el.textContent = '0';
   });
 }
 

@@ -5,6 +5,10 @@ const pool = require('./db');
 const path = require('path');
 
 const app = express();
+const compression = require('compression');
+
+// เปิดใช้งาน GZIP Compression เพื่อบีบอัดไฟล์ (HTML, CSS, JS, JSON) ทำให้เว็บโหลดเร็วขึ้นมาก
+app.use(compression());
 
 // เปิดใช้งาน CORS เพื่อให้หน้าเว็บ HTML/JS จาก origin อื่นสามารถเข้าถึง API ได้
 app.use(cors({ origin: true, credentials: true }));
@@ -1963,8 +1967,6 @@ app.get('/api/dispensing/products_list', async (req, res) => {
   try {
     const q = `
       SELECT product_name, mode, product_key FROM dispensing_product
-      UNION
-      SELECT product_name, '' AS mode, product_key FROM master_products
       ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
@@ -1977,8 +1979,6 @@ app.get('/api/laser/products_list', async (req, res) => {
   try {
     const q = `
       SELECT product_name, mode FROM laser_product
-      UNION
-      SELECT product_name, '' AS mode FROM master_products
       ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
@@ -1991,8 +1991,6 @@ app.get('/api/pof/products_list', async (req, res) => {
   try {
     const q = `
       SELECT product_name, mode FROM pof_product
-      UNION
-      SELECT product_name, '' AS mode FROM master_products
       ORDER BY product_name`;
     const [rows] = await pool.query(q);
     res.json({ success: true, products: rows });
@@ -2007,8 +2005,6 @@ app.get('/api/damper/products_list', async (req, res) => {
       SELECT dp.product_name AS product_key, COALESCE(mp.product_name, dp.product_name) AS product_name, dp.mode 
       FROM damper_product dp 
       LEFT JOIN master_products mp ON dp.product_name = mp.product_key 
-      UNION
-      SELECT product_key, product_name, '' AS mode FROM master_products
       ORDER BY product_name ASC
     `;
     const [rows] = await pool.query(q);
@@ -2438,6 +2434,24 @@ app.listen(PORT, () => {
   console.log(`🐬  phpMyAdmin: ${phpMyAdminUrl}`);
   console.log(`🔐 CORS and JSON Limits (50mb) are configured.`);
   console.log(`================================================================`);
+
+  // --- เริ่มต้นใช้งาน localtunnel (HTTPS ออนไลน์ฟรี) ---
+  const localtunnel = require('localtunnel');
+  (async () => {
+    try {
+      const tunnel = await localtunnel({ port: PORT });
+      console.log(`================================================================`);
+      console.log(`🌐 ออนไลน์ (HTTPS ฟรี): ${tunnel.url}`);
+      console.log(`   (สามารถใช้ URL นี้เพื่อเข้าถึงผ่านอินเทอร์เน็ตได้ทันที)`);
+      console.log(`================================================================`);
+
+      tunnel.on('close', () => {
+        console.log('❌ Localtunnel ปิดการเชื่อมต่อแล้ว');
+      });
+    } catch (err) {
+      console.error('❌ เกิดข้อผิดพลาดในการเปิด Localtunnel:', err.message);
+    }
+  })();
 });
 
 // === AUTO-SYNC WATCHER ===

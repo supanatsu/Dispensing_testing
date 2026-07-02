@@ -564,19 +564,53 @@
                 </div>
               </div>
 
-              <!-- SPC Gauge -->
-              <div class="spc-wrap">
+              <!-- SPC Gauges -->
+              <div class="spc-wrap" id="spc-wrap-long">
                 <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
-                      letter-spacing:.5px;margin-bottom:7px">SPC Position (X-bar)</div>
-                <div class="spc-bar">
-                  <div class="spc-needle" id="spc-needle" style="left:50%"></div>
+                      letter-spacing:.5px;margin-bottom:7px">Long Fantail SPC Position</div>
+                <div class="spc-bar" id="spc-bar-long" style="background: linear-gradient(90deg, rgba(220, 38, 38, .18) 0%, rgba(220, 38, 38, .18) 10%, rgba(234, 179, 8, .18) 10%, rgba(234, 179, 8, .18) 25%, rgba(22, 163, 74, .18) 25%, rgba(22, 163, 74, .18) 75%, rgba(234, 179, 8, .18) 75%, rgba(234, 179, 8, .18) 90%, rgba(220, 38, 38, .18) 90%, rgba(220, 38, 38, .18) 100%);">
+                  <div class="spc-needle" id="spc-needle-long" style="left:50%"></div>
                 </div>
-                <div class="spc-ticks">
-                  <span id="t-lcl">LCL</span>
-                  <span id="t-cl">CL</span>
-                  <span id="t-ucl">UCL</span>
+                <div class="spc-ticks" style="position: relative; height: 15px;">
+                  <span id="t-lsl-long" style="position: absolute; left: 10%; transform: translateX(-50%);">LSL</span>
+                  <span id="t-lcl-long" style="position: absolute; left: 25%; transform: translateX(-50%);">LCL</span>
+                  <span id="t-cl-long" style="position: absolute; left: 50%; transform: translateX(-50%);">CL</span>
+                  <span id="t-ucl-long" style="position: absolute; left: 75%; transform: translateX(-50%);">UCL</span>
+                  <span id="t-usl-long" style="position: absolute; left: 90%; transform: translateX(-50%);">USL</span>
                 </div>
-                <div class="spc-chips" id="spc-chips"></div>
+                <div class="spc-chips" id="spc-chips-long"></div>
+              </div>
+
+              <div class="spc-wrap" id="spc-wrap-short" style="margin-top:15px;">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                      letter-spacing:.5px;margin-bottom:7px">Short Fantail SPC Position</div>
+                <div class="spc-bar" id="spc-bar-short" style="background: linear-gradient(90deg, rgba(220, 38, 38, .18) 0%, rgba(220, 38, 38, .18) 10%, rgba(234, 179, 8, .18) 10%, rgba(234, 179, 8, .18) 25%, rgba(22, 163, 74, .18) 25%, rgba(22, 163, 74, .18) 75%, rgba(234, 179, 8, .18) 75%, rgba(234, 179, 8, .18) 90%, rgba(220, 38, 38, .18) 90%, rgba(220, 38, 38, .18) 100%);">
+                  <div class="spc-needle" id="spc-needle-short" style="left:50%"></div>
+                </div>
+                <div class="spc-ticks" style="position: relative; height: 15px;">
+                  <span id="t-lsl-short" style="position: absolute; left: 10%; transform: translateX(-50%);">LSL</span>
+                  <span id="t-lcl-short" style="position: absolute; left: 25%; transform: translateX(-50%);">LCL</span>
+                  <span id="t-cl-short" style="position: absolute; left: 50%; transform: translateX(-50%);">CL</span>
+                  <span id="t-ucl-short" style="position: absolute; left: 75%; transform: translateX(-50%);">UCL</span>
+                  <span id="t-usl-short" style="position: absolute; left: 90%; transform: translateX(-50%);">USL</span>
+                </div>
+                <div class="spc-chips" id="spc-chips-short"></div>
+              </div>
+
+              <div class="spc-wrap" id="spc-wrap-bobbin" style="margin-top:15px; display:none;">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                      letter-spacing:.5px;margin-bottom:7px">Bobbin SPC Position</div>
+                <div class="spc-bar" id="spc-bar-bobbin" style="background: linear-gradient(90deg, rgba(220, 38, 38, .18) 0%, rgba(220, 38, 38, .18) 10%, rgba(234, 179, 8, .18) 10%, rgba(234, 179, 8, .18) 25%, rgba(22, 163, 74, .18) 25%, rgba(22, 163, 74, .18) 75%, rgba(234, 179, 8, .18) 75%, rgba(234, 179, 8, .18) 90%, rgba(220, 38, 38, .18) 90%, rgba(220, 38, 38, .18) 100%);">
+                  <div class="spc-needle" id="spc-needle-bobbin" style="left:50%"></div>
+                </div>
+                <div class="spc-ticks" style="position: relative; height: 15px;">
+                  <span id="t-lsl-bobbin" style="position: absolute; left: 10%; transform: translateX(-50%);">LSL</span>
+                  <span id="t-lcl-bobbin" style="position: absolute; left: 25%; transform: translateX(-50%);">LCL</span>
+                  <span id="t-cl-bobbin" style="position: absolute; left: 50%; transform: translateX(-50%);">CL</span>
+                  <span id="t-ucl-bobbin" style="position: absolute; left: 75%; transform: translateX(-50%);">UCL</span>
+                  <span id="t-usl-bobbin" style="position: absolute; left: 90%; transform: translateX(-50%);">USL</span>
+                </div>
+                <div class="spc-chips" id="spc-chips-bobbin"></div>
               </div>
 
               <!-- Epoxy Coverage -->
@@ -757,68 +791,121 @@
                 <span>Value</span>
               </div>
 
-              <!-- E-Block Long Fantail -->
+              <!-- Long -->
               <div class="ep-row-lbl"
                 style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #1e3a8a; font-size: 13px;">🔵
-                E-Block Long Fantail</div>
+                Long</div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
-                <div class="ep-picker-row" id="ep-picker-ebl_long"></div>
-                <div class="ep-avg-box" id="epavg-ebl_long">0</div>
+                <div class="ep-picker-row" id="ep-picker-long_long"></div>
+                <div class="ep-avg-box" id="epavg-long_long">0</div>
               </div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
-                <div class="ep-picker-row" id="ep-picker-ebl_center"></div>
-                <div class="ep-avg-box" id="epavg-ebl_center">0</div>
+                <div class="ep-picker-row" id="ep-picker-long_center"></div>
+                <div class="ep-avg-box" id="epavg-long_center">0</div>
               </div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
-                <div class="ep-picker-row" id="ep-picker-ebl_short"></div>
-                <div class="ep-avg-box" id="epavg-ebl_short">0</div>
+                <div class="ep-picker-row" id="ep-picker-long_short"></div>
+                <div class="ep-avg-box" id="epavg-long_short">0</div>
               </div>
               <div
                 style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
-                Avg E-Block Long: <span id="epavg-ebl" style="color: var(--accent); font-size: 14px;">0</span> %
+                Avg Long: <span id="epavg-long" style="color: var(--accent); font-size: 14px;">0</span> %
               </div>
-
               <hr class="ep-divider">
 
-              <!-- Short Fantail -->
+              <!-- Short -->
               <div class="ep-row-lbl"
                 style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #ea580c; font-size: 13px;">🟠
-                Short Fantail</div>
+                Short</div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
-                <div class="ep-picker-row" id="ep-picker-ebs_long"></div>
-                <div class="ep-avg-box" id="epavg-ebs_long">0</div>
+                <div class="ep-picker-row" id="ep-picker-short_long"></div>
+                <div class="ep-avg-box" id="epavg-short_long">0</div>
               </div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
-                <div class="ep-picker-row" id="ep-picker-ebs_center"></div>
-                <div class="ep-avg-box" id="epavg-ebs_center">0</div>
+                <div class="ep-picker-row" id="ep-picker-short_center"></div>
+                <div class="ep-avg-box" id="epavg-short_center">0</div>
               </div>
               <div class="ep-row-new">
                 <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
-                <div class="ep-picker-row" id="ep-picker-ebs_short"></div>
-                <div class="ep-avg-box" id="epavg-ebs_short">0</div>
+                <div class="ep-picker-row" id="ep-picker-short_short"></div>
+                <div class="ep-avg-box" id="epavg-short_short">0</div>
               </div>
               <div
                 style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
-                Avg Short Fantail: <span id="epavg-ebs" style="color: var(--accent); font-size: 14px;">0</span> %
+                Avg Short: <span id="epavg-short" style="color: var(--accent); font-size: 14px;">0</span> %
               </div>
-
               <hr class="ep-divider">
+
+              <!-- Bobbin -->
+              <div class="ep-row-lbl"
+                style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #16a34a; font-size: 13px;">🟢
+                Bobbin</div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
+                <div class="ep-picker-row" id="ep-picker-bobbin_long"></div>
+                <div class="ep-avg-box" id="epavg-bobbin_long">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
+                <div class="ep-picker-row" id="ep-picker-bobbin_center"></div>
+                <div class="ep-avg-box" id="epavg-bobbin_center">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
+                <div class="ep-picker-row" id="ep-picker-bobbin_short"></div>
+                <div class="ep-avg-box" id="epavg-bobbin_short">0</div>
+              </div>
+              <div
+                style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+                Avg Bobbin: <span id="epavg-bobbin" style="color: var(--accent); font-size: 14px;">0</span> %
+              </div>
+              <hr class="ep-divider">
+
+              <!-- Coil -->
+              <div class="ep-row-lbl"
+                style="grid-column: 1 / -1; margin-top: 10px; margin-bottom: 5px; color: #9333ea; font-size: 13px;">🟣
+                Coil</div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Long</div>
+                <div class="ep-picker-row" id="ep-picker-coil_long"></div>
+                <div class="ep-avg-box" id="epavg-coil_long">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Center</div>
+                <div class="ep-picker-row" id="ep-picker-coil_center"></div>
+                <div class="ep-avg-box" id="epavg-coil_center">0</div>
+              </div>
+              <div class="ep-row-new">
+                <div class="ep-row-lbl" style="padding-left: 10px; font-weight: normal;">- Short</div>
+                <div class="ep-picker-row" id="ep-picker-coil_short"></div>
+                <div class="ep-avg-box" id="epavg-coil_short">0</div>
+              </div>
+              <div
+                style="text-align: right; font-size: 11px; font-weight: 700; color: var(--text3); padding-right: 68px; margin-bottom: 8px;">
+                Avg Coil: <span id="epavg-coil" style="color: var(--accent); font-size: 14px;">0</span> %
+              </div>
 
               <!-- Bobbin — hidden row (preserved for ID compatibility) -->
               <div class="ep-cfg-row" id="grp-epoxy-bobbin"></div>
 
               <!-- Hidden inputs to keep saveRecord() compatibility -->
-              <div id="epv-ebl_long" style="display:none">0</div>
-              <div id="epv-ebl_center" style="display:none">0</div>
-              <div id="epv-ebl_short" style="display:none">0</div>
-              <div id="epv-ebs_long" style="display:none">0</div>
-              <div id="epv-ebs_center" style="display:none">0</div>
-              <div id="epv-ebs_short" style="display:none">0</div>
+              <div id="epv-long_long" style="display:none">0</div>
+              <div id="epv-long_center" style="display:none">0</div>
+              <div id="epv-long_short" style="display:none">0</div>
+              <div id="epv-short_long" style="display:none">0</div>
+              <div id="epv-short_center" style="display:none">0</div>
+              <div id="epv-short_short" style="display:none">0</div>
+              <div id="epv-bobbin_long" style="display:none">0</div>
+              <div id="epv-bobbin_center" style="display:none">0</div>
+              <div id="epv-bobbin_short" style="display:none">0</div>
+              <div id="epv-coil_long" style="display:none">0</div>
+              <div id="epv-coil_center" style="display:none">0</div>
+              <div id="epv-coil_short" style="display:none">0</div>
 
               <!-- Overall result pills -->
               <div class="ep-overall-row" id="ep-overall-row">
