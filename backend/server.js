@@ -5,10 +5,10 @@ const pool = require('./db');
 const path = require('path');
 
 const app = express();
-const compression = require('compression');
+// const compression = require('compression');
 
 // เปิดใช้งาน GZIP Compression เพื่อบีบอัดไฟล์ (HTML, CSS, JS, JSON) ทำให้เว็บโหลดเร็วขึ้นมาก
-app.use(compression());
+// app.use(compression());
 
 // เปิดใช้งาน CORS เพื่อให้หน้าเว็บ HTML/JS จาก origin อื่นสามารถเข้าถึง API ได้
 app.use(cors({ origin: true, credentials: true }));
@@ -626,6 +626,10 @@ app.get('/api/damper/records', async (req, res) => {
           ? `${r.test_date.getFullYear()}-${String(r.test_date.getMonth() + 1).padStart(2, '0')}-${String(r.test_date.getDate()).padStart(2, '0')}`
           : String(r.test_date).slice(0, 10))
         : '',
+      product: r.product,
+      mc: r.fixture,
+      partno: r.pt_number,
+      ptno: r.pt_number,
       sendTime: r.send_time,
       recvTime: r.recv_time,
       attribute: r.attribute,
@@ -650,6 +654,7 @@ app.get('/api/damper/records', async (req, res) => {
         inSpec: r.long_in_spec === 1
       },
       overallPass: r.overall_pass === 1,
+      values_json: r.values_json,
       savedAt: r.saved_at
     }));
     res.json({ success: true, records });
@@ -1505,6 +1510,76 @@ app.post('/api/dispensing/sync', async (req, res) => {
     res.json({ success: true, message: 'Sync complete' });
   } catch (err) {
     await connection.rollback();
+    console.error('[POST /api/dispensing/sync] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// บันทึกรายการ Dispensing เดี่ยว (เรียกจาก saveManual() ในหน้า dispensing.js)
+// 🔴 เดิม endpoint นี้ไม่มีอยู่จริงในเซิร์ฟเวอร์ (frontend ยิงไปที่ /api/dispensing/record
+//    แบบเอกพจน์ แต่ backend มีแค่ /api/dispensing/sync แบบ bulk) ทำให้ทุกครั้งที่บันทึกผ่าน
+//    ฟอร์ม Manual Input (ซึ่งรวมถึงเคส REJECT/ALERT ที่มักถูกกรอกผ่านฟอร์มนี้) จะได้ 404
+//    กลับมา ข้อมูลเลยค้างอยู่ใน localStorage ฝั่ง client เท่านั้น ไม่เคยตกลง MySQL
+app.post('/api/dispensing/record', async (req, res) => {
+  const r = req.body || {};
+  if (!r.model && !r.product) return res.status(400).json({ success: false, error: 'Missing model/product' });
+
+  const DISP_DIM_COLS = [
+    'x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'x4', 'y4', 'x1_center',
+    'coil_position_1', 'coil_position_2', 'coil_position_1_s', 'coil_position_2_l',
+    'epoxy_length_1', 'epoxy_length_2', 'epoxy_length_1_s', 'epoxy_length_2_l', 'epoxy_length_1_l', 'epoxy_length_2_s',
+    'crash_stop_profile_1', 'crash_stop_profile_2', 'crash_stop_profile_3', 'crash_stop_profile_1_l', 'crash_stop_profile_2_s',
+    'coil_outer_profile_u', 'coil_outer_profile_v', 'coil_outer_profile_w',
+    'coil_inner_profile_1', 'coil_inner_profile_2', 'coil_inner_profile_u', 'coil_inner_profile_v', 'coil_inner_profile_w', 'coil_inner_profile_uv',
+    'coil_symmetry',
+    'fantail_profile_1', 'fantail_profile_2', 'fantail_profile_3', 'fantail_profile_4', 'fantail_profile_5',
+    'bobbin_position_1', 'bobbin_position_2', 'bobbin_hole_true', 'bobbin_slote_true',
+    'coil_parallel', 'coil_recess_dtm', 'coil_recess_ndtm',
+    'bobbin_parallel', 'bobbin_recess_dtm', 'bobbin_recess_ndtm'
+  ];
+
+  function findDimVal(values, colName) {
+    if (!values || typeof values !== 'object') return null;
+    if (values[colName] !== undefined) return values[colName];
+    const lower = colName.toLowerCase();
+    for (const k of Object.keys(values)) {
+      if (k.toLowerCase() === lower) return values[k];
+    }
+    return null;
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    const fullValues = { ...r.values, pt: r.pt, oven: r.oven };
+    const valuesJson = JSON.stringify(fullValues);
+    const opName = r.op || r.operator || 'ADMIN';
+    const product = r.model || r.product || '';
+
+    const dimVals = DISP_DIM_COLS.map(col => {
+      const raw = findDimVal(r.values, col);
+      if (raw === null || raw === undefined || raw === '' || raw === '-') return null;
+      const n = parseFloat(raw);
+      return isNaN(n) ? null : n;
+    });
+
+    const dimColList = DISP_DIM_COLS.join(', ');
+    const dimPlaceholders = DISP_DIM_COLS.map(() => '?').join(', ');
+
+    const [result] = await connection.query(
+      `INSERT INTO dispensing_records
+         (product, fixture, test_date, buytime, mctime, team, op, data_type, status, config_id, values_json, created_at, ${dimColList})
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${dimPlaceholders})`,
+      [
+        product, r.fixture || '', r.date, r.buytime || '', r.mctime || '',
+        r.team || '', opName, r.dataType || 'Buy off', r.status || 'ACCEPT', r.config_id || null, valuesJson,
+        new Date(), ...dimVals
+      ]
+    );
+
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   } finally {
     connection.release();
@@ -2233,19 +2308,26 @@ app.post('/api/config/laser/batch', async (req, res) => {
 // Called immediately from _doSubmitDrafts / checkAndAlert on Fail/Hold
 // =========================================================================
 app.post('/api/laser/alert', async (req, res) => {
-  const { level, msg, product, product_label, machine, fixture, ptno, defects, mode } = req.body;
+  // หมายเหตุ: param/value/specStr เป็น optional override เผื่อ laser.js ฝั่ง frontend
+  // ถูกแก้ให้ส่งชื่อ dimension/ค่าที่วัดได้จริงมาในอนาคต (ตอนนี้ยังไม่มี ก็ fallback แบบเดิม)
+  const { level, msg, product, product_label, machine, fixture, ptno, defects, mode, param, value, specStr } = req.body;
   try {
+    const finalParam = param || mode || 'Laser';
+    const finalValue = (value != null && !isNaN(parseFloat(value))) ? parseFloat(value) : null;
+    const finalSpecStr = specStr || '';
     await pool.query(
       `INSERT INTO system_alert
          (process_type, alert_time, level, product, fixture, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('Laser', ?, ?, ?, ?, ?, ?, null, '', ?, ?)`,
+       VALUES ('Laser', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         new Date(),
         level || 'ng',
         product || '',
         fixture || '',
         ptno || '',
-        mode || 'Laser',
+        finalParam,
+        finalValue,
+        finalSpecStr,
         msg || '',
         JSON.stringify({ product, product_label, machine, fixture, ptno, defects, mode })
       ]
@@ -2259,6 +2341,7 @@ app.post('/api/laser/alert', async (req, res) => {
         product: product_label || product,
         machine, fixture,
         traveler: ptno,
+        param: finalParam, value: finalValue, spec_str: finalSpecStr,
         defects: defects || []
       }]).catch(console.error);
     } catch (e) { /* alert_service optional */ }
@@ -2335,18 +2418,25 @@ app.post('/api/pof/records', async (req, res) => {
 
 // ─── POF: fire a single alert to system_alert + alert_service ───────────────
 app.post('/api/pof/alert', async (req, res) => {
-  const { level, msg, product, product_label, en, traveler, oven, avg, min, spec_result, mode } = req.body;
+  // 🔴 แก้ไข: เดิม hardcode param='POF' ซึ่งไม่ใช่ key ที่มีอยู่จริงใน values_json
+  // ของ pof_records (คีย์จริงคือ avg/long1/short2/... ตาม /api/pof/records)
+  // ทำให้ View Trend Chart หาค่าไม่เจอ — เปลี่ยน default เป็น 'avg' (ค่าที่ถูกบันทึก
+  // ลง value_val อยู่แล้วในจุดนี้) และเปิดช่องให้ override ด้วย param/specStr จาก frontend ได้
+  const { level, msg, product, product_label, en, traveler, oven, avg, min, spec_result, mode, param, specStr } = req.body;
   try {
+    const finalParam = param || 'avg';
+    const finalSpecStr = specStr || spec_result || '';
     await pool.query(
       `INSERT INTO system_alert
          (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('POF', ?, ?, ?, '', ?, ?, 'POF', ?, ?, ?, ?)`,
+       VALUES ('POF', ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`,
       [
         new Date(), level || 'ng',
         product || '',
         oven || '', traveler || en || '',
+        finalParam,
         (avg != null && !isNaN(parseFloat(avg))) ? parseFloat(avg) : null,
-        spec_result || '', msg || '',
+        finalSpecStr, msg || '',
         JSON.stringify(req.body),
       ]
     );
@@ -2354,6 +2444,7 @@ app.post('/api/pof/alert', async (req, res) => {
       require('./alert_service').processAlerts(pool, 'POF', [{
         ts: new Date().toISOString(), level, msg,
         product: product_label || product, oven, traveler, avg, min, spec_result,
+        param: finalParam, spec_str: finalSpecStr,
       }]).catch(console.error);
     } catch (e) { /* alert_service optional */ }
     res.json({ success: true });
@@ -2365,16 +2456,25 @@ app.post('/api/pof/alert', async (req, res) => {
 
 // ─── Damper: fire a single alert to system_alert + alert_service ─────────────
 app.post('/api/damper/alert', async (req, res) => {
-  const { level, msg, product, product_label, qc_en, traveler, mode, overall, issues } = req.body;
+  // หมายเหตุ: payload ของ Damper ไม่มีค่าตัวเลขที่วัดได้ส่งมาด้วย (มีแค่ overall/issues)
+  // จึงยังไม่มี default ที่เชื่อถือได้สำหรับ value_val — เปิดช่องให้ override ด้วย
+  // param/value/specStr จาก frontend ได้เผื่อแก้ damper.js ในอนาคตให้ส่งมาเพิ่ม
+  const { level, msg, product, product_label, qc_en, traveler, mode, overall, issues, param, value, specStr } = req.body;
   try {
+    const finalParam = param || 'Damper';
+    const finalValue = (value != null && !isNaN(parseFloat(value))) ? parseFloat(value) : null;
+    const finalSpecStr = specStr || overall || ''; // เดิม spec_str เก็บค่า overall (Pass/Fail) — คง behavior เดิมไว้ ถ้าไม่มี specStr ส่งมา
     await pool.query(
       `INSERT INTO system_alert
          (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('Damper', ?, ?, ?, '', '', ?, 'Damper', null, ?, ?, ?)`,
+       VALUES ('Damper', ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?)`,
       [
         new Date(), level || 'ng',
         product || '',
-        qc_en || '', overall || '',
+        qc_en || '',
+        finalParam,
+        finalValue,
+        finalSpecStr,
         msg || '', JSON.stringify(req.body),
       ]
     );
@@ -2382,6 +2482,7 @@ app.post('/api/damper/alert', async (req, res) => {
       require('./alert_service').processAlerts(pool, 'Damper', [{
         ts: new Date().toISOString(), level, msg,
         product: product_label || product, traveler, qcEn: qc_en,
+        param: finalParam, value: finalValue, spec_str: finalSpecStr,
         issues: issues || [],
       }]).catch(console.error);
     } catch (e) { /* alert_service optional */ }
@@ -2394,24 +2495,38 @@ app.post('/api/damper/alert', async (req, res) => {
 
 // ─── Dispensing: fire a single alert to system_alert + alert_service ─────────────
 app.post('/api/dispensing/alert', async (req, res) => {
-  const { level, msg, product, fixture, oven, pt, dataType, values } = req.body;
+  // 🔴 แก้ไข: เดิมใส่ pt ลงคอลัมน์ "param" (ไม่ใช่ชื่อ dimension จริง), value_val
+  // hardcode เป็น null เสมอ, spec_str เป็น '' เสมอ, และ traveler เป็น '' เสมอ
+  // (ทั้งที่ pt ควรอยู่ใน traveler) — ผลคือปุ่ม "View Trend Chart" หา
+  // values_json[param] ไม่เจอเลย เพราะ param ที่บันทึกไม่ใช่ชื่อ dimension
+  // แก้เป็น: รับ param/value/specStr จริงจาก frontend (ถ้ามี) มาบันทึกแทน
+  // และย้าย pt ไปลง traveler ให้ถูกความหมาย พร้อม fallback ให้ยังทำงานได้
+  // เหมือนเดิมถ้า frontend เก่ายังไม่ส่ง param/value/specStr มา
+  const { level, msg, product, fixture, oven, pt, dataType, values, param, value, specStr } = req.body;
   try {
+    const finalParam = param || pt || dataType || 'Dispensing';
+    const finalValue = (value != null && !isNaN(parseFloat(value))) ? parseFloat(value) : null;
+    const finalSpecStr = specStr || '';
     await pool.query(
       `INSERT INTO system_alert
          (process_type, alert_time, level, product, fixture, oven, traveler, param, value_val, spec_str, msg, details)
-       VALUES ('Dispensing', ?, ?, ?, ?, ?, '', ?, null, '', ?, ?)`,
+       VALUES ('Dispensing', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         new Date(), level || 'ng',
         product || '',
         fixture || '', oven || '',
-        pt || 'Dispensing',
+        pt || '',
+        finalParam,
+        finalValue,
+        finalSpecStr,
         msg || '', JSON.stringify(req.body),
       ]
     );
     try {
       require('./alert_service').processAlerts(pool, 'Dispensing', [{
         ts: new Date().toISOString(), level, msg,
-        product, fixture, oven, pt, dataType, values
+        product, fixture, oven, pt, dataType, values,
+        param: finalParam, value: finalValue, spec_str: finalSpecStr
       }]).catch(console.error);
     } catch (e) { /* alert_service optional */ }
     res.json({ success: true });
@@ -2436,22 +2551,22 @@ app.listen(PORT, () => {
   console.log(`================================================================`);
 
   // --- เริ่มต้นใช้งาน localtunnel (HTTPS ออนไลน์ฟรี) ---
-  const localtunnel = require('localtunnel');
-  (async () => {
-    try {
-      const tunnel = await localtunnel({ port: PORT });
-      console.log(`================================================================`);
-      console.log(`🌐 ออนไลน์ (HTTPS ฟรี): ${tunnel.url}`);
-      console.log(`   (สามารถใช้ URL นี้เพื่อเข้าถึงผ่านอินเทอร์เน็ตได้ทันที)`);
-      console.log(`================================================================`);
-
-      tunnel.on('close', () => {
-        console.log('❌ Localtunnel ปิดการเชื่อมต่อแล้ว');
-      });
-    } catch (err) {
-      console.error('❌ เกิดข้อผิดพลาดในการเปิด Localtunnel:', err.message);
-    }
-  })();
+  // const localtunnel = require('localtunnel');
+  // (async () => {
+  //   try {
+  //     const tunnel = await localtunnel({ port: PORT });
+  //     console.log(`================================================================`);
+  //     console.log(`🌐 ออนไลน์ (HTTPS ฟรี): ${tunnel.url}`);
+  //     console.log(`   (สามารถใช้ URL นี้เพื่อเข้าถึงผ่านอินเทอร์เน็ตได้ทันที)`);
+  //     console.log(`================================================================`);
+  //
+  //     tunnel.on('close', () => {
+  //       console.log('❌ Localtunnel ปิดการเชื่อมต่อแล้ว');
+  //     });
+  //   } catch (err) {
+  //     console.error('❌ เกิดข้อผิดพลาดในการเปิด Localtunnel:', err.message);
+  //   }
+  // })();
 });
 
 // === AUTO-SYNC WATCHER ===

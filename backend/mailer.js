@@ -1,4 +1,11 @@
-const nodemailer = require('nodemailer');
+// 🔴 แก้ไข: ถ้า nodemailer ยังไม่ได้ npm install ไว้ ให้ require แบบปลอดภัย
+// จะได้ไม่ throw error ทันทีตอน import ไฟล์นี้ (ป้องกันไว้อีกชั้น นอกจากที่แก้ใน alert_service.js แล้ว)
+let nodemailer = null;
+try {
+    nodemailer = require('nodemailer');
+} catch (err) {
+    console.warn('[Mailer] ไม่พบแพ็กเกจ nodemailer — รันคำสั่ง "npm install nodemailer" เพื่อเปิดใช้งานการส่งอีเมลแจ้งเตือน (ระบบอื่นๆ ยังทำงานได้ปกติ)');
+}
 
 /**
  * Sends an email alert for a specific process with dynamic DB config
@@ -21,6 +28,10 @@ const nodemailer = require('nodemailer');
  */
 async function sendAlertEmail(pool, moduleName, alerts) {
   if (!alerts || alerts.length === 0) return;
+  if (!nodemailer) {
+    console.warn(`⚠️ [Mailer] ข้าม sendAlertEmail สำหรับ ${moduleName} — nodemailer ยังไม่ได้ติดตั้ง (npm install nodemailer)`);
+    return false;
+  }
 
   try {
     // 1. Fetch SMTP Configuration

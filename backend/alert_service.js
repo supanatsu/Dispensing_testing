@@ -1,4 +1,16 @@
-const { sendAlertEmail } = require('./mailer');
+// 🔴 แก้ไข: เดิม require('./mailer') แบบตรงๆ ถ้า mailer.js (หรือ nodemailer ที่มันพึ่งพา)
+// โหลดไม่ได้ (เช่น ยังไม่ได้ npm install nodemailer) จะ throw error แบบ synchronous
+// ทันทีที่ import ไฟล์นี้ครั้งแรก ซึ่งเกิดขึ้นกลางทาง /api/dispensing/sync (และ sync ของ
+// module อื่นๆ ที่เรียก processAlerts) ทำให้ transaction ทั้งชุดถูก rollback ไปด้วย
+// (ข้อมูลที่ควรจะบันทึกลง MySQL ได้ปกติ กลับหายไปด้วย) ทั้งที่ปัญหาจริงคือแค่
+// "ส่งอีเมลแจ้งเตือนไม่ได้" ซึ่งไม่ควรบล็อกการบันทึกข้อมูลเลย — แก้เป็น require แบบปลอดภัย
+// + ห่อ sendAlertEmail ด้วย try-catch อีกชั้น เพื่อให้การบันทึกข้อมูลไม่มีทางถูกดึงรั้งอีก
+let sendAlertEmail = null;
+try {
+    ({ sendAlertEmail } = require('./mailer'));
+} catch (err) {
+    console.warn('[alert_service] ไม่สามารถโหลด mailer.js ได้ (' + err.message + ') — จะข้ามการส่งอีเมลแจ้งเตือน แต่ข้อมูลอื่นๆ จะบันทึกลง MySQL ได้ตามปกติ');
+}
 
 async function processAlerts(pool, moduleName, alerts) {
     if (!alerts || alerts.length === 0) return;
@@ -35,7 +47,15 @@ async function processAlerts(pool, moduleName, alerts) {
         });
     }
 
-    await sendAlertEmail(pool, moduleName, formattedAlerts);
+    if (typeof sendAlertEmail === 'function') {
+        try {
+            await sendAlertEmail(pool, moduleName, formattedAlerts);
+        } catch (err) {
+            console.error('[alert_service] ส่งอีเมลแจ้งเตือนไม่สำเร็จ (ข้อมูลอื่นบันทึกลง MySQL ไปแล้วตามปกติ):', err.message);
+        }
+    } else {
+        console.warn('[alert_service] ข้าม sendAlertEmail — mailer.js ยังโหลดไม่ได้ (ตรวจสอบว่าติดตั้ง nodemailer แล้วหรือยัง: npm install nodemailer)');
+    }
 }
 
 async function generateChartUrl(pool, moduleName, product, param) {
