@@ -55,34 +55,8 @@ const VMI_ITEMS = [
 ];
 
 // ─── Dimension Point Definitions (ตาม Format Excel) ─────────────
-const DIM_GROUPS = {
-    datum: [
-        {
-            key: 'datum',
-            label: 'Datum',
-            subLabel: 'Spec: CL: 1.358',
-            usl: 1.368,
-            ucl: null,
-            cl: 1.358,
-            lcl: null,
-            lsl: 1.348,
-            points: ['1/1', '1/2', '1/3', '1/4'],
-        },
-        {
-            key: 'nondatum',
-            label: 'Non-datum',
-            subLabel: 'Spec: CL: 0.814',
-            usl: 0.824,
-            ucl: null,
-            cl: 0.814,
-            lcl: null,
-            lsl: 0.804,
-            points: ['2/1', '2/2', '2/3', '2/4'],
-        },
-    ]
-};
-
-const DIM_GROUPS_BASE = JSON.parse(JSON.stringify(DIM_GROUPS));
+let DIM_GROUPS = { datum: [] };
+let DIM_GROUPS_BASE = { datum: [] };
 
 // ─── Product Catalogue ────────────────────────────────────────
 const PRODUCTS_DEFAULT = {
@@ -151,6 +125,32 @@ function loadConfig() {
     }
 }
 
+function generateDimGroupsForProduct(pcs) {
+    const datumPts = ['1/1', '1/2', '1/3', '1/4'];
+    const nondatumPts = ['2/1', '2/2', '2/3', '2/4'];
+
+    return [
+        { 
+            key: 'datum', label: '1. Datum', subLabel: '', usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348, points: datumPts, startIdx: 1,
+            pointSpecs: {
+                '1/1': { usl: 1.368, cl: 1.358, lsl: 1.348 },
+                '1/2': { usl: 1.368, cl: 1.358, lsl: 1.348 },
+                '1/3': { usl: 0.040, cl: 0.030, lsl: 0.020 },
+                '1/4': { usl: 0.040, cl: 0.030, lsl: 0.020 }
+            }
+        },
+        { 
+            key: 'nondatum', label: '2. Non-datum', subLabel: '', usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804, points: nondatumPts, startIdx: 1,
+            pointSpecs: {
+                '2/1': { usl: 0.824, cl: 0.814, lsl: 0.804 },
+                '2/2': { usl: 0.824, cl: 0.814, lsl: 0.804 },
+                '2/3': { usl: 0.040, cl: 0.030, lsl: 0.020 },
+                '2/4': { usl: 0.040, cl: 0.030, lsl: 0.020 }
+            }
+        }
+    ];
+}
+
 window.SERVER_PRODUCTS_LIST = [];
 
 async function fetchDynamicProducts() {
@@ -167,7 +167,43 @@ async function fetchDynamicProducts() {
     }
 }
 
+// ─── Point Colors (4 colors for 4 measurement points) ─────────────────────────
+const POINT_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b']; // blue, green, purple, amber
+
+function generateDimGroupsForProduct(pcs) {
+    // Damper measurements always have 4 points per piece
+    const datumPts = ['1/1', '1/2', '1/3', '1/4'];
+    const nondatumPts = ['2/1', '2/2', '2/3', '2/4'];
+
+    return [
+        { 
+            key: 'datum', label: '1. Datum', subLabel: '', usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348, points: datumPts, startIdx: 1,
+            pointSpecs: {
+                '1/1': { usl: 1.368, cl: 1.358, lsl: 1.348 },
+                '1/2': { usl: 1.368, cl: 1.358, lsl: 1.348 },
+                '1/3': { usl: 0.040, cl: 0.030, lsl: 0.020 },
+                '1/4': { usl: 0.040, cl: 0.030, lsl: 0.020 }
+            }
+        },
+        { 
+            key: 'nondatum', label: '2. Non-datum', subLabel: '', usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804, points: nondatumPts, startIdx: 1,
+            pointSpecs: {
+                '2/1': { usl: 0.824, cl: 0.814, lsl: 0.804 },
+                '2/2': { usl: 0.824, cl: 0.814, lsl: 0.804 },
+                '2/3': { usl: 0.040, cl: 0.030, lsl: 0.020 },
+                '2/4': { usl: 0.040, cl: 0.030, lsl: 0.020 }
+            }
+        }
+    ];
+}
+
 function applyDamperConfigForProduct(productKey) {
+    const p = PRODUCTS[productKey];
+    if (!p) return;
+
+    DIM_GROUPS.datum = generateDimGroupsForProduct(p.pcs);
+    DIM_GROUPS_BASE.datum = JSON.parse(JSON.stringify(DIM_GROUPS.datum));
+
     let cfg = {};
     try {
         const raw = localStorage.getItem(LS_KEY_CFG);
@@ -177,44 +213,69 @@ function applyDamperConfigForProduct(productKey) {
     const prodOverride = (cfg.productDims && cfg.productDims[productKey]) ? cfg.productDims[productKey] : null;
     const globalDefault = cfg.dims || {};
 
-    const allGroups = [...DIM_GROUPS.datum];
+    const allGroups = DIM_GROUPS.datum;
     allGroups.forEach(g => {
-        const baseGroups = [...DIM_GROUPS_BASE.datum];
-        const baseG = baseGroups.find(x => x.key === g.key);
-
-        let usl = baseG.usl;
-        let ucl = baseG.ucl;
-        let cl = baseG.cl;
-        let lcl = baseG.lcl;
-        let lsl = baseG.lsl;
-
-        let configKey = g.key;
-
+        let configKey = g.label; // e.g., "1. Datum"
+        // 1. Resolve base group limits
+        let base_usl = g.usl, base_ucl = g.ucl, base_cl = g.cl, base_lcl = g.lcl, base_lsl = g.lsl;
+        
         if (prodOverride && prodOverride[configKey]) {
-            if (prodOverride[configKey].usl !== undefined && prodOverride[configKey].usl !== null) usl = prodOverride[configKey].usl;
-            if (prodOverride[configKey].ucl !== undefined && prodOverride[configKey].ucl !== null) ucl = prodOverride[configKey].ucl;
-            if (prodOverride[configKey].cl !== undefined && prodOverride[configKey].cl !== null) cl = prodOverride[configKey].cl;
-            if (prodOverride[configKey].lcl !== undefined && prodOverride[configKey].lcl !== null) lcl = prodOverride[configKey].lcl;
-            if (prodOverride[configKey].lsl !== undefined && prodOverride[configKey].lsl !== null) lsl = prodOverride[configKey].lsl;
+            if (prodOverride[configKey].usl != null) base_usl = prodOverride[configKey].usl;
+            if (prodOverride[configKey].ucl != null) base_ucl = prodOverride[configKey].ucl;
+            if (prodOverride[configKey].cl != null) base_cl = prodOverride[configKey].cl;
+            if (prodOverride[configKey].lcl != null) base_lcl = prodOverride[configKey].lcl;
+            if (prodOverride[configKey].lsl != null) base_lsl = prodOverride[configKey].lsl;
         } else if (globalDefault[configKey]) {
-            if (globalDefault[configKey].usl !== undefined && globalDefault[configKey].usl !== null) usl = globalDefault[configKey].usl;
-            if (globalDefault[configKey].ucl !== undefined && globalDefault[configKey].ucl !== null) ucl = globalDefault[configKey].ucl;
-            if (globalDefault[configKey].cl !== undefined && globalDefault[configKey].cl !== null) cl = globalDefault[configKey].cl;
-            if (globalDefault[configKey].lcl !== undefined && globalDefault[configKey].lcl !== null) lcl = globalDefault[configKey].lcl;
-            if (globalDefault[configKey].lsl !== undefined && globalDefault[configKey].lsl !== null) lsl = globalDefault[configKey].lsl;
+            if (globalDefault[configKey].usl != null) base_usl = globalDefault[configKey].usl;
+            if (globalDefault[configKey].ucl != null) base_ucl = globalDefault[configKey].ucl;
+            if (globalDefault[configKey].cl != null) base_cl = globalDefault[configKey].cl;
+            if (globalDefault[configKey].lcl != null) base_lcl = globalDefault[configKey].lcl;
+            if (globalDefault[configKey].lsl != null) base_lsl = globalDefault[configKey].lsl;
         }
 
-        g.usl = usl;
-        g.ucl = ucl;
-        g.cl = cl;
-        g.lcl = lcl;
-        g.lsl = lsl;
+        g.usl = base_usl; g.ucl = base_ucl; g.cl = base_cl; g.lcl = base_lcl; g.lsl = base_lsl;
+
+        // 2. Resolve per-point limits and store in g.pointSpecs
+        g.pointSpecs = {};
+        g.points.forEach(pt => {
+            const ptConfigKey = `${g.label} (${pt})`; // e.g., "1. Datum (1/1)"
+            let pt_usl = base_usl, pt_ucl = base_ucl, pt_cl = base_cl, pt_lcl = base_lcl, pt_lsl = base_lsl;
+            
+            if (prodOverride && prodOverride[ptConfigKey]) {
+                if (prodOverride[ptConfigKey].usl != null) pt_usl = prodOverride[ptConfigKey].usl;
+                if (prodOverride[ptConfigKey].ucl != null) pt_ucl = prodOverride[ptConfigKey].ucl;
+                if (prodOverride[ptConfigKey].cl != null) pt_cl = prodOverride[ptConfigKey].cl;
+                if (prodOverride[ptConfigKey].lcl != null) pt_lcl = prodOverride[ptConfigKey].lcl;
+                if (prodOverride[ptConfigKey].lsl != null) pt_lsl = prodOverride[ptConfigKey].lsl;
+            }
+            g.pointSpecs[pt] = { usl: pt_usl, ucl: pt_ucl, cl: pt_cl, lcl: pt_lcl, lsl: pt_lsl };
+        });
 
         let specs = [];
         if (g.lsl !== null) specs.push(`LSL: ${g.lsl.toFixed(3)}`);
         if (g.cl !== null) specs.push(`CL: ${g.cl.toFixed(3)}`);
         if (g.usl !== null) specs.push(`USL: ${g.usl.toFixed(3)}`);
         g.subLabel = `Spec: ${specs.join(' | ')}`;
+
+        // Also load per-point limits from DAMPER_LIMITS (MySQL via system_config)
+        if (window.DAMPER_LIMITS) {
+            // Try to find limits per product key. We check both with productKey (passed outside) and generic
+            // DAMPER_LIMITS[productKey][dimension_name] where dimension_name is datum_pt1..4 or nondatum_pt1..4
+            g.points.forEach((pt, ptIdx) => {
+                const ptKey = `${g.key}_pt${ptIdx + 1}`; // e.g. datum_pt1, nondatum_pt3
+                // Search across all products for this dim key (productKey is outer scope)
+                const limObj = (window.DAMPER_LIMITS[productKey] || {})[ptKey];
+                if (limObj) {
+                    const ps = g.pointSpecs[pt] || {};
+                    if (limObj.lsl != null) ps.lsl = parseFloat(limObj.lsl);
+                    if (limObj.lcl != null) ps.lcl = parseFloat(limObj.lcl);
+                    if (limObj.cl != null) ps.cl = parseFloat(limObj.cl);
+                    if (limObj.ucl != null) ps.ucl = parseFloat(limObj.ucl);
+                    if (limObj.usl != null) ps.usl = parseFloat(limObj.usl);
+                    g.pointSpecs[pt] = ps;
+                }
+            });
+        }
     });
 }
 
@@ -387,14 +448,184 @@ function onProductChange() {
 
     // Build all 4 dimension groups
     buildAllDimGroups(p.pcs);
+    buildStage2DimGroups();
 }
 
+function buildStage2DimGroups() {
+    const container = document.getElementById('stage2-dim-groups-container');
+    if (!container) return;
+
+    // Determine number of pieces and selected product
+    let pcs = 4;
+    let pKey = document.getElementById('m-product')?.value || '';
+    let selectedRecord = null;
+    
+    if (_selectedMergeId) {
+        selectedRecord = loadRecords().find(x => x.id === _selectedMergeId);
+        if (selectedRecord) {
+            pcs = selectedRecord.freqTarget || selectedRecord.pcs || 4;
+            pKey = selectedRecord.product; // Use product from the target record
+        }
+    } else {
+        const mergeProdEl = document.getElementById('merge-product');
+        const mergeTypeEl = document.getElementById('merge-datatype');
+        
+        if (mergeProdEl && mergeProdEl.value) {
+            pKey = mergeProdEl.value;
+            const mode = mergeTypeEl ? (mergeTypeEl.value || 'buyoff').toLowerCase() : 'buyoff';
+            pcs = 4;
+            const p = PRODUCTS[pKey] || (window.SERVER_PRODUCTS_LIST && window.SERVER_PRODUCTS_LIST.find(x => x.product_key === pKey || x.product_name === pKey)) || {};
+            if (p && p.pcs) pcs = p.pcs;
+            
+            try {
+                const raw = localStorage.getItem('belton_damper_v3_config');
+                let cfg = raw ? JSON.parse(raw) : {};
+                const prodCfg = (cfg.productDims && pKey && cfg.productDims[pKey]) ? cfg.productDims[pKey] : {};
+                const fBuyoff = prodCfg.freqBuyoff !== undefined ? prodCfg.freqBuyoff : cfg.freqBuyoff;
+                const fRoving = prodCfg.freqRoving !== undefined ? prodCfg.freqRoving : cfg.freqRoving;
+    
+                let activeFreq = (mode.includes('roving')) ? fRoving : fBuyoff;
+                if (activeFreq && !isNaN(parseInt(activeFreq, 10)) && parseInt(activeFreq, 10) > 0) {
+                    pcs = parseInt(activeFreq, 10);
+                }
+            } catch(e) {}
+        } else {
+            const qtyEl = document.getElementById('m-qty');
+            pcs = parseInt(qtyEl?.dataset.freqTarget, 10) || 4;
+        }
+    }
+
+    const mergeProdEl = document.getElementById('merge-product');
+    if (!pKey && mergeProdEl) pKey = mergeProdEl.value;
+
+    if (pKey) {
+        applyDamperConfigForProduct(pKey);
+    } else if (!DIM_GROUPS.datum || DIM_GROUPS.datum.length === 0) {
+        DIM_GROUPS.datum = generateDimGroupsForProduct(4);
+    }
+
+    const allGroups = DIM_GROUPS.datum;
+    container.style.gridTemplateColumns = '1fr';
+
+    // Create flat column map for all points across all groups
+    let colMap = [];
+    allGroups.forEach(g => {
+        g.points.forEach((pt, i) => {
+            colMap.push({ group: g, ptName: pt, localCol: i });
+        });
+    });
+
+    let tableHTML = `<div style="overflow-x:auto; margin-bottom:8px; border:1px solid var(--border2); border-radius:6px;">
+        <table class="damper-grid" style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+        <thead style="background:var(--bg2); border-bottom:1px solid var(--border2);">
+            <tr>
+                <th rowspan="2" style="padding:8px; border-right:1px solid var(--border2); text-align:left; min-width:60px; vertical-align:middle;">Piece</th>`;
+    
+    // Group headers (colspan = number of points in each group)
+    allGroups.forEach(g => {
+        const isDatum = g.key.startsWith('datum');
+        const color = isDatum ? 'var(--blue)' : '#9B59B6';
+        tableHTML += `<th colspan="${g.points.length}" style="padding:4px 8px; border-right:1px solid var(--border2); border-bottom:1px solid var(--border2); color:${color}; font-weight:700;">${g.label}</th>`;
+    });
+    tableHTML += `</tr><tr>`;
+
+    // Point headers
+    colMap.forEach((m, idx) => {
+        const ptKey = `${m.group.key}_pt${m.localCol + 1}`; // e.g. "datum_pt1"
+        const ptSpecs = window.DAMPER_LIMITS && pKey ? window.DAMPER_LIMITS[pKey] && window.DAMPER_LIMITS[pKey][ptKey] : null;
+        
+        const fallbackSpecs = (m.group.pointSpecs && m.group.pointSpecs[m.ptName]) ? m.group.pointSpecs[m.ptName] : m.group;
+        const cl = ptSpecs ? ptSpecs.cl : fallbackSpecs.cl;
+        const lsl = ptSpecs ? ptSpecs.lsl : fallbackSpecs.lsl;
+        const usl = ptSpecs ? ptSpecs.usl : fallbackSpecs.usl;
+
+        let criteriaStr = '';
+        if (cl != null && lsl != null && usl != null) {
+             const tolPlus = (usl - cl).toFixed(3);
+             const tolMinus = (cl - lsl).toFixed(3);
+             if (tolPlus === tolMinus) {
+                 criteriaStr = `<br><span style="font-size:10px; color:var(--text3); font-weight:500;">${cl.toFixed(3)} &plusmn;${tolPlus}</span>`;
+             } else {
+                 criteriaStr = `<br><span style="font-size:10px; color:var(--text3); font-weight:500;">${cl.toFixed(3)} (+${tolPlus}/-${tolMinus})</span>`;
+             }
+        }
+
+        const colColor = POINT_COLORS[m.localCol % POINT_COLORS.length];
+        const isLastInGroup = m.localCol === m.group.points.length - 1;
+        const rightBorder = isLastInGroup ? `border-right:1px solid var(--border2);` : '';
+        tableHTML += `<th style="padding:8px 4px; min-width:70px; color:${colColor}; font-weight:700; border-bottom:3px solid ${colColor}; ${rightBorder} line-height:1.4;">${m.ptName}${criteriaStr}</th>`;
+    });
+    tableHTML += `</tr></thead><tbody>`;
+
+    for (let row = 1; row <= pcs; row++) {
+        tableHTML += `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px; border-right:1px solid var(--border2); text-align:left; font-weight:600;">Pc ${row}</td>`;
+        colMap.forEach((m, idx) => {
+            const inputId = `s2-${m.group.key}-pc${row}-pt${m.localCol}`;
+            const ptColor = POINT_COLORS[m.localCol % POINT_COLORS.length];
+            const isLastInGroup = m.localCol === m.group.points.length - 1;
+            const rightBorder = isLastInGroup ? `border-right:1px solid var(--border2);` : '';
+            
+            // Extract existing value if any
+            let existingVal = '';
+            if (selectedRecord && selectedRecord.dimData && selectedRecord.dimData[m.group.key]) {
+                const groupData = selectedRecord.dimData[m.group.key];
+                if (groupData.pieces && groupData.pieces[row - 1]) {
+                    const v = groupData.pieces[row - 1][m.localCol];
+                    if (v !== null && v !== undefined) existingVal = v;
+                }
+            }
+
+            tableHTML += `<td style="padding:4px; ${rightBorder}">
+                <input type="number" id="${inputId}" step="0.0001" value="${existingVal}"
+                style="width:100%; padding:6px; border:1px solid var(--border2); border-top:2px solid ${ptColor}; border-radius:4px; text-align:center; background:var(--bg);"
+                placeholder="-"
+                onpaste="handleStage2Paste(event, ${row}, ${idx}, ${pcs})"
+                oninput="previewStage2Data()">
+            </td>`;
+        });
+        tableHTML += `</tr>`;
+    }
+    tableHTML += `</tbody></table></div>`;
+
+    container.innerHTML = `
+        <div class="dim-group-block" style="margin-bottom:20px;">
+            <div class="sec-label" style="border-color:var(--blue)40; margin-bottom:10px;">
+                📏 Damper Dimensions (Datum & Non-datum)
+                <span style="font-size:10px;margin-left:12px;color:var(--text3)">
+                    💡 วางข้อมูล 8 คอลัมน์จาก Excel ได้เลย (Ctrl+V ที่ช่องแรก)
+                </span>
+            </div>
+            ${tableHTML}
+        </div>`;
+        
+    // Trigger coloring for existing values
+    setTimeout(() => {
+        if (selectedRecord) {
+            colMap.forEach((m, idx) => {
+                for (let row = 1; row <= pcs; row++) {
+                    const el = document.getElementById(`s2-${m.group.key}-pc${row}-pt${m.localCol}`);
+                    if (el && el.value !== '') {
+                        colorStage2Cell(el, m.group.key, m.localCol, parseFloat(el.value));
+                    }
+                }
+            });
+            previewStage2Data();
+        }
+    }, 50);
+}
+
+
 // ─── Build Dimension Groups ───────────────────────────────────
-function buildAllDimGroups(pcs) {
+function buildAllDimGroups(pts) {
     const container = document.getElementById('dim-groups-container');
     if (!container) return;
 
-    const allGroups = [...DIM_GROUPS.datum];
+    // Use freqTarget (or default to 4) as the number of pieces (rows)
+    const qtyEl = document.getElementById('m-qty');
+    const pcs = parseInt(qtyEl?.dataset.freqTarget, 10) || 4;
+
+    const allGroups = DIM_GROUPS.datum;
     container.innerHTML = allGroups.map(g => buildGroupHTML(g, pcs)).join('');
 }
 
@@ -404,120 +635,366 @@ function buildGroupHTML(g, pcs) {
     const isDatum = g.key.startsWith('datum');
     const accentColor = isDatum ? 'var(--blue)' : '#9B59B6';
 
-    let inputsHTML = '';
-    for (let i = 0; i < pcs; i++) {
-        const ptLabel = g.points[i % g.points.length]; // cycle through 4 points if pcs > 4
-        const inputId = `${g.key}-pc-${i + 1}`;
-        inputsHTML += `
-            <div class="piece-cell">
-                <label>Pc ${i + 1}<br><span style="font-size:9px;color:var(--text3)">${ptLabel}</span></label>
-                <input
-                    type="number"
-                    id="${inputId}"
-                    step="0.0001"
-                    placeholder="${g.cl !== null && g.cl !== undefined ? g.cl.toFixed(4) : ''}"
-                    oninput="calcGroupDim('${g.key}', ${pcs})"
-                    onkeydown="pieceEnterNav(event,'${inputId}','${g.key}',${i + 1},${pcs})"
-                >
-            </div>`;
+    let tableHTML = `<div style="overflow-x:auto; margin-bottom:15px; border:1px solid var(--border2); border-radius:6px;">
+        <table class="damper-grid" style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+        <thead style="background:var(--bg2); color:var(--text3); border-bottom:1px solid var(--border2);">
+            <tr>
+                <th style="padding:8px; border-right:1px solid var(--border2); text-align:left; min-width:60px;">Piece</th>`;
+    
+    g.points.forEach(pt => {
+        tableHTML += `<th style="padding:8px; min-width:80px;">${pt}</th>`;
+    });
+    tableHTML += `</tr></thead><tbody>`;
+
+    for (let row = 1; row <= pcs; row++) {
+        tableHTML += `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px; border-right:1px solid var(--border2); text-align:left; font-weight:600;">Pc ${row}</td>`;
+        for (let col = 0; col < g.points.length; col++) {
+            const inputId = `${g.key}-pc${row}-pt${col}`;
+            const ptName = g.points[col];
+            const ptSpecs = g.pointSpecs && g.pointSpecs[ptName] ? g.pointSpecs[ptName] : g;
+            const ptCL = ptSpecs.cl;
+            
+            tableHTML += `<td style="padding:4px;">
+                <input type="number" id="${inputId}" step="0.0001" style="width:100%; padding:6px; border:1px solid var(--border2); border-radius:4px; text-align:center; background:var(--bg);" 
+                placeholder="${ptCL !== null && ptCL !== undefined ? ptCL.toFixed(4) : ''}"
+                oninput="calcGroupDim('${g.key}', ${pcs})"
+                onkeydown="pieceEnterNav(event,'${inputId}','${g.key}',${row},${col},${pcs},${g.points.length})">
+            </td>`;
+        }
+        tableHTML += `</tr>`;
     }
+    tableHTML += `</tbody>`;
+
+    // Summary Rows
+    const summaryRows = ['Avg', 'Max', 'Min', 'Result'];
+    tableHTML += `<tfoot style="background:var(--bg3); font-weight:600;">`;
+    summaryRows.forEach(stat => {
+        tableHTML += `<tr style="border-top:1px solid var(--border2);">
+            <td style="padding:8px; border-right:1px solid var(--border2); text-align:left;">${stat}</td>`;
+        g.points.forEach((pt, col) => {
+            const id = `${g.key}-${stat.toLowerCase()}-pt${col}`;
+            tableHTML += `<td id="${id}" style="padding:8px;">-</td>`;
+        });
+        tableHTML += `</tr>`;
+    });
+    tableHTML += `</tfoot></table></div>`;
 
     return `
-        <div class="dim-group-block" id="grp-${g.key}">
-            <div class="sec-label" style="border-color:${accentColor}40">
+        <div class="dim-group-block" id="grp-${g.key}" style="margin-bottom:24px;">
+            <div class="sec-label" style="border-color:${accentColor}40; margin-bottom:12px;">
                 📏 ${g.label}
                 <span style="font-size:11px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">
                     ${g.subLabel} &nbsp;|&nbsp; LSL: ${lsl.toFixed(4)} ~ USL: ${usl.toFixed(4)}
                 </span>
             </div>
-            <div class="piece-grid" id="grid-${g.key}">${inputsHTML}</div>
-            <div class="dim-sum">
-                <div class="dim-sum-item">
-                    <span>Average</span>
-                    <span id="${g.key}-avg" style="color:${accentColor}">—</span>
-                </div>
-                <div class="dim-sum-item">
-                    <span>Max</span>
-                    <span id="${g.key}-max">—</span>
-                </div>
-                <div class="dim-sum-item">
-                    <span>Min</span>
-                    <span id="${g.key}-min">—</span>
-                </div>
-                <div class="dim-sum-item">
-                    <span>Result</span>
-                    <span id="${g.key}-result">—</span>
-                </div>
-            </div>
+            ${tableHTML}
         </div>`;
 }
 
-function pieceEnterNav(e, curId, groupKey, idx, total) {
+function pieceEnterNav(e, curId, groupKey, r, c, totalRows, totalCols) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const next = idx < total ? document.getElementById(`${groupKey}-pc-${idx + 1}`) : null;
+    let nextId = null;
+    if (r < totalRows) {
+    nextId = `${groupKey}-pc${r + 1}-pt${c}`;
+    } else if (c < totalCols - 1) {
+        nextId = `${groupKey}-pc1-pt${c + 1}`;
+    }
+    const next = nextId ? document.getElementById(nextId) : null;
     if (next) next.focus();
     else document.getElementById('btn-save')?.focus();
 }
 
+// Handle paste into Stage 2 grid — fills cells from top-left (startRow, startCol) going right then down
+function handleStage2Paste(e, startRow, absStartCol, totalRows) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (!text) return;
+
+    // Parse pasted data: rows by newline, cols by tab (Excel default)
+    const pastedRows = text.trim().split(/\r?\n/).map(row =>
+        row.split(/\t/).map(cell => cell.trim().replace(',', '.'))
+    );
+
+    let colMap = [];
+    DIM_GROUPS.datum.forEach(g => {
+        g.points.forEach((pt, i) => {
+            colMap.push({ groupKey: g.key, ptCol: i });
+        });
+    });
+
+    let r = startRow;
+    for (const rowData of pastedRows) {
+        if (r > totalRows) break;
+        let absC = absStartCol;
+        for (const cellData of rowData) {
+            if (absC >= colMap.length) break;
+            
+            const mapping = colMap[absC];
+            const inputId = `s2-${mapping.groupKey}-pc${r}-pt${mapping.ptCol}`;
+            const el = document.getElementById(inputId);
+            if (el) {
+                const v = parseFloat(cellData);
+                el.value = isNaN(v) ? '' : v;
+                // Update cell color based on spec
+                colorStage2Cell(el, mapping.groupKey, mapping.ptCol, v);
+            }
+            absC++;
+        }
+        r++;
+    }
+    previewStage2Data();
+}
+
+function colorStage2Cell(el, groupKey, colIdx, v) {
+    const g = DIM_GROUPS.datum.find(x => x.key === groupKey);
+    if (!g || isNaN(v)) { el.style.background = 'var(--bg)'; return; }
+    const ptName = g.points[colIdx];
+    const ptSpecs = (g.pointSpecs && g.pointSpecs[ptName]) ? g.pointSpecs[ptName] : g;
+    const lsl = ptSpecs.lsl ?? g.lsl;
+    const usl = ptSpecs.usl ?? g.usl;
+    if (v < lsl || v > usl) {
+        el.style.background = 'var(--fail-bg)'; el.style.color = 'var(--fail)';
+    } else if (lsl && usl && (v < lsl + (usl - lsl) * 0.1 || v > usl - (usl - lsl) * 0.1)) {
+        el.style.background = 'rgba(243,156,18,0.1)'; el.style.color = '#f39c12';
+    } else {
+        el.style.background = 'var(--pass-bg)'; el.style.color = 'var(--pass)';
+    }
+}
+
+function previewStage2Data() {
+    parseStage2Data();
+}
+
+function parseStage2Data() {
+    window._stage2Data = {};
+    let html = `<h4 style="margin-bottom:8px;font-size:13px;">📊 Extracted Data Preview:</h4>`;
+    let canMerge = true;
+
+    // Determine pcs from selected merge record
+    let pcs = 4;
+    if (_selectedMergeId) {
+        const rec = loadRecords().find(x => x.id === _selectedMergeId);
+        if (rec) pcs = rec.freqTarget || rec.pcs || 4;
+    } else {
+        const qtyEl = document.getElementById('m-qty');
+        pcs = parseInt(qtyEl?.dataset.freqTarget, 10) || 4;
+    }
+
+    DIM_GROUPS.datum.forEach(g => {
+        const parsed2D = [];
+        let hasAnyData = false;
+
+        for (let row = 1; row <= pcs; row++) {
+            const pcVals = [];
+            for (let col = 0; col < g.points.length; col++) {
+                const el = document.getElementById(`s2-${g.key}-pc${row}-pt${col}`);
+                const v = el ? parseFloat(el.value) : NaN;
+                pcVals.push(isNaN(v) ? null : v);
+                if (!isNaN(v)) hasAnyData = true;
+            }
+            parsed2D.push(pcVals);
+        }
+
+        const filledRows = parsed2D.filter(r => r.some(v => v !== null)).length;
+        const isDatum = g.key.startsWith('datum');
+        const statusColor = filledRows === pcs ? 'var(--pass)' : (filledRows > 0 ? '#f39c12' : 'var(--text3)');
+        html += `<div style="padding:6px 10px;margin-bottom:6px;background:var(--bg2);border-radius:6px;font-size:12px;">
+            <b>${g.label}</b>: <span style="color:${statusColor};font-weight:700">${filledRows}/${pcs} pieces</span> filled
+        </div>`;
+        if (!hasAnyData) canMerge = false;
+        window._stage2Data[g.key] = parsed2D;
+    });
+
+    const previewArea = document.getElementById('merge-preview-area');
+    if (previewArea) previewArea.innerHTML = html;
+
+    const btn = document.getElementById('btn-merge-damper');
+    if (btn) btn.disabled = !canMerge;
+}
+
+async function commitStage2Damper() {
+    if (!_selectedMergeId || !window._stage2Data) return;
+    const recs = loadRecords();
+    const idx = recs.findIndex(r => r.id === _selectedMergeId);
+    if (idx === -1) return;
+
+
+    const parsedDataMap = window._stage2Data;
+    const mk = document.getElementById('merge-product').value;
+    const p = PRODUCTS[mk] || { pcs: 4 };
+
+    const r = recs[idx];
+
+    let overallDimOk = true;
+
+    DIM_GROUPS.datum.forEach(g => {
+        const parsed2D = parsedDataMap[g.key] || [];
+        const groupData = { points: g.points, pieces: [], result: 'Pass' };
+        let allOk = true;
+        let groupVals = [];
+
+        for (let row = 0; row < r.freqTarget && row < parsed2D.length; row++) {
+            const pcVals = parsed2D[row];
+            groupData.pieces.push(pcVals);
+            for (let col = 0; col < g.points.length && col < pcVals.length; col++) {
+                const ptName = g.points[col];
+                const ptSpecs = g.pointSpecs && g.pointSpecs[ptName] ? g.pointSpecs[ptName] : g;
+                const val = pcVals[col];
+                groupVals.push(val);
+                if (val !== null) {
+                    if (ptSpecs.lsl !== null && val < ptSpecs.lsl) allOk = false;
+                    if (ptSpecs.usl !== null && val > ptSpecs.usl) allOk = false;
+                }
+            }
+        }
+        
+        groupData.result = allOk ? 'Pass' : 'Fail';
+        if (!allOk) overallDimOk = false;
+        
+        if (groupVals.length > 0) {
+            groupData.avg = parseFloat((groupVals.reduce((a, b) => a + b, 0) / groupVals.length).toFixed(4));
+            groupData.max = Math.max(...groupVals);
+            groupData.min = Math.min(...groupVals);
+        } else {
+            groupData.avg = null; groupData.max = null; groupData.min = null;
+        }
+
+        r.dimData[g.key] = groupData;
+    });
+
+    r.overall = (r.vmiNG || !overallDimOk) ? 'Fail' : 'Pass';
+    
+    // Fallbacks for backward compatibility
+    if (r.dimData['datum']) {
+        r.short = { avg: r.dimData['datum'].avg, max: r.dimData['datum'].max, min: r.dimData['datum'].min, inSpec: r.dimData['datum'].result === 'Pass' };
+    }
+    if (r.dimData['nondatum']) {
+        r.long = { avg: r.dimData['nondatum'].avg, max: r.dimData['nondatum'].max, min: r.dimData['nondatum'].min, inSpec: r.dimData['nondatum'].result === 'Pass' };
+    }
+
+    saveRecords(recs);
+    await sendToBackendAndAlert(r);
+
+    showToast(`✅ นำเข้าข้อมูล CMM สำเร็จ! Record #${r.no} ย้ายไปที่ Completed แล้ว`, 'success');
+    _selectedMergeId = null;
+    window._stage2Data = null;
+    document.getElementById('merge-preview-area').innerHTML = '';
+    document.getElementById('stage2-target-info').style.display = 'none';
+    DIM_GROUPS.datum.forEach(g => {
+        // Clear stage 2 grid inputs
+        const r = loadRecords().find(x => x.id === _selectedMergeId);
+        const pcs2 = r ? (r.freqTarget || r.pcs || 4) : 4;
+        for (let row = 1; row <= pcs2; row++) {
+            for (let col = 0; col < g.points.length; col++) {
+                const el = document.getElementById(`s2-${g.key}-pc${row}-pt${col}`);
+                if (el) { el.value = ''; el.style.background = 'var(--bg)'; el.style.color = 'var(--text)'; }
+            }
+        }
+    });
+    document.getElementById('btn-merge-damper').disabled = true;
+
+    renderPendingTable();
+    updateKPIs();
+    updateBadges();
+}
+
 // ─── Calc Dimension for one group ────────────────────────────
 function calcGroupDim(groupKey, pcs) {
-    const allGroups = [...DIM_GROUPS.datum];
+    const allGroups = DIM_GROUPS.datum;
     const g = allGroups.find(x => x.key === groupKey);
     if (!g) return;
 
     const lsl = g.lsl;
     const usl = g.usl;
-    const vals = [];
-
-    for (let i = 1; i <= pcs; i++) {
-        const el = document.getElementById(`${groupKey}-pc-${i}`);
-        if (!el) continue;
-        const v = parseFloat(el.value);
-        el.classList.remove('p-ok', 'p-warn', 'p-ng');
-        if (!isNaN(v)) {
-            vals.push(v);
-            if (v < lsl || v > usl) el.classList.add('p-ng');
-            else if (v < lsl + (usl - lsl) * 0.1 || v > usl - (usl - lsl) * 0.1) el.classList.add('p-warn');
-            else el.classList.add('p-ok');
+    
+    // Validate values and styles per cell
+    for (let row = 1; row <= pcs; row++) {
+        for (let col = 0; col < g.points.length; col++) {
+            const el = document.getElementById(`${groupKey}-pc${row}-pt${col}`);
+            if (!el) continue;
+            const v = parseFloat(el.value);
+            el.style.backgroundColor = 'var(--bg)';
+            el.style.color = 'var(--text)';
+            if (!isNaN(v)) {
+                // BUG FIX: use per-point specs instead of group-level only
+                const ptName = g.points[col];
+                const ptSpecs = (g.pointSpecs && g.pointSpecs[ptName]) ? g.pointSpecs[ptName] : g;
+                const ptLsl = ptSpecs.lsl ?? lsl;
+                const ptUsl = ptSpecs.usl ?? usl;
+                if (v < ptLsl || v > ptUsl) {
+                    el.style.backgroundColor = 'var(--fail-bg)';
+                    el.style.color = 'var(--fail)';
+                } else if (ptLsl != null && ptUsl != null && (v < ptLsl + (ptUsl - ptLsl) * 0.1 || v > ptUsl - (ptUsl - ptLsl) * 0.1)) {
+                    el.style.backgroundColor = 'rgba(243, 156, 18, 0.1)';
+                    el.style.color = '#f39c12';
+                } else {
+                    el.style.backgroundColor = 'var(--pass-bg)';
+                    el.style.color = 'var(--pass)';
+                }
+            }
         }
     }
 
-    if (!vals.length) {
-        [`${groupKey}-avg`, `${groupKey}-max`, `${groupKey}-min`, `${groupKey}-result`]
-            .forEach(id => setEl(id, '—', 'var(--text3)'));
-        autoJudgeOverall();
-        return;
-    }
+    let groupAllPass = true;
 
-    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const max = Math.max(...vals);
-    const min = Math.min(...vals);
-    const allOk = vals.every(v => v >= lsl && v <= usl);
+    // Calculate column summaries
+    for (let col = 0; col < g.points.length; col++) {
+        const colVals = [];
+        for (let row = 1; row <= pcs; row++) {
+            const el = document.getElementById(`${groupKey}-pc${row}-pt${col}`);
+            if (el && !isNaN(parseFloat(el.value))) colVals.push(parseFloat(el.value));
+        }
 
-    const isDatum = groupKey.startsWith('datum');
-    const accentColor = isDatum ? 'var(--blue)' : '#9B59B6';
+        if (!colVals.length) {
+            setEl(`${groupKey}-avg-pt${col}`, '-', 'var(--text3)');
+            setEl(`${groupKey}-max-pt${col}`, '-', 'var(--text)');
+            setEl(`${groupKey}-min-pt${col}`, '-', 'var(--text)');
+            setEl(`${groupKey}-result-pt${col}`, '-', 'var(--text)');
+            groupAllPass = false;
+            continue;
+        }
 
-    setEl(`${groupKey}-avg`, fmt(avg, 5), allOk ? accentColor : 'var(--fail)');
-    setEl(`${groupKey}-max`, fmt(max, 5));
-    setEl(`${groupKey}-min`, fmt(min, 5));
-    const resEl = document.getElementById(`${groupKey}-result`);
-    if (resEl) {
-        resEl.textContent = allOk ? '✓ PASS' : '✗ FAIL';
-        resEl.style.color = allOk ? 'var(--pass)' : 'var(--fail)';
-        resEl.style.fontWeight = '800';
+        const avg = colVals.reduce((a, b) => a + b, 0) / colVals.length;
+        const max = Math.max(...colVals);
+        const min = Math.min(...colVals);
+        // BUG FIX: use per-point specs for column pass/fail determination
+        const ptName = g.points[col];
+        const ptSpecs = (g.pointSpecs && g.pointSpecs[ptName]) ? g.pointSpecs[ptName] : g;
+        const ptLsl = ptSpecs.lsl ?? lsl;
+        const ptUsl = ptSpecs.usl ?? usl;
+        const allOk = colVals.every(v => v >= ptLsl && v <= ptUsl);
+        if (!allOk) groupAllPass = false;
+
+        const accentColor = groupKey.startsWith('datum') ? 'var(--blue)' : '#9B59B6';
+        
+        setEl(`${groupKey}-avg-pt${col}`, fmt(avg, 5), allOk ? accentColor : 'var(--fail)');
+        setEl(`${groupKey}-max-pt${col}`, fmt(max, 5));
+        setEl(`${groupKey}-min-pt${col}`, fmt(min, 5));
+        const resEl = document.getElementById(`${groupKey}-result-pt${col}`);
+        if (resEl) {
+            resEl.textContent = allOk ? 'PASS' : 'FAIL';
+            resEl.style.color = allOk ? 'var(--pass)' : 'var(--fail)';
+            resEl.style.fontWeight = '700';
+        }
     }
 
     autoJudgeOverall();
 }
 
 function autoJudgeOverall() {
-    const allGroups = [...DIM_GROUPS.datum];
-    const dimAllPass = allGroups.every(g => {
-        const el = document.getElementById(`${g.key}-result`);
-        if (!el || el.textContent === '—') return true; // not yet filled = skip
-        return el.textContent.includes('PASS');
+    const allGroups = DIM_GROUPS.datum;
+    let dimAllPass = true;
+    allGroups.forEach(g => {
+        if (!g.points) return;
+        for (let col = 0; col < g.points.length; col++) {
+            const el = document.getElementById(`${g.key}-result-pt${col}`);
+            if (el && el.textContent === 'FAIL') dimAllPass = false;
+            if (el && el.textContent === '-') dimAllPass = false; // missing data
+        }
     });
+    
     const vmiNG = VMI_ITEMS.some(v => document.getElementById(`vmi-${v.id}`)?.value === 'Fail');
     const val = (vmiNG || !dimAllPass) ? 'Fail' : 'Pass';
     setOverallPF(val);
@@ -526,9 +1003,6 @@ function autoJudgeOverall() {
 // ════════════════════════════════════════════════════════════
 //  Save Batch
 // ════════════════════════════════════════════════════════════
-// ════════════════════════════════════════════════════════════
-//  Save Draft (Piece by Piece)
-// ════════════════════════════════════════════════════════════
 async function saveManualDraft() {
     const key = document.getElementById('m-product')?.value;
     if (!key) { showToast('กรุณาเลือก Product ก่อน', 'warn'); return; }
@@ -536,7 +1010,7 @@ async function saveManualDraft() {
 
     const mode = document.getElementById('m-mode')?.value || 'buyoff';
 
-    // VMI (สำหรับ 1 ชิ้น)
+    // VMI (สำหรับ 1 Batch)
     const vmiData = {};
     const items = VMI_ITEMS.filter(v => mode === 'roving' || v.id !== 'double');
     items.forEach(v => {
@@ -546,10 +1020,8 @@ async function saveManualDraft() {
 
     const draftId = 'DRAFT_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
-    // จำนวนชิ้นที่ต้องกรอกให้ครบ 1 ชุด: อิงตาม Frequency ที่ตั้งค่าไว้ใน System Config ก่อน
-    // (เก็บไว้ใน dataset ตอน onProductChange()) ถ้าไม่มีค่า fallback ไปที่ pcs/batch ของสินค้า
     const qtyEl = document.getElementById('m-qty');
-    const freqTarget = parseInt(qtyEl?.dataset.freqTarget, 10) || p.pcs;
+    const pcs = parseInt(qtyEl?.dataset.freqTarget, 10) || p.pcs;
 
     const dateStr = document.getElementById('m-date')?.value || todayISO();
     const mcStr = document.getElementById('m-mc')?.value || p.mc;
@@ -557,19 +1029,38 @@ async function saveManualDraft() {
     const groupKey = `${key}|${mcStr}|${dateStr}|${sendTimeStr}|${mode}`;
 
     const records = loadRecords();
-    
-    // นับจำนวนชิ้นที่บันทึกแล้วในชุดเดียวกัน (product+mc+date+sendTime+mode)
-    const currentCount = records.filter(r => r.overall === 'DRAFT_WAITING' &&
-        `${r.product}|${r.mc}|${r.date}|${r.sendTime}|${r.mode}` === groupKey).length;
 
-    if (currentCount >= freqTarget) {
-        showToast(`⚠️ ไม่สามารถบันทึกเพิ่มได้ (กรอกครบ ${freqTarget} ชิ้นตาม Frequency แล้ว กรุณากด "นำเข้า About Data")`, 'error');
-        return;
-    }
+    // Extract Data from Grid
+    const dimData = {};
+    DIM_GROUPS.datum.forEach(g => {
+        const groupData = { points: g.points, pieces: [] };
+        let allOk = true;
+        for (let row = 1; row <= pcs; row++) {
+            const pcVals = [];
+            for (let col = 0; col < g.points.length; col++) {
+                const ptName = g.points[col];
+                const ptSpecs = g.pointSpecs && g.pointSpecs[ptName] ? g.pointSpecs[ptName] : g;
+                
+                const el = document.getElementById(`${g.key}-pc${row}-pt${col}`);
+                const val = el && el.value !== '' ? parseFloat(el.value) : null;
+                pcVals.push(val);
+                
+                if (val !== null) {
+                    if (ptSpecs.lsl !== null && val < ptSpecs.lsl) allOk = false;
+                    if (ptSpecs.usl !== null && val > ptSpecs.usl) allOk = false;
+                }
+            }
+            groupData.pieces.push(pcVals);
+        }
+        groupData.result = allOk ? 'Pass' : 'Fail';
+        dimData[g.key] = groupData;
+    });
+
+    const isGridEmpty = Object.values(dimData).every(g => g.pieces.every(row => row.every(v => v === null)));
 
     const rec = {
         id: draftId,
-        no: 0, // Will be assigned when pushed to About Data or Completed
+        no: 0,
         mode,
         date: dateStr,
         product: key,
@@ -582,27 +1073,49 @@ async function saveManualDraft() {
         partno: (document.getElementById('m-partno')?.value || '').trim(),
         ptno: (document.getElementById('m-ptno')?.value || '').trim(),
         qty: (document.getElementById('m-qty')?.value || '').trim(),
-        freqTarget,
+        freqTarget: pcs,
         sendTime: sendTimeStr,
         recvTime: document.getElementById('m-recv-time')?.value || '',
         attribute: document.getElementById('m-attribute')?.value || 'Normal',
-        pcs: p.pcs,
-        dimData: {},
-        datumAvg: null, datumMax: null, datumMin: null, datumResult: null,
-        nondatumAvg: null, nondatumMax: null, nondatumMin: null, nondatumResult: null,
+        pcs: pcs, // number of pieces
+        dimData: dimData,
         vmi: vmiData,
         vmiNG,
-        overall: 'DRAFT_WAITING',
+        overall: isGridEmpty ? 'DRAFT_WAITING' : 'WAITING',
         savedAt: new Date().toISOString(),
     };
+
+    if (mode === 'roving' && !isGridEmpty) {
+        rec.overall = (vmiNG || Object.values(dimData).some(g => g.result === 'Fail')) ? 'Fail' : 'Pass';
+    }
 
     records.unshift(rec);
     saveRecords(records);
 
-    const newCount = currentCount + 1;
-    showToast(`✅ บันทึก Draft สำเร็จ (${newCount}/${freqTarget} ชิ้น ตาม Frequency)`, 'success');
+    if (isGridEmpty) {
+        showToast(`✅ สร้าง Draft เปล่าสำหรับ Stage 2 สำเร็จ`, 'success');
+    } else {
+        showToast(`✅ บันทึกข้อมูลทั้ง Batch สำเร็จ`, 'success');
+    }
 
     resetVmiForm();
+    
+    // Clear grid inputs
+    DIM_GROUPS.datum.forEach(g => {
+        for (let row = 1; row <= pcs; row++) {
+            for (let col = 0; col < g.points.length; col++) {
+                const el = document.getElementById(`${g.key}-pc${row}-pt${col}`);
+                if (el) { el.value = ''; el.style.backgroundColor = 'var(--bg)'; el.style.color = 'var(--text)'; }
+            }
+        }
+        for (let col = 0; col < g.points.length; col++) {
+            setEl(`${g.key}-avg-pt${col}`, '-', 'var(--text3)');
+            setEl(`${g.key}-max-pt${col}`, '-', 'var(--text)');
+            setEl(`${g.key}-min-pt${col}`, '-', 'var(--text)');
+            setEl(`${g.key}-result-pt${col}`, '-', 'var(--text)');
+        }
+    });
+
     renderPendingTable();
     updateKPIs();
     updateBadges();
@@ -663,9 +1176,6 @@ function pushToAboutData(groupKey) {
         }
         showToast(`🎉 Roving Audit ข้อมูล ${sample.productLabel} ครบ ${requiredQty} ชิ้นแล้ว บันทึกเรียบร้อย!`, 'success');
     } else {
-        for (const rec of finalizedDrafts) {
-            sendToBackendAndAlert(rec);
-        }
         showToast(`🎉 นำเข้าข้อมูล ${sample.productLabel} จำนวน ${requiredQty} รายการ ไปยัง Stage 2 สำเร็จ!`, 'success');
     }
 
@@ -887,7 +1397,8 @@ function renderRecords() {
     if (!tbody) return;
 
     if (!recs.length) {
-        tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:32px;color:var(--text3)"><div style="font-size:28px;margin-bottom:8px">📋</div>ไม่พบข้อมูล</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="21" style="text-align:center;padding:32px;color:var(--text3)"><div style="font-size:28px;margin-bottom:8px">📋</div>ไม่พบข้อมูล</td></tr>`;
+        updateDeleteSelectedState();
         return;
     }
 
@@ -901,38 +1412,79 @@ function renderRecords() {
         const ng = VMI_ITEMS.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label);
         return ng.length ? `<span class="badge-out" title="${ng.join(', ')}">${ng.length} NG</span>` : `<span class="badge-in">OK</span>`;
     };
-    const dimDetail = (r, groupKey) => {
-        const g = r.dimData?.[groupKey];
-        if (!g) return `<span style="color:var(--text3)">—</span>`;
-        const color = g.result === 'Pass' ? 'var(--blue)' : 'var(--fail)';
-        return `<span style="font-weight:700;color:${color}">${g.avg?.toFixed(5) || '—'}</span> ${dimBadge(g.result)}`;
+    const spcSummary = (r) => {
+        if (!r.dimData || Object.keys(r.dimData).length === 0) return `<span style="color:var(--text3)">—</span>`;
+        let html = '';
+        Object.keys(r.dimData).forEach(k => {
+            const g = r.dimData[k];
+            const color = g.result === 'Pass' ? 'var(--blue)' : 'var(--fail)';
+            html += `<div style="margin-bottom:2px"><b>${k}</b>: <span style="font-weight:700;color:${color}">${g.avg?.toFixed(5) || '—'}</span> ${dimBadge(g.result)}</div>`;
+        });
+        return html;
     };
 
     tbody.innerHTML = recs.map(r => `
         <tr>
+            <td><input type="checkbox" class="row-chk" data-id="${r.id}" onchange="updateDeleteSelectedState()"></td>
             <td style="font-weight:700;color:var(--text3)">${r.no}</td>
             <td style="font-size:12px;white-space:nowrap">${r.date}</td>
             <td style="font-weight:600;font-size:12px">${r.productLabel}</td>
             <td>${r.mc || '—'}</td>
-            <td style="font-size:12px">${r.team || '—'}</td>
             <td style="font-weight:600">${r.qcEn || '—'}</td>
-            <td style="font-size:11px;color:var(--text3)">${r.meEn || '—'}</td>
-            <td style="font-size:11px;color:var(--text3)">${r.traveler || '—'}</td>
             <td style="font-size:11px">${r.attribute || '—'}</td>
             <td style="text-align:center">${r.pcs}</td>
-            <td style="font-size:12px">${dimDetail(r, 'datum')}</td>
-            <td style="font-size:12px">${dimDetail(r, 'nondatum')}</td>
+            <td style="font-size:11px">${spcSummary(r)}</td>
             <td>${vmiSum(r)}</td>
             <td>${ovBadge(r.overall)}</td>
             <td>
-                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                     ${(r.overall === 'WAITING' || r.overall === 'Waiting') ? `<button class="btn btn-primary btn-sm" style="font-size:10px;padding:2px 6px;background:var(--blue)" onclick="selectPendingForMerge('${r.id}')" title="ไปที่ Stage 2 เพื่อกรอกค่า Datum/Non-datum สำหรับ Record นี้">➡️ Stage 2</button>` : ''}
-                    <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="viewRecord('${r.id}')">👁</button>
-                    <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 6px" onclick="editRecord('${r.id}')">✏️</button>
-                    <button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteRecord('${r.id}')">🗑</button>
+                    <button class="icon-btn" onclick="viewRecord('${r.id}')" title="View">🔍</button>
+                    <button class="icon-btn" onclick="editRecord('${r.id}')" title="Edit">✏️</button>
+                    <button class="icon-btn icon-btn-danger" onclick="deleteRecord('${r.id}')" title="Delete">🗑</button>
                 </div>
             </td>
         </tr>`).join('');
+
+    updateDeleteSelectedState();
+}
+
+// ─── Bulk selection (checkbox column) ─────────────────────────
+function toggleSelectAllRecords(master) {
+    document.querySelectorAll('.row-chk').forEach(c => { c.checked = master.checked; });
+    updateDeleteSelectedState();
+}
+
+function updateDeleteSelectedState() {
+    const allChk = document.querySelectorAll('.row-chk');
+    const checked = document.querySelectorAll('.row-chk:checked');
+    const btn = document.getElementById('btn-delete-selected');
+    const countEl = document.getElementById('selected-count');
+    if (countEl) countEl.textContent = checked.length;
+    if (btn) btn.disabled = checked.length === 0;
+    const master = document.getElementById('chk-select-all');
+    if (master) master.checked = allChk.length > 0 && checked.length === allChk.length;
+}
+
+function deleteSelectedRecords() {
+    const ids = Array.from(document.querySelectorAll('.row-chk:checked')).map(c => c.dataset.id);
+    if (!ids.length) return;
+    showConfirm('ลบข้อมูลที่เลือก', `ยืนยันลบ ${ids.length} รายการที่เลือก?`, async () => {
+        const recs = loadRecords();
+        const toDelete = recs.filter(r => ids.includes(r.id));
+        if (typeof isServerOnline !== 'undefined' && isServerOnline) {
+            for (const rec of toDelete) {
+                try {
+                    await fetch(`${BACKEND_URL}/api/damper/records/${rec.no}`, { method: 'DELETE' });
+                } catch (e) { console.error('Delete Damper Record Error:', e); }
+            }
+            await refreshDataFromServer();
+        } else {
+            saveRecords(recs.filter(r => !ids.includes(r.id)));
+            updateKPIs(); updateBadges(); renderRecords();
+        }
+        showToast(`ลบข้อมูลที่เลือกสำเร็จ (${ids.length} รายการ)`, 'success');
+    });
 }
 
 function viewRecord(id) {
@@ -944,13 +1496,29 @@ function viewRecord(id) {
     let dimHTML = allGroups.map(g => {
         const d = r.dimData?.[g.key];
         if (!d) return '';
-        const vals = (d.vals || []).map((v, i) => `<span style="background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:11px">${g.points[i % g.points.length]}: <b>${v}</b></span>`).join(' ');
+        
+        let ptsHTML = '';
+        if (d.points) {
+            Object.keys(d.points).forEach(ptName => {
+                const pt = d.points[ptName];
+                const ptVals = (pt.vals || []).map(v => `<span style="background:var(--bg);padding:1px 4px;border-radius:2px;">${v}</span>`).join(' ');
+                ptsHTML += `<div style="font-size:11px; margin-bottom:4px; padding:4px; background:var(--bg2); border-radius:4px;">
+                    <b style="color:var(--text3)">${ptName}:</b> ${ptVals} 
+                    <span style="float:right">
+                        Avg: <b style="color:${pt.result === 'Pass' ? 'var(--blue)' : 'var(--fail)'}">${pt.avg}</b> | 
+                        Max: ${pt.max} | Min: ${pt.min} | 
+                        <b style="color:${pt.result === 'Pass' ? 'var(--pass)' : 'var(--fail)'}">${pt.result}</b>
+                    </span>
+                </div>`;
+            });
+        }
+        
         return `
             <div style="margin-bottom:10px">
                 <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px">${g.label}</div>
-                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${vals}</div>
-                <div style="font-size:12px">
-                    Avg: <b style="color:${d.result === 'Pass' ? 'var(--blue)' : 'var(--fail)'}">${d.avg}</b> &nbsp;
+                ${ptsHTML}
+                <div style="font-size:12px; margin-top:6px; padding-top:6px; border-top:1px dashed var(--border2);">
+                    Group Avg: <b style="color:${d.result === 'Pass' ? 'var(--blue)' : 'var(--fail)'}">${d.avg}</b> &nbsp;
                     Max: <b>${d.max}</b> &nbsp;
                     Min: <b>${d.min}</b> &nbsp;
                     Result: <b style="color:${d.result === 'Pass' ? 'var(--pass)' : 'var(--fail)'}">${d.result}</b>
@@ -1032,8 +1600,8 @@ function exportCSV() {
         return [
             r.no, r.date, r.mode || 'Buy off', r.productLabel, r.mc, r.team, r.qcEn, r.meEn, r.traveler,
             r.sendTime || '', r.recvTime || '', r.attribute, r.pcs,
-            gd('datum').avg || '', gd('datum').max || '', gd('datum').min || '', gd('datum').result || '',
-            gd('nondatum').avg || '', gd('nondatum').max || '', gd('nondatum').min || '', gd('nondatum').result || '',
+            r.datumAvg || '', r.datumMax || '', r.datumMin || '', r.datumResult || '',
+            r.nondatumAvg || '', r.nondatumMax || '', r.nondatumMin || '', r.nondatumResult || '',
             r.vmiNG ? 'YES' : 'NO', r.overall,
         ];
     });
@@ -1049,7 +1617,7 @@ function exportCSV() {
 // ════════════════════════════════════════════════════════════
 function renderCharts() {
     const key = document.getElementById('viz-product')?.value || '';
-    let recs = loadRecords();
+    let recs = loadRecords().filter(r => r.overall !== 'WAITING' && r.overall !== 'Waiting' && r.overall !== 'DRAFT_WAITING' && r.overall !== 'DRAFT');
     if (key) recs = recs.filter(r => r.product === key);
 
     const labels = recs.map(r => `#${r.no} ${r.date.slice(5)}`);
@@ -1116,7 +1684,7 @@ function buildTrendChart(id, existing, labels, data, label, limits) {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
             scales: {
-                x: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.06)' } },
+                x: { ticks: {autoSkip: false,  font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.06)' } },
                 y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.06)' } },
             },
         },
@@ -1148,7 +1716,7 @@ function buildProductChart() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: 'top' } },
-            scales: { x: { ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            scales: { x: { ticks: {autoSkip: false,  font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
         },
     });
 }
@@ -1167,15 +1735,10 @@ function buildVMIChart(recs) {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
-            scales: { x: { ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            scales: { x: { ticks: {autoSkip: false,  font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
         },
     });
 }
-
-// ------------------------------------------------------------------------------------------
-
-
-
 
 // ------------------------------------------------------------------------------------------
 //  Backend
@@ -1196,9 +1759,9 @@ async function refreshDataFromServer() {
         try {
             const confRes = await fetch(`${BACKEND_URL}/api/config/damper`);
             const confData = await confRes.json();
-            if (confData.success && confData.limits) {
+            if (confData.success && confData.data) {
                 if (!window.DAMPER_LIMITS) window.DAMPER_LIMITS = {};
-                confData.limits.forEach(lim => {
+                confData.data.forEach(lim => {
                     if (!window.DAMPER_LIMITS[lim.product_key]) window.DAMPER_LIMITS[lim.product_key] = {};
                     window.DAMPER_LIMITS[lim.product_key][lim.dimension_name] = lim;
                 });
@@ -1247,7 +1810,8 @@ async function refreshDataFromServer() {
                         savedAt: r.savedAt
                     };
                 });
-                saveRecords(mapped);
+                const localDrafts = loadRecords().filter(r => r.overall === 'DRAFT_WAITING' || r.overall === 'WAITING' || r.overall === 'Waiting');
+                saveRecords([...mapped, ...localDrafts]);
                 renderRecords(); // ← render ทันทีหลัง save
             }
         }
@@ -1304,7 +1868,7 @@ async function syncWithServer() {
     try {
         const res = await fetch(`${BACKEND_URL}/api/damper/sync`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records: loadRecords() }),
+            body: JSON.stringify({ records: loadRecords().filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING' && r.overall !== 'Waiting') }),
         });
         const r = await res.json();
         showToast(r.success ? '🔄 Synchronized!' : 'Sync failed: ' + r.message, r.success ? 'success' : 'error');
@@ -1315,8 +1879,31 @@ async function syncWithServer() {
 // ------------------------------------------------------------------------------------------
 //  Utilities
 // ------------------------------------------------------------------------------------------
-function loadRecords() { return dmpRecords; }
-function saveRecords(a) { dmpRecords = a; }
+// 🔴 เดิม loadRecords()/saveRecords() เก็บข้อมูลไว้ใน dmpRecords (ตัวแปรใน memory)
+//    เท่านั้น ไม่เคยเขียนลง localStorage และไม่เคยยิง sync ไปที่ MySQL จนกว่าจะถึง
+//    ขั้นตอน commitStage2Damper() (Merge CMM) ท้ายสุด — ถ้า refresh หน้า, ปิดแท็บ,
+//    หรือ error ระหว่างทางก่อนถึงขั้น Merge ข้อมูล Draft/Waiting ทั้งหมดจะหายไปเลย
+//    และไม่เคยถูกบันทึกลง MySQL แม้แต่ครั้งเดียว → แก้โดยเขียนลง localStorage ทุกครั้ง
+//    ที่ saveRecords() ถูกเรียก เพื่อกันข้อมูลหายตอน refresh
+const DAMPER_LS_KEY = 'belton_damper_records_cache_v1';
+
+function loadRecords() {
+    if (dmpRecords && dmpRecords.length) return dmpRecords;
+    try {
+        const cached = localStorage.getItem(DAMPER_LS_KEY);
+        if (cached) dmpRecords = JSON.parse(cached) || [];
+    } catch (e) { console.warn('Damper loadRecords cache parse error:', e); }
+    return dmpRecords;
+}
+
+function saveRecords(a) {
+    dmpRecords = a;
+    try {
+        localStorage.setItem(DAMPER_LS_KEY, JSON.stringify(dmpRecords));
+    } catch (e) {
+        console.warn('Damper saveRecords localStorage error:', e);
+    }
+}
 
 async function saveRecordToServer(rec) {
     if (!isServerOnline) return;
@@ -1393,6 +1980,13 @@ function showToast(msg, type = 'info') {
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
 }
 
+// ════════════════════════════════════════════════════════════
+//  Import CSV (previously exported via exportCSV())
+//  FIX: ของเดิมมีฟังก์ชัน parseStage2Data() ทั้งก้อนหลุดไปแทรกอยู่กลาง
+//  loop ของ importExportedCSV() ทำให้เกิด syntax error (มี "|" ค้าง และ
+//  วงเล็บ/บล็อกไม่ครบ) ทั้งไฟล์เลยรันไม่ได้ ที่นี่แก้โดยเขียน loop
+//  ให้ map field ตรงกับ header ที่ exportCSV() สร้างไว้ให้ครบถ้วน
+// ════════════════════════════════════════════════════════════
 async function importExportedCSV(event) {
     const files = event.target.files;
     if (!files.length) return;
@@ -1412,28 +2006,23 @@ async function importExportedCSV(event) {
                 idxLower[h.toLowerCase()] = i;
             });
             const getModelKey = (label) => { for (let k in PRODUCTS) if (PRODUCTS[k].label === label || k === label) return k; return label; };
+
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 const getVal = (key) => row[idx[key]] !== undefined ? row[idx[key]] : row[idxLower[key.toLowerCase()]];
-                if (!row || row.length === 0 || !row.some(c => String(c).trim() !== '')) continue;
-                const pLabel = getVal('Product') || '';
-                const modelKey = getModelKey(pLabel);
-                let dateVal = String(getVal('Date') || '').trim();
-                const num = parseFloat(dateVal);
-                if (!isNaN(num) && num > 40000 && num < 60000) {
-                    const d = new Date(Math.round((num - 25569) * 86400 * 1000));
-                    if (!isNaN(d.getTime())) dateVal = d.toISOString().slice(0, 10);
-                }
+                if (!row || row.length === 0 || !getVal('Product')) continue;
+
+                const productLabel = String(getVal('Product') || '').trim();
+                const productKey = getModelKey(productLabel);
+
                 const records = loadRecords();
                 const rec = {
-                    id: Date.now() + Math.random(),
-                    no: records.length ? Math.max(...records.map(r => r.no || 0)) + 1 : 1,
-                    date: dateVal,
-                    mode: getVal('Mode') || 'buyoff',
-                    product: modelKey,
-                    productLabel: pLabel,
-                    partno: getVal('PartNo') || getVal('Part No') || '',
-                    ptno: getVal('PTNo') || getVal('PT Number') || '',
+                    id: Date.now().toString() + '_' + i + '_' + Math.random().toString(36).slice(2, 5),
+                    no: parseInt(getVal('No'), 10) || (records.filter(r => r.overall !== 'DRAFT_WAITING' && r.overall !== 'WAITING').length + 1),
+                    mode: String(getVal('Mode') || 'Buy off').toLowerCase().includes('roving') ? 'roving' : 'buyoff',
+                    date: getVal('Date') || todayISO(),
+                    product: productKey,
+                    productLabel: productLabel,
                     mc: getVal('MC') || '',
                     team: getVal('Team') || '',
                     qcEn: getVal('QC_EN') || '',
@@ -1442,7 +2031,7 @@ async function importExportedCSV(event) {
                     sendTime: getVal('SendTime') || '',
                     recvTime: getVal('RecvTime') || '',
                     attribute: getVal('Attribute') || 'Normal',
-                    pcs: parseInt(getVal('Pcs')) || 0,
+                    pcs: parseInt(getVal('Pcs'), 10) || 0,
                     datumAvg: parseFloat(getVal('Datum_Avg')) || null,
                     datumMax: parseFloat(getVal('Datum_Max')) || null,
                     datumMin: parseFloat(getVal('Datum_Min')) || null,
@@ -1479,209 +2068,46 @@ async function importExportedCSV(event) {
 // === STAGE 2 MERGE LOGIC ===
 
 let _selectedMergeId = null;
+
 function selectPendingForMerge(id) {
     _selectedMergeId = id;
-
     const recs = loadRecords();
     const r = recs.find(x => x.id === id);
-    if (!r) {
-        showToast('❌ ไม่พบ Record ที่ต้องการเชื่อมข้อมูล', 'error');
-        return;
+    if (!r) { showToast('❌ ไม่พบ Record ที่ต้องการเชื่อมข้อมูล', 'error'); return; }
+    
+    if (r.overall !== 'WAITING' && r.overall !== 'Waiting' && r.overall !== 'DRAFT_WAITING') {
+        showToast('⚠️ Record นี้ไม่ได้อยู่ในสถานะ Waiting/Draft', 'warn'); return;
     }
-
-    if (r.overall !== 'WAITING' && r.overall !== 'Waiting') {
-        showToast('⚠️ Record นี้ไม่ได้อยู่ในสถานะ Waiting', 'warn');
-        return;
-    }
-
-    document.getElementById('stage2-target-info').style.display = 'block';
-    document.getElementById('stage2-target-details').innerHTML = `
-        <b>Product:</b> ${r.productLabel || r.product} <br>
-        <b>Part No:</b> ${r.partno || '-'} &nbsp;|&nbsp; <b>PT No:</b> ${r.ptno || '-'} &nbsp;|&nbsp; <b>M/C:</b> ${r.mc || '-'} &nbsp;|&nbsp; <b>Date:</b> ${r.date}
-    `;
-
-    // เชื่อมข้อมูล Waiting record นี้เข้ากับฟิลด์เลือก Target ในแท็บ Stage 2 โดยตรง
-    // เพื่อให้ Stage 2 อ่าน/กรองข้อมูลของ Record นี้ได้ทันที ไม่ต้องเลือกใหม่
+    
     const prodSel = document.getElementById('merge-product');
     if (prodSel) prodSel.value = r.product;
     const ptInput = document.getElementById('merge-pt');
     if (ptInput) ptInput.value = r.ptno || '';
     const mcInput = document.getElementById('merge-mc');
     if (mcInput) mcInput.value = r.mc || '';
-
-    // ระบุ record เป้าหมายให้ตรงตัวเลย (ไม่ใช่แค่ candidate แรกที่ filter เจอ)
-    _selectedMergeId = r.id;
-    const html = `<h4>Linked Waiting Record:</h4>
-        <p><b>Traveler:</b> ${r.traveler || '-'} | <b>Product:</b> ${r.productLabel} | <b>PT:</b> ${r.ptno || '-'} | <b>M/C:</b> ${r.mc || '-'}</p>
-        <p style="color:var(--text3);font-size:12px">กรอก Datum Data / Non-datum Data ด้านล่างแล้วกด "Preview & Extract" เพื่อตรวจสอบค่าก่อน Merge</p>`;
-    const previewArea = document.getElementById('merge-preview-area');
-    if (previewArea) previewArea.innerHTML = html;
-
-    showToast('✅ เชื่อมข้อมูล Waiting Record แล้ว ไปที่แถบ Stage 2 เพื่อกรอกค่า Datum/Non-datum', 'success');
+    
+    document.getElementById('stage2-target-info').style.display = 'block';
+    document.getElementById('stage2-target-details').innerHTML = `
+        <b>Product:</b> ${r.productLabel || r.product} <br>
+        <b>PT No:</b> ${r.ptno || '-'} &nbsp;|&nbsp; <b>M/C:</b> ${r.mc || '-'} &nbsp;|&nbsp; <b>Date:</b> ${r.date}
+    `;
+    
     const btn = document.querySelector('[data-tab="stage2"]');
     if (btn) btn.click();
 }
 
-function parseStage2Data() {
-    const mk = document.getElementById('merge-product').value;
-    const ptFilter = document.getElementById('merge-pt').value.trim();
-    const mcFilter = document.getElementById('merge-mc').value.trim();
 
-    if (!mk) {
-        showToast('กรุณาเลือก Target Product ก่อน', 'warn');
-        return;
-    }
 
-    const recs = loadRecords();
-    const candidates = recs.filter(r =>
-        (r.overall === 'WAITING' || r.overall === 'Waiting') &&
-        r.product === mk &&
-        (ptFilter === '' || r.ptno === ptFilter) &&
-        (mcFilter === '' || r.mc === mcFilter)
-    ).sort((a, b) => new Date(a.date + 'T' + a.recvTime) - new Date(b.date + 'T' + b.recvTime));
-
-    if (candidates.length === 0) {
-        showToast('❌ ไม่พบ WAITING Drafts ที่ตรงกับเงื่อนไข — กรุณา Save Batch ใน Stage 1 ก่อน', 'error');
-        return;
-    }
-
-    _selectedMergeId = candidates[0].id;
-
-    const r = candidates[0];
-    document.getElementById('stage2-target-info').style.display = 'block';
-    document.getElementById('stage2-target-details').innerHTML = `
-        <strong>Traveler:</strong> ${r.traveler || '-'} <br>
-        <strong>Product:</strong> ${r.productLabel} | <strong>PT:</strong> ${r.ptno} | <strong>M/C:</strong> ${r.mc}
-    `;
-    const topText = document.getElementById('m-top-data').value;
-    const botText = document.getElementById('m-bot-data').value;
-    const topNums = topText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
-    const botNums = botText.trim().split(/[\s\t\n]+/).map(parseFloat).filter(n => !isNaN(n));
-
-    let html = `<h4>Extracted Data:</h4>`;
-    html += `<p><b>Datum</b>: ${topNums.length} values => ${topNums.join(', ')}</p>`;
-    html += `<p><b>Non-datum</b>: ${botNums.length} values => ${botNums.join(', ')}</p>`;
-    document.getElementById('merge-preview-area').innerHTML = html;
-
-    if (topNums.length > 0 && botNums.length > 0) {
-        document.getElementById('btn-merge-damper').disabled = false;
-        window._stage2Data = { topNums, botNums };
-    }
-}
-
-async function commitStage2Damper() {
-    if (!_selectedMergeId || !window._stage2Data) return;
-    const recs = loadRecords();
-    const idx = recs.findIndex(r => r.id === _selectedMergeId);
-    if (idx === -1) return;
-
-    const { topNums, botNums } = window._stage2Data;
-    const mk = document.getElementById('merge-product').value;
-    const ptFilter = document.getElementById('merge-pt').value.trim();
-    const mcFilter = document.getElementById('merge-mc').value.trim();
-
-    // Select all waiting records that match the current filter
-    const allCandidates = recs.filter(r =>
-        (r.overall === 'WAITING' || r.overall === 'Waiting') &&
-        r.product === mk &&
-        (ptFilter === '' || r.ptno === ptFilter) &&
-        (mcFilter === '' || r.mc === mcFilter)
-    ).sort((a, b) => new Date(a.date + 'T' + a.recvTime) - new Date(b.date + 'T' + b.recvTime));
-
-    if (allCandidates.length === 0) return;
-
-    // จำกัดจำนวนที่ merge ให้เท่ากับจำนวนข้อมูลที่มีการ Extract มา
-    // เช่น ถ้า CMM ให้มา 4 ค่า ก็จะ merge แค่ 4 Record แรกที่รออยู่
-    const mergeCount = Math.max(topNums.length, botNums.length);
-    const candidates = allCandidates.slice(0, mergeCount || 1);
-
-    for (let i = 0; i < candidates.length; i++) {
-        const r = candidates[i];
-
-        // If the text block has fewer values than candidates, fallback to the first value
-        const dVal = topNums[i] !== undefined ? topNums[i] : topNums[0];
-        const nVal = botNums[i] !== undefined ? botNums[i] : botNums[0];
-
-        if (dVal === undefined || nVal === undefined) continue;
-
-        if (!r.dimData) r.dimData = {};
-
-        const topDef = DIM_GROUPS.datum.find(x => x.key === 'datum');
-        const botDef = DIM_GROUPS.datum.find(x => x.key === 'nondatum');
-
-        const evalSingle = (val, gDef) => {
-            const lsl = gDef.lsl;
-            const usl = gDef.usl;
-            const ok = val >= lsl && val <= usl;
-            return { vals: [val], avg: +val.toFixed(5), max: +val.toFixed(5), min: +val.toFixed(5), result: ok ? 'Pass' : 'Fail' };
-        };
-
-        r.dimData['datum'] = evalSingle(dVal, topDef);
-        r.dimData['nondatum'] = evalSingle(nVal, botDef);
-
-        r.datumAvg = dVal;
-        r.datumMax = dVal;
-        r.datumMin = dVal;
-        r.datumResult = r.dimData['datum'].result;
-
-        r.nondatumAvg = nVal;
-        r.nondatumMax = nVal;
-        r.nondatumMin = nVal;
-        r.nondatumResult = r.dimData['nondatum'].result;
-
-        const datumOk = r.datumResult === 'Pass';
-        const nondatumOk = r.nondatumResult === 'Pass';
-        r.overall = (!r.vmiNG && datumOk && nondatumOk) ? 'Pass' : 'Fail';
-
-        if (r.overall === 'Fail') {
-            const issues = [];
-            if (r.vmiNG) {
-                const vmiItems = VMI_ITEMS.filter(v => r.mode === 'roving' || v.id !== 'double');
-                issues.push('VMI NG: ' + vmiItems.filter(v => r.vmi && r.vmi[v.id] === 'Fail').map(v => v.label).join(', '));
-            }
-            if (!datumOk) issues.push(`Datum out of spec (${fmt(r.datumAvg)})`);
-            if (!nondatumOk) issues.push(`Non-datum out of spec (${fmt(r.nondatumAvg)})`);
-            await sendSystemAlert('ng', issues.join(' | ') || 'Damper Inspection Fail', r, issues);
-        }
-    }
-
-    saveRecords(recs);
-    _selectedMergeId = null;
-    window._stage2Data = null;
-    document.getElementById('m-top-data').value = '';
-    document.getElementById('m-bot-data').value = '';
-    document.getElementById('merge-preview-area').innerHTML = '<div style="color:var(--pass);font-weight:bold;padding:10px;background:rgba(39,174,96,0.1);border-radius:6px;">✅ Merge สำเร็จ!</div>';
-    document.getElementById('btn-merge-damper').disabled = true;
-    document.getElementById('stage2-target-info').style.display = 'none';
-
-    updateKPIs();
-    renderRecords();
-    renderPendingTable();
-    if (window.BLoader) window.BLoader.show('กำลังอัปเดตและบันทึกลงฐานข้อมูลถาวร...');
-    try {
-        if (isServerOnline) await syncWithServer();
-    } catch (e) {
-        console.error('MySQL Sync Error:', e);
-    }
-    if (window.BLoader) window.BLoader.hide();
-
-    showToast('✅ Merge + บันทึกลง MySQL สำเร็จ', 'success');
-
-    // เด้งไปที่แท็บ About Data อัตโนมัติเมื่อบันทึกเสร็จ
-    const aboutBtn = document.querySelector('.nav-btn[data-tab="records"]');
-    if (aboutBtn) {
-        switchTab('records', aboutBtn);
-    } else {
-        switchTab('records', null);
-    }
-}
-
-// Hook tab switch to render pending table
+// Hook tab switch to render pending table and rebuild stage2 grid
 const originalSwitchTab = switchTab;
 switchTab = function (id, btn) {
     originalSwitchTab(id, btn);
     if (id === 'manual' || id === 'stage2') {
         renderPendingTable();
+    }
+    if (id === 'stage2') {
+        // Rebuild the stage2 grid each time the tab is opened (so pcs is correct for selected record)
+        buildStage2DimGroups();
     }
 }
 

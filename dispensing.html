@@ -343,19 +343,12 @@
           </div>
         </div><!-- end card -->
 
-      </div><!-- end panel-manual -->
-
-      <!-- ========================================== -->
-      <!-- TAB: STAGE 2 BULK MERGE                    -->
-      <!-- ========================================== -->
-      <div class="tab-panel" id="panel-stage2">
-
-        <!-- PENDING DRAFTS SECTION (moved from manual form)  -->
-        <div id="panel-manual-pending" style="margin-top:0px;padding-top:0;margin-bottom:16px;">
+        <!-- PENDING DRAFTS SECTION (moved to Stage 1) -->
+        <div id="panel-manual-pending" style="margin-top:16px;padding-top:0;margin-bottom:0;">
           <div class="card" style="border-top:3px solid var(--primary);">
             <div class="card-hdr" style="background:rgba(108,92,231,0.04);">
               <h3 style="color:var(--primary);">PENDING RECORDS <span
-                  style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Stage 2)</span>
+                  style="font-weight:400;font-size:12px;color:var(--text3)">(Waiting for Processing)</span>
                 <span class="badge" id="badge-pending" style="background:var(--primary);margin-left:8px;">0</span>
               </h3>
               <div class="btn-row">
@@ -373,6 +366,13 @@
           </div>
         </div>
 
+      </div><!-- end panel-manual -->
+
+      <!-- ========================================== -->
+      <!-- TAB: STAGE 2 BULK MERGE                    -->
+      <!-- ========================================== -->
+      <div class="tab-panel" id="panel-stage2">
+
         <!-- ========================================== -->
         <!-- STAGE 2: BULK TEXT MERGE                   -->
         <!-- ========================================== -->
@@ -383,7 +383,15 @@
             </h3>
           </div>
           <div class="card-body">
-            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:14px">
+            <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px">
+              <div class="form-group">
+                <label style="color:var(--blue);font-weight:700">Data Type <span
+                    style="color:var(--fail);font-size:10px">*</span></label>
+                <select id="merge-datatype" class="form-select" style="border-color:var(--blue);" onchange="onMergeModelChange()">
+                  <option value="Buy off">Buy off</option>
+                  <option value="Roving Audit">Roving Audit</option>
+                </select>
+              </div>
               <div class="form-group">
                 <label style="color:var(--blue);font-weight:700">Target Product <span
                     style="color:var(--fail);font-size:10px">*</span></label>
@@ -424,10 +432,11 @@
               <span style="font-size:11px;color:var(--text3);margin-left:4px">หรือ Paste ข้อความด้านล่าง</span>
             </div>
 
-            <textarea id="bulk-merge-textarea"
-              placeholder="วางข้อมูลจาก SM Flash ที่นี่ — แต่ละบรรทัด = 1 ชิ้นงาน&#10;ตัวอย่าง (tab-separated):&#10;0.9564	0.9552	0.9561	0.0163	-0.0012	0.0001&#10;0.9570	0.9558	0.9565	0.0145	-0.0008	0.0002&#10;0.9562	0.9549	0.9558	0.0171	-0.0019	0.0000&#10;0.9567	0.9555	0.9563	0.0158	-0.0015	0.0001&#10;&#10;หรือ Space-separated ก็ได้:&#10;0.9564 0.9552 0.9561 0.0163 -0.0012 0.0001"
-              style="width:100%;height:130px;resize:vertical;padding:10px;border:1.5px solid var(--border2);border-radius:6px;font-family:'Calibri','Candara','Segoe UI',monospace;font-size:13px;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box"
-              oninput="refreshMergePreview()"></textarea>
+            <div id="stage2-grid-container" style="margin-top:16px;">
+              <div style="padding:40px; text-align:center; color:var(--text3); border:1px dashed var(--border2); border-radius:6px;">
+                กรุณาเลือก Product และ Batch Size เพื่อสร้างตารางกรอกข้อมูล
+              </div>
+            </div>
 
             <div style="margin-top:10px" class="btn-row">
               <button class="btn"

@@ -12,6 +12,8 @@ const LS_KEY_POF = 'belton_pof_v4_records';
 const LS_KEY_ALERTS = 'belton_pof_v4_alerts';
 const LS_KEY_CFG = 'belton_pof_v4_config';
 
+window.POF_SQL_LIMITS = {};
+
 async function fetchPOFConfigFromDB() {
   try {
     const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/system/config');
@@ -21,9 +23,31 @@ async function fetchPOFConfigFromDB() {
         localStorage.setItem('belton_pof_config_v1', dbCfg.belton_pof_config_v1);
       }
     }
+    
+    // Fetch POF Limits from MySQL (pof_config)
+    const limRes = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:3000') + '/api/config/pof');
+    if (limRes.ok) {
+      const limData = await limRes.json();
+      if (limData.success && limData.data) {
+        window.POF_SQL_LIMITS = {};
+        limData.data.forEach(lim => {
+          if (!window.POF_SQL_LIMITS[lim.product_key]) window.POF_SQL_LIMITS[lim.product_key] = {};
+          if (!window.POF_SQL_LIMITS[lim.product_key][lim.process_mode]) window.POF_SQL_LIMITS[lim.product_key][lim.process_mode] = {};
+          window.POF_SQL_LIMITS[lim.product_key][lim.process_mode][lim.dimension_name] = lim;
+        });
+      }
+    }
   } catch (e) {
     console.error("Failed to fetch POF config from DB", e);
   }
+}
+
+function getPOFSQLSpc(prodKey, modeKey, dimName) {
+  if (!window.POF_SQL_LIMITS || !window.POF_SQL_LIMITS[prodKey]) return null;
+  // If modeKey is 'new_roving' or includes 'roving', map to 'roving'
+  const mode = modeKey.includes('roving') ? 'roving' : 'buyoff';
+  if (!window.POF_SQL_LIMITS[prodKey][mode]) return null;
+  return window.POF_SQL_LIMITS[prodKey][mode][dimName] || null;
 }
 
 //  Backend 
@@ -765,16 +789,13 @@ function onProductChange() {
     let bobbinSpc = { ...spc };
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
-      const pCfg = allCfg[prodKey] || allCfg['default'];
-      const grp = MODES[modeKey]?.spcKey || 'buyoff';
-      let bc = null;
-      if (pCfg) {
-        if (pCfg[modeKey] && Object.values(pCfg[modeKey]).some(v => v !== null && v !== '')) {
-          bc = pCfg[modeKey];
-        } else if (pCfg[grp]) {
-          bc = pCfg[grp];
-        }
-      }
+      const isRoving = modeKey === 'roving' || modeKey === 'new_roving' || (typeof modeKey === 'string' && modeKey.includes('roving'));
+      const cfgKey = isRoving ? prodKey + '_rov' : prodKey;
+      
+      let bc = allCfg[cfgKey];
+      if (!bc && isRoving) bc = allCfg[prodKey]; // fallback to buyoff if roving is empty
+      if (!bc) bc = allCfg['default'];
+      
       if (bc) {
         // Long Fantail overrides
         if (bc.long_lsl != null) longSpc.spec = bc.long_lsl;
@@ -871,26 +892,22 @@ function onProductChange() {
 
   // Load Frequency from system config
   const qtyInput = document.getElementById('m-qty');
-  let freqTarget = p?.pcs || 1; // fallback to product pcs or 1
+  let freqTarget = p?.pcs || 1; 
   if (qtyInput && prodKey) {
     try {
       const allCfg = JSON.parse(localStorage.getItem('belton_pof_config_v1') || '{}');
-      const pCfg = allCfg[prodKey] || allCfg['default'];
-
-      let activeFreq = null;
-      if (pCfg && pCfg.freq) {
-        if (modeKey === 'buyoff' || modeKey === 'oba' || modeKey.includes('roving')) {
-          activeFreq = pCfg.freq;
-        }
-      }
-
-      if (activeFreq && !isNaN(parseInt(activeFreq, 10)) && parseInt(activeFreq, 10) > 0) {
-        freqTarget = parseInt(activeFreq, 10);
+      let pCfg = allCfg[prodKey] || allCfg['default'] || {};
+      
+      let activeFreq = pCfg.freq || null;
+      const parsedFreq = parseInt(activeFreq, 10);
+      if (!isNaN(parsedFreq) && parsedFreq > 0) {
+        freqTarget = parsedFreq;
         qtyInput.value = `${freqTarget}/Shift/Oven`;
       } else {
         qtyInput.value = `${freqTarget} (default pcs/batch)`;
       }
     } catch (e) {
+      console.error("Error reading POF config:", e);
       qtyInput.value = `${freqTarget} (default pcs/batch)`;
     }
     qtyInput.dataset.freqTarget = freqTarget;
@@ -917,10 +934,16 @@ function calcResult() {
   const spc = (prodKey && modeKey) ? getSPC(prodKey, modeKey, typeKey) : null;
   const p = prodKey ? PRODUCTS[prodKey] : null;
 
-  // Use separate Long/Short/Bobbin specs if available (from new config), else fall back to shared spc
-  const longSpc = window._pofSpcLong || spc;
-  const shortSpc = window._pofSpcShort || spc;
-  const bobbinSpc = window._pofSpcBobbin || spc;
+  // Use separate Long/Short/Bobbin specs from MySQL if available, else fall back to shared spc
+  let longSpc = getPOFSQLSpc(prodKey, modeKey, 'long_fantail') || window._pofSpcLong || spc;
+  let shortSpc = getPOFSQLSpc(prodKey, modeKey, 'short_fantail') || window._pofSpcShort || spc;
+  let bobbinSpc = getPOFSQLSpc(prodKey, modeKey, 'bobbin1') || getPOFSQLSpc(prodKey, modeKey, 'bobbin2') || window._pofSpcBobbin || spc;
+
+  // Convert MySQL schema to old schema compatibility
+  // BUG FIX: spec (minimum threshold) must use lsl NOT usl
+  if (longSpc && longSpc.usl !== undefined) longSpc = { lsl: longSpc.lsl, spec: longSpc.lsl ?? longSpc.usl, trigger: longSpc.ucl, ucl: longSpc.ucl, cl: longSpc.cl, lcl: longSpc.lcl, usl: longSpc.usl };
+  if (shortSpc && shortSpc.usl !== undefined) shortSpc = { lsl: shortSpc.lsl, spec: shortSpc.lsl ?? shortSpc.usl, trigger: shortSpc.ucl, ucl: shortSpc.ucl, cl: shortSpc.cl, lcl: shortSpc.lcl, usl: shortSpc.usl };
+  if (bobbinSpc && bobbinSpc.usl !== undefined) bobbinSpc = { lsl: bobbinSpc.lsl, spec: bobbinSpc.lsl ?? bobbinSpc.usl, trigger: bobbinSpc.ucl, ucl: bobbinSpc.ucl, cl: bobbinSpc.cl, lcl: bobbinSpc.lcl, usl: bobbinSpc.usl };
 
   const vals = [];
   if (!isNaN(l1)) vals.push(l1);
@@ -1103,8 +1126,14 @@ async function addDraft() {
   const spc = getSPC(prodKey, modeKey, typeKey);
   if (!spc) { showToast('ไม่พบ SPC config สำหรับ product/mode/type นี้', 'error'); return; }
 
-  const longSpc = window._pofSpcLong || spc;
-  const shortSpc = window._pofSpcShort || spc;
+  let longSpc = getPOFSQLSpc(prodKey, modeKey, 'long_fantail') || window._pofSpcLong || spc;
+  let shortSpc = getPOFSQLSpc(prodKey, modeKey, 'short_fantail') || window._pofSpcShort || spc;
+  let bobbinSpc = getPOFSQLSpc(prodKey, modeKey, 'bobbin1') || getPOFSQLSpc(prodKey, modeKey, 'bobbin2') || window._pofSpcBobbin || spc;
+
+  // BUG FIX: spec must be lsl (lower spec limit), not usl
+  if (longSpc && longSpc.usl !== undefined) longSpc = { lsl: longSpc.lsl, spec: longSpc.lsl ?? longSpc.usl, trigger: longSpc.ucl, ucl: longSpc.ucl, cl: longSpc.cl, lcl: longSpc.lcl, usl: longSpc.usl };
+  if (shortSpc && shortSpc.usl !== undefined) shortSpc = { lsl: shortSpc.lsl, spec: shortSpc.lsl ?? shortSpc.usl, trigger: shortSpc.ucl, ucl: shortSpc.ucl, cl: shortSpc.cl, lcl: shortSpc.lcl, usl: shortSpc.usl };
+  if (bobbinSpc && bobbinSpc.usl !== undefined) bobbinSpc = { lsl: bobbinSpc.lsl, spec: bobbinSpc.lsl ?? bobbinSpc.usl, trigger: bobbinSpc.ucl, ucl: bobbinSpc.ucl, cl: bobbinSpc.cl, lcl: bobbinSpc.lcl, usl: bobbinSpc.usl };
 
   const vals = [l1, s2];
   if (hasBobbin) vals.push(b1, b2);
@@ -1240,6 +1269,10 @@ async function _doSubmitDrafts() {
       spc_lcl: d.spc.lcl,
       spc_trig: d.spc.trigger,
       spc_spec: d.spc.spec,
+      long_spc_lsl: d.longSpc?.spec ?? d.longSpc?.lsl,
+      long_spc_usl: d.longSpc?.usl,
+      short_spc_lsl: d.shortSpc?.spec ?? d.shortSpc?.lsl,
+      short_spc_usl: d.shortSpc?.usl,
       spec_result: d.outSpec,
       eblock_long: d.eblock_long, eblock_short: d.eblock_short, eblock_avg: d.eblock_avg,
       ebl_long: d.ebl_long, ebl_center: d.ebl_center, ebl_short: d.ebl_short,
@@ -1648,11 +1681,11 @@ function renderRecords() {
       <td style="padding:8px">${ovBadge(r.overall)}</td>
       <td style="padding:8px;text-align:right">
         <div style="display:flex;gap:5px;justify-content:flex-end">
-          <button onclick="showRecordDetail(${r.id ?? r.no})" title="View Details"
+          <button onclick="showRecordDetail(${r.no})" title="View Details"
                   style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer">🔍</button>
-          <button onclick="openEditRecordModal(${r.id ?? r.no})" title="Edit Record"
+          <button onclick="openEditRecordModal(${r.no})" title="Edit Record"
                   style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid var(--border2);background:var(--bg);cursor:pointer">✏️</button>
-          <button onclick="deleteRecord(${r.id ?? r.no})" title="Delete Record"
+          <button onclick="deleteRecord(${r.no})" title="Delete Record"
                   style="padding:3px 8px;border-radius:5px;font-size:13px;border:1px solid rgba(220,38,38,.3);background:var(--fail-bg);cursor:pointer;color:var(--fail)">🗑️</button>
         </div>
       </td>
@@ -1720,8 +1753,10 @@ function deleteSelectedRecords() {
 
 //  About Data: Detail modal 
 function showRecordDetail(id) {
-  const r = _recordsCache.find(x => x.id === id || x.no === id);
-  if (!r) { showToast('', 'error'); return; }
+  // BUG FIX: find by no (numeric) consistently; coerce to number to handle string/numeric mismatch
+  const numId = Number(id);
+  const r = _recordsCache.find(x => x.no === numId || x.no === id || x.id === numId || x.id === id);
+  if (!r) { showToast('ไม่พบข้อมูล Record #' + id, 'error'); return; }
   const md = MODES[r.mode] || {};
   const body = document.getElementById('rec-detail-body');
   const title = document.getElementById('rec-detail-title');
@@ -1743,6 +1778,8 @@ function showRecordDetail(id) {
     field('Traveler No.', r.traveler, '#0984e3'),
     field('E-block Lot', r.lot),
     field('Qty Shipment', r.qty),
+    field('Long (LSL/USL)', `${r.long_spc_lsl ?? '-'}/${r.long_spc_usl ?? '-'}`, 'var(--text3)'),
+    field('Short (LSL/USL)', `${r.short_spc_lsl ?? '-'}/${r.short_spc_usl ?? '-'}`, 'var(--text3)'),
     field('Long', fmt(r.long1), 'var(--text)'),
     field('Short', fmt(r.short2), 'var(--text)'),
     field('Bobbin 1', fmt(r.bobbin1), 'var(--text)'),
@@ -1761,8 +1798,10 @@ function showRecordDetail(id) {
 
 //  About Data: Edit modal 
 function openEditRecordModal(id) {
-  const r = _recordsCache.find(x => x.id === id || x.no === id);
-  if (!r) { showToast('', 'error'); return; }
+  // BUG FIX: consistent numeric comparison
+  const numId = Number(id);
+  const r = _recordsCache.find(x => x.no === numId || x.no === id || x.id === numId || x.id === id);
+  if (!r) { showToast('ไม่พบข้อมูล Record #' + id, 'error'); return; }
   document.getElementById('edit-rec-id').value = r.id ?? r.no;
   document.getElementById('edit-rec-no').textContent = `#${r.no}`;
   document.getElementById('edit-date').value = r.date || '';
@@ -1878,7 +1917,7 @@ let _chartXbar = null, _chartRange = null, _chartDist = null, _chartProd = null;
 
 function renderCharts() {
   const key = document.getElementById('viz-product')?.value || '';
-  let recs = loadRecords();
+  let recs = loadRecords().filter(r => r.overall !== 'WAITING' && r.overall !== 'Waiting' && r.overall !== 'DRAFT_WAITING' && r.overall !== 'DRAFT');
   if (key) recs = recs.filter(r => r.product === key);
 
   const p = key && PRODUCTS[key] ? PRODUCTS[key] : null;
@@ -1946,7 +1985,7 @@ function buildLineChart(canvasId, existing, labels, data, dataLabel, limits = []
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
       scales: {
-        x: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        x: { ticks: {autoSkip: false,  font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
         y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
       },
     },
@@ -1977,7 +2016,7 @@ function buildHistogram(canvasId, values, specMin) {
       plugins: { legend: { display: false } },
       scales: {
         y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
-        x: { ticks: { font: { size: 9 } } },
+        x: { ticks: {autoSkip: false,  font: { size: 9 } } },
       },
     },
   });
@@ -2009,7 +2048,7 @@ function buildProductChart(canvasId) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top' } },
       scales: {
-        x: { stacked: false, ticks: { font: { size: 10 } } },
+        x: { stacked: false, ticks: {autoSkip: false,  font: { size: 10 } } },
         y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
       },
     },

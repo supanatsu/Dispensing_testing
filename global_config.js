@@ -421,10 +421,30 @@ function saveGlobalPofConfig() {
 // ========================
 const LS_KEY_DMR_CFG = 'belton_damper_v3_config';
 
+const DMR_PRODUCTS_DEFAULT = {
+    cim3d: { label: 'Cimarron BP 3D', mc: '—', pcs: 4 },
+    cim4d: { label: 'Cimarron BP 4D', mc: '33', pcs: 8 },
+    cim5d: { label: 'Cimarron BP 5D', mc: '33', pcs: 10 },
+    dor10n: { label: 'Dorado 10D NOAR', mc: '—', pcs: 10 },
+    dor10d: { label: 'Dorado 10D', mc: '—', pcs: 10 },
+    dor5dbb: { label: 'Dorado 5D AL BB', mc: '—', pcs: 4 },
+    dor5d: { label: 'Dorado 5D', mc: '—', pcs: 4 },
+    mar10d: { label: 'Marlin 10D', mc: '—', pcs: 10 },
+    sky1d: { label: 'Skybolt 1D', mc: '—', pcs: 4 },
+    sky2d: { label: 'Skybolt 2D', mc: '—', pcs: 4 },
+    sky3d: { label: 'Skybolt 3D', mc: '—', pcs: 6 },
+    sky4d: { label: 'Skybolt 4D', mc: '—', pcs: 8 },
+    sum10d: { label: 'Summit 10D', mc: '—', pcs: 10 },
+    v114d: { label: 'V11 4D', mc: '—', pcs: 4 },
+    v15: { label: 'V15 CMR 4D', mc: '—', pcs: 4 },
+};
+
 // Default spec values matching damper_install.js DIM_GROUPS
 const DMR_DIM_DEFAULTS = {
-    datum: { usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348 },
-    nondatum: { usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804 }
+    datum_g1: { usl: 1.368, ucl: null, cl: 1.358, lcl: null, lsl: 1.348 },
+    datum_g2: { usl: 0.040, ucl: null, cl: 0.030, lcl: null, lsl: 0.020 },
+    nondatum_g1: { usl: 0.824, ucl: null, cl: 0.814, lcl: null, lsl: 0.804 },
+    nondatum_g2: { usl: 0.040, ucl: null, cl: 0.030, lcl: null, lsl: 0.020 }
 };
 
 function loadGlobalDamperConfig() {
@@ -442,7 +462,7 @@ function loadGlobalDamperConfig() {
         const prodOverride = (cfg.productDims && cfg.productDims[selectedKey]) ? cfg.productDims[selectedKey] : {};
         const globalDefault = cfg.dims || {};
         dims = {};
-        const keys = ['datum', 'nondatum'];
+        const keys = ['datum_g1', 'datum_g2', 'nondatum_g1', 'nondatum_g2'];
         const fields = ['usl', 'ucl', 'cl', 'lcl', 'lsl'];
         keys.forEach(k => {
             dims[k] = {};
@@ -461,8 +481,30 @@ function loadGlobalDamperConfig() {
         dims = cfg.dims || {};
     }
 
-    const keys = ['datum', 'nondatum'];
+    const keys = ['datum_g1', 'datum_g2', 'nondatum_g1', 'nondatum_g2'];
     const fields = ['usl', 'ucl', 'cl', 'lcl', 'lsl'];
+    
+    // Set dynamic labels based on product pcs
+    let pcs = 4; // default
+    if (selectedKey && DMR_PRODUCTS_DEFAULT[selectedKey] && DMR_PRODUCTS_DEFAULT[selectedKey].pcs) {
+        pcs = DMR_PRODUCTS_DEFAULT[selectedKey].pcs;
+    }
+    const half = Math.floor(pcs / 2);
+    const top1 = Array.from({length: half}, (_, i) => `1/${i+1}`).join(', ');
+    const top2 = Array.from({length: pcs - half}, (_, i) => `1/${half+i+1}`).join(', ');
+    const bot1 = Array.from({length: half}, (_, i) => `2/${i+1}`).join(', ');
+    const bot2 = Array.from({length: pcs - half}, (_, i) => `2/${half+i+1}`).join(', ');
+
+    const lblG1Datum = document.getElementById('gc-dmp-label-datum_g1');
+    const lblG2Datum = document.getElementById('gc-dmp-label-datum_g2');
+    const lblG1Nondatum = document.getElementById('gc-dmp-label-nondatum_g1');
+    const lblG2Nondatum = document.getElementById('gc-dmp-label-nondatum_g2');
+
+    if (lblG1Datum) lblG1Datum.innerHTML = `1. Datum (Group 1)<br><span style="font-size:10px;color:var(--text3);">${top1}</span>`;
+    if (lblG2Datum) lblG2Datum.innerHTML = `2. Datum (Group 2)<br><span style="font-size:10px;color:var(--text3);">${top2}</span>`;
+    if (lblG1Nondatum) lblG1Nondatum.innerHTML = `3. Non-datum (Group 1)<br><span style="font-size:10px;color:var(--text3);">${bot1}</span>`;
+    if (lblG2Nondatum) lblG2Nondatum.innerHTML = `4. Non-datum (Group 2)<br><span style="font-size:10px;color:var(--text3);">${bot2}</span>`;
+
     keys.forEach(k => {
         fields.forEach(f => {
             const el = document.getElementById(`gc-dmp-${k}-${f}`);
@@ -504,7 +546,7 @@ function saveGlobalDamperConfig() {
     if (!cfg.dims) cfg.dims = {};
     if (!cfg.productDims) cfg.productDims = {};
 
-    const keys = ['datum', 'nondatum'];
+    const keys = ['datum_g1', 'datum_g2', 'nondatum_g1', 'nondatum_g2'];
     let changed = false;
 
     let targetObj;
@@ -572,7 +614,7 @@ function saveGlobalDamperConfig() {
                 product_key: selectedKey || 'DEFAULT',
                 process_mode: 'buyoff',
                 data_type: 'dim',
-                damper_type: k,
+                dimension_name: k,
                 frequency: targetObj.freqBuyoff || null,
                 usl: fVals.usl !== undefined ? fVals.usl : null,
                 ucl: fVals.ucl !== undefined ? fVals.ucl : null,
@@ -584,7 +626,7 @@ function saveGlobalDamperConfig() {
                 product_key: selectedKey || 'DEFAULT',
                 process_mode: 'roving',
                 data_type: 'dim',
-                damper_type: k,
+                dimension_name: k,
                 frequency: targetObj.freqRoving || null,
                 usl: fVals.usl !== undefined ? fVals.usl : null,
                 ucl: fVals.ucl !== undefined ? fVals.ucl : null,

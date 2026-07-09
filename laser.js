@@ -2657,7 +2657,7 @@ function renderDefectChart(recs) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top', labels: { color: CHART_COLORS.text } } },
       scales: {
-        x: { stacked: false, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text } },
+        x: { stacked: false, grid: { color: CHART_COLORS.grid }, ticks: { autoSkip: false,  color: CHART_COLORS.text } },
         y: { beginAtZero: true, grid: { color: CHART_COLORS.grid }, ticks: { stepSize: 1, color: CHART_COLORS.text }, title: { display: true, text: 'จำนวน (ชิ้น)', color: CHART_COLORS.text } },
       },
     },
@@ -2689,7 +2689,7 @@ function renderDefectTypeChart(recs) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top', labels: { color: CHART_COLORS.text } } },
       scales: {
-        x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text } },
+        x: { grid: { color: CHART_COLORS.grid }, ticks: { autoSkip: false,  color: CHART_COLORS.text } },
         y: { beginAtZero: true, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text }, title: { display: true, text: 'จำนวน', color: CHART_COLORS.text } },
         y2: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'สะสม %', color: CHART_COLORS.text }, ticks: { callback: v => v + '%', color: CHART_COLORS.text } },
       },
@@ -2715,7 +2715,7 @@ function renderMachineChart(recs) {
   chartMachine = new Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: { labels: mKeys, datasets: [{ label: 'Yield % by Machine', data: yields, backgroundColor: yields.map(y => y >= 95 ? CHART_COLORS.pass : y >= 80 ? CHART_COLORS.hold : CHART_COLORS.fail), borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text } }, y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.grid }, ticks: { callback: v => v + '%', color: CHART_COLORS.text } } } },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: CHART_COLORS.grid }, ticks: { autoSkip: false, color: CHART_COLORS.text } }, y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.grid }, ticks: { callback: v => v + '%', color: CHART_COLORS.text } } } },
   });
 }
 
@@ -2771,7 +2771,7 @@ function renderTrendChart(recs) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top', labels: { color: CHART_COLORS.text } } },
       scales: {
-        x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text, font: { size: 10 } } },
+        x: { grid: { color: CHART_COLORS.grid }, ticks: { autoSkip: false,  color: CHART_COLORS.text, font: { size: 10 } } },
         y: { beginAtZero: true, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text }, title: { display: true, text: 'จำนวน', color: CHART_COLORS.text } },
         y2: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Yield %', color: CHART_COLORS.text }, ticks: { callback: v => v + '%', color: CHART_COLORS.text } },
       },
@@ -2806,7 +2806,7 @@ function renderProductYieldChart() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top', labels: { color: CHART_COLORS.text } } },
       scales: {
-        x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.text, font: { size: 10 }, maxRotation: 30 } },
+        x: { grid: { color: CHART_COLORS.grid }, ticks: { autoSkip: false,  color: CHART_COLORS.text, font: { size: 10 }, maxRotation: 30 } },
         y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.grid }, title: { display: true, text: 'Yield %', color: CHART_COLORS.text }, ticks: { callback: v => v + '%', color: CHART_COLORS.text } },
         y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: CHART_COLORS.text }, title: { display: true, text: 'จำนวน', color: CHART_COLORS.text } },
       },

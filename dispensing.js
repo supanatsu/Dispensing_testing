@@ -359,8 +359,21 @@ async function syncWithServer(showNotice = false) {
             console.log('Sync completed:', data.message);
             await fetchServerRecords();
         } else {
+            // 🔴 แก้ไข: เดิมจุดนี้ไม่อ่าน response body เลย ทำให้ error จริงจาก server (err.message)
+            // ที่ /api/dispensing/sync ส่งกลับมาถูกทิ้งไปหมด เห็นแต่ข้อความทั่วไปที่ไม่บอกสาเหตุ
+            let serverMsg = '';
+            try {
+                const errData = await res.json();
+                serverMsg = errData && errData.error ? errData.error : '';
+            } catch (e) {
+                try { serverMsg = await res.text(); } catch (e2) { }
+            }
+            console.error('[Dispensing] Sync failed:', res.status, res.statusText, serverMsg);
             if (showNotice) {
-                showToast('❌ การซิงค์ล้มเหลว (การตอบรับจากเซิร์ฟเวอร์ผิดปกติ)', 'error', 3000);
+                showToast(
+                    `❌ ซิงค์ล้มเหลว (HTTP ${res.status})${serverMsg ? ': ' + serverMsg : ' — เปิด Console (F12) หรือ Terminal ของ server เพื่อดูรายละเอียด'}`,
+                    'error', 5000
+                );
             }
         }
     } catch (err) {
@@ -576,6 +589,51 @@ function getInternalStatus(vals, mk, dataType) {
     return status;
 }
 
+// ─── หาพารามิเตอร์ (dimension) ที่เกิน Spec จริง ๆ จาก vals ─────────────────
+// 🔴 แก้ไข: เดิม sendSystemAlert() ทุกจุดส่งแค่ "สถานะรวม" (REJECT/ALERT) ไปที่
+// backend โดยไม่ระบุว่า "ตัวไหน" ที่เกิน Spec ทำให้ /api/dispensing/alert
+// ต้องใส่ค่า generic (เช่น PT number) ลงคอลัมน์ param และใส่ value_val เป็น null
+// เสมอ — ผลคือปุ่ม "View Trend Chart" ใน System Alert Center หา
+// values_json[param] ไม่เจอ (เพราะ param ไม่ใช่ชื่อ dimension จริง) แล้วคืนค่า
+// "No URL returned" ทุกครั้ง ฟังก์ชันนี้ไล่เช็คทีละ dimension เหมือน
+// syncDataConsistency() แล้วคืน array ของจุดที่เกิน Spec จริง พร้อมชื่อ param,
+// ค่าที่วัดได้ และ spec string ที่ถูกต้อง เพื่อส่งต่อให้ sendSystemAlert()
+function getViolatingParams(vals, mk, dataType) {
+    const violations = [];
+    if (!vals) return violations;
+
+    Object.entries(vals).forEach(([id, v]) => {
+        if (v === undefined || v === null || v === '' || v === '-' || v === '—') return;
+        if (id === 'draft_id') return; // ไม่ใช่ dimension จริง
+
+        // Handle explicit PASS/FAIL strings (ไม่มี numeric spec ให้เทียบ)
+        if (typeof v === 'string') {
+            const upV = v.toUpperCase();
+            if (upV === 'FAIL' || upV === 'NG' || upV === 'REJECT') {
+                violations.push({ param: id, value: v, level: 'critical', specStr: 'PASS/FAIL' });
+            }
+            return;
+        }
+
+        const numVal = parseFloat(v);
+        if (isNaN(numVal)) return;
+
+        const cfg = getActiveSpec(mk, id, dataType);
+        if (!cfg) return;
+        const level = checkValAgainstSpec(numVal, cfg);
+        if (level) {
+            violations.push({
+                param: id,
+                value: numVal,
+                level, // 'critical' | 'warn'
+                specStr: `LSL:${cfg.lsl ?? '—'} LCL:${cfg.lcl ?? '—'} UCL:${cfg.ucl ?? '—'} USL:${cfg.usl ?? '—'}`
+            });
+        }
+    });
+
+    return violations;
+}
+
 function syncDataConsistency(silent = false) {
     let changed = false;
     DB.records.forEach(r => {
@@ -602,7 +660,7 @@ function syncDataConsistency(silent = false) {
             });
         }
         if (missingParams.length > 0) {
-            ALERT_LOG.push({ id: Date.now() + Math.random(), ts: recTs, level: 'incomplete', model: rec.model, modelLabel: PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model, fixture: rec.fixture, oven: rec.oven || '—', param: 'MISSING_DATA', value: '-', specStr: 'Required', msg: `❓ INCOMPLETE: ข้อมูลไม่ครบ ขาดการวัด (${missingParams.length} จุด)`, suppressed: false });
+            ALERT_LOG.push({ id: Date.now() + Math.random(), ts: recTs, level: 'incomplete', product: rec.model, model: rec.model, modelLabel: PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model, fixture: rec.fixture, oven: rec.oven || '—', param: 'MISSING_DATA', value: '-', specStr: 'Required', msg: `❓ INCOMPLETE: ข้อมูลไม่ครบ ขาดการวัด (${missingParams.length} จุด)`, suppressed: false });
             violationCount++;
         }
 
@@ -613,7 +671,7 @@ function syncDataConsistency(silent = false) {
             const level = checkValAgainstSpec(val, cfg);
             if (level) {
                 const isExtreme = level === 'critical';
-                ALERT_LOG.push({ id: Date.now() + Math.random(), ts: recTs, level, model: rec.model, modelLabel: PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model, fixture: rec.fixture, oven: rec.oven || '—', param, value: val, specStr: cfg ? `LSL:${cfg.lsl ?? '—'} LCL:${cfg.lcl ?? '—'} UCL:${cfg.ucl ?? '—'} USL:${cfg.usl ?? '—'}` : '—', msg: level === 'critical' ? `🔴 NG: ${param} = ${val.toFixed(4)} (เกิน Spec Limit)` : `🟡 ALERT: ${param} = ${val.toFixed(4)} (เกิน Control Limit)`, suppressed: !isExtreme });
+                ALERT_LOG.push({ id: Date.now() + Math.random(), ts: recTs, level, product: rec.model, model: rec.model, modelLabel: PRODUCTS[rec.model] ? PRODUCTS[rec.model].label : rec.model, fixture: rec.fixture, oven: rec.oven || '—', param, value: val, specStr: cfg ? `LSL:${cfg.lsl ?? '—'} LCL:${cfg.lcl ?? '—'} UCL:${cfg.ucl ?? '—'} USL:${cfg.usl ?? '—'}` : '—', msg: level === 'critical' ? `🔴 NG: ${param} = ${val.toFixed(4)} (เกิน Spec Limit)` : `🟡 ALERT: ${param} = ${val.toFixed(4)} (เกิน Control Limit)`, suppressed: !isExtreme });
                 violationCount++;
             }
         });
@@ -2556,17 +2614,49 @@ function saveManual() {
             });
 
             // ─── Auto-alert ถ้า NG หรือ ALERT ───────────────────────────
+            // 🔴 แก้ไข: เดิมส่ง alert เดียวแบบ generic (ไม่ระบุ param/value จริง)
+            // ทำให้ System Alert Center เก็บ param เป็น PT number แทนชื่อ dimension
+            // และ View Trend Chart หาค่าไม่เจอ — เปลี่ยนเป็นไล่หาทุก dimension ที่
+            // เกิน Spec จริงแล้วส่ง alert แยกทีละจุด พร้อม param/value/specStr ที่ถูกต้อง
+            //
+            // 🔴 แก้ไขเพิ่ม: internalStatus (บรรทัดบน) ถูกคำนวณจาก getInternalStatus()
+            // โดยใช้ dataType = _formMemory.dataType (ไม่ใช่ dType ตัวแปรปกติ) — ถ้าใช้
+            // dType แทนตอนเรียก getViolatingParams() ตรงนี้ อาจไปดึง Spec config คนละชุด
+            // (Buyoff vs Roving) ทำให้หา violation ไม่เจอเลยแม้ internalStatus จะเป็น
+            // REJECT/ALERT อยู่แล้ว (ตกไป fallback ที่ใช้ pt เป็น param แทน) ต้องใช้
+            // dataType ตัวเดียวกับที่ใช้คำนวณ internalStatus_preview ด้านบนเป๊ะๆ
+            const effectiveDataType = (typeof _formMemory !== "undefined" && _formMemory) ? _formMemory.dataType : dType;
             if (internalStatus === 'REJECT' || internalStatus === 'ALERT') {
-                const alertLevel = internalStatus === 'REJECT' ? 'ng' : 'alert';
-                const alertMsg = `[${dType}] ${PRODUCTS[mk].label} | Fixture: ${fix1} | PT: ${pt} | Status: ${internalStatus}`;
-                sendSystemAlert(alertLevel, alertMsg, {
-                    product: mk,
-                    fixture: fix1,
-                    oven,
-                    pt,
-                    dataType: dType,
-                    values: vals
-                });
+                const violations = getViolatingParams(vals, mk, effectiveDataType);
+                if (violations.length > 0) {
+                    violations.forEach(v => {
+                        const vLevel = v.level === 'critical' ? 'ng' : 'alert';
+                        const vMsg = `[${dType}] ${PRODUCTS[mk].label} | Fixture: ${fix1} | PT: ${pt} | ${v.param} = ${v.value} (${v.level === 'critical' ? 'เกิน Spec Limit' : 'เกิน Control Limit'})`;
+                        sendSystemAlert(vLevel, vMsg, {
+                            product: mk,
+                            fixture: fix1,
+                            oven,
+                            pt,
+                            dataType: dType,
+                            param: v.param,
+                            value: v.value,
+                            specStr: v.specStr,
+                            values: vals
+                        });
+                    });
+                } else {
+                    // Fallback: ไม่มี dimension ไหนระบุ param ได้ชัดเจน (เช่น FAIL แบบข้อความ) — ส่งแบบเดิม
+                    const alertLevel = internalStatus === 'REJECT' ? 'ng' : 'alert';
+                    const alertMsg = `[${dType}] ${PRODUCTS[mk].label} | Fixture: ${fix1} | PT: ${pt} | Status: ${internalStatus}`;
+                    sendSystemAlert(alertLevel, alertMsg, {
+                        product: mk,
+                        fixture: fix1,
+                        oven,
+                        pt,
+                        dataType: dType,
+                        values: vals
+                    });
+                }
             }
         }
         // ────────────────────────────────────────────────────────────────
@@ -2970,6 +3060,7 @@ function _renderAboutTableCore() {
 
     } catch (err) {
         console.error("Render About Table Error:", err);
+        if (window.BLoader) window.BLoader.hideIfSlow();
         const tbody = document.getElementById('about-tbody');
         if (tbody) tbody.innerHTML = `<tr><td colspan="12" style="color:red;text-align:center;padding:20px;">⚠️ ระบบมีปัญหาในการแสดงผล: ${err.message}</td></tr>`;
     }
@@ -3192,7 +3283,7 @@ function closeModal(id) {
     const el = document.getElementById(id);
     if (el) {
         el.classList.remove('open');
-        el.style.display = 'none';
+        el.style.display = '';
     }
     editId = null;
 }
@@ -4035,7 +4126,7 @@ function drawSPCChart() {
                             display: showXAxisLabels, // ซ่อนแกน X สำหรับกราฟบนเพื่อความสวยงาม
                             font: { size: 9, family: 'Calibri' },
                             callback: (val) => { return allLabels[val] || ''; },
-                            maxTicksLimit: 12, maxRotation: 45
+                            autoSkip: false, maxRotation: 45
                         },
                         grid: { color: 'rgba(0,0,0,0.04)' }
                     },
@@ -4058,6 +4149,9 @@ function drawSPCChart() {
     const rovValid = rovRows.map(r => _getVal(r, param)).filter(v => v !== null);
     _drawCompareStats(buyValid, rovValid, cfg, buyRows, rovRows, param);
     _drawCompareHist(buyValid, rovValid, cfg);
+
+    // Call drawStatsAndHist for compare mode to populate the overall stats and histogram correctly
+    drawStatsAndHist([...buyValid, ...rovValid], cfg, allRows, param);
 
     _renderAllParamsCompare(mk, n);
 }
@@ -4120,7 +4214,7 @@ function _drawSingleSPCOnOriginalCanvas(rows, mk, param, cfg, lineColor) {
                 legend: { labels: { color: '#374151', font: { size: 11, family: 'Calibri' } } },
                 tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (typeof c.raw === 'number' ? c.raw.toFixed(4) : c.raw) } }
             },
-            scales: { x: { ticks: { font: { size: 9, family: 'Calibri' }, maxRotation: 45, maxTicksLimit: 12 } }, y: { ticks: { font: { size: 11, family: 'Calibri' } } } }
+            scales: { x: { ticks: { font: { size: 9, family: 'Calibri' }, maxRotation: 45, autoSkip: false } }, y: { ticks: { font: { size: 11, family: 'Calibri' } } } }
         }
     });
     window_spcCharts.push(singleChart);
@@ -4176,7 +4270,7 @@ function drawStatsAndHist(vals, cfg, rows, param) {
 
     const yMax = Math.max(...barCounts) * 1.25 || 1;
     const makeVLine = (xVal, color, lbl = '') => ({
-        type: 'scatter', label: lbl, data: [{ x: xVal.toFixed(4), y: 0 }, { x: xVal.toFixed(4), y: yMax }],
+        type: 'scatter', label: lbl, data: [{ x: Number(xVal.toFixed(4)), y: 0 }, { x: Number(xVal.toFixed(4)), y: yMax }],
         borderColor: color, backgroundColor: color, showLine: true,
         borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 0, xAxisID: 'x2', yAxisID: 'y'
     });
@@ -4200,7 +4294,7 @@ function drawStatsAndHist(vals, cfg, rows, param) {
                 legend: { display: true, labels: { color: '#374151', font: { size: 10, family: 'Calibri' }, filter: item => item.text !== '' } },
                 tooltip: { callbacks: { title: ctx => ctx[0]?.dataset?.type === 'bar' ? `Value ≈ ${ctx[0].label}` : '', label: ctx => { if (ctx.dataset.type === 'bar') return `Count: ${ctx.parsed.y}`; if (ctx.dataset.label === 'Normal Curve') return `Normal Curve: ${ctx.parsed.y.toFixed(2)}`; return ctx.dataset.label || null; } } }
             },
-            scales: { x: { type: 'category', title: { display: true, text: 'Measured Value', color: '#6B7280', font: { size: 10, family: 'Calibri' } }, ticks: { font: { size: 9, family: 'Calibri' }, maxTicksLimit: 10, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.05)' } }, x2: { type: 'linear', display: false, min: xLow, max: xHigh }, y: { title: { display: true, text: 'Count', color: '#6B7280', font: { size: 10, family: 'Calibri' } }, ticks: { font: { size: 9, family: 'Calibri' }, maxTicksLimit: 6, callback: v => Number.isInteger(v) ? v : null, stepSize: 1 }, beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } } }
+            scales: { x: { type: 'category', title: { display: true, text: 'Measured Value', color: '#6B7280', font: { size: 10, family: 'Calibri' } }, ticks: { font: { size: 9, family: 'Calibri' }, autoSkip: false, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.05)' } }, x2: { type: 'linear', display: false, min: xLow, max: xHigh }, y: { title: { display: true, text: 'Count', color: '#6B7280', font: { size: 10, family: 'Calibri' } }, ticks: { font: { size: 9, family: 'Calibri' }, maxTicksLimit: 6, callback: v => Number.isInteger(v) ? v : null, stepSize: 1 }, beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } } }
         }
     });
 
@@ -4275,7 +4369,7 @@ function _drawCompareHist(buyValid, rovValid, cfg) {
 
     // ฟังก์ชันสร้างเส้น Indicator Line (ชัดเจนตัดเต็มพื้นที่)
     const makeVLine = (xVal, color, lbl = '', thick = 1.5, solid = false) => ({
-        type: 'scatter', label: lbl, data: [{ x: xVal.toFixed(4), y: 0 }, { x: xVal.toFixed(4), y: yMax }],
+        type: 'scatter', label: lbl, data: [{ x: Number(xVal.toFixed(4)), y: 0 }, { x: Number(xVal.toFixed(4)), y: yMax }],
         borderColor: color, backgroundColor: color, showLine: true,
         borderWidth: thick, borderDash: solid ? [] : [6, 4], pointRadius: 0, pointHoverRadius: 0, xAxisID: 'x2', yAxisID: 'y', order: 1
     });
@@ -4301,6 +4395,7 @@ function _drawCompareHist(buyValid, rovValid, cfg) {
     if (histChart) histChart.destroy();
     const hctx = document.getElementById('hist-chart').getContext('2d');
     histChart = new Chart(hctx, {
+        type: 'bar',
         data: { labels: histLabels, datasets: datasets },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -4309,7 +4404,7 @@ function _drawCompareHist(buyValid, rovValid, cfg) {
                 tooltip: { callbacks: { title: ctx => ctx[0]?.dataset?.type === 'bar' ? `Value ≈ ${ctx[0].label}` : '', label: ctx => { if (ctx.dataset.type === 'bar') return `Count: ${ctx.parsed.y}`; return ctx.dataset.label || null; } } }
             },
             scales: {
-                x: { type: 'category', ticks: { font: { size: 9, family: 'Calibri' }, maxRotation: 45, maxTicksLimit: 10 } },
+                x: { type: 'category', ticks: { font: { size: 9, family: 'Calibri' }, maxRotation: 45, autoSkip: false } },
                 x2: { type: 'linear', display: false, min: xLow, max: xHigh },
                 y: { beginAtZero: true, ticks: { font: { size: 9, family: 'Calibri' }, stepSize: 1, callback: v => Number.isInteger(v) ? v : null }, title: { display: true, text: 'Count', font: { size: 10 } } }
             }
@@ -4674,17 +4769,27 @@ async function saveManualDraft() {
         return;
     }
 
+    // 🔴 แก้ไข: ผู้ใช้ต้องการให้ "บล็อก" การบันทึก Draft ถ้ากรอกค่าวัดไม่ครบทุกช่อง
+    // (ห้ามเข้า Pending/WAITING เลยถ้ากรอกไม่ครบ) — เปลี่ยนจากเดิมที่แค่เตือนแล้วปล่อยผ่าน
+    // กลับมาเป็นบล็อกจริง พร้อม return ทันที ไม่สร้าง draftRec ใดๆ ทั้งสิ้น
     const inputs = document.querySelectorAll('#dim-container input.manual-field');
     let isComplete = true;
+    let firstEmptyInput = null;
     inputs.forEach(inp => {
         if (inp.value.trim() === '') {
             isComplete = false;
+            if (!firstEmptyInput) firstEmptyInput = inp;
         }
     });
 
     if (!isComplete) {
-        showToast('⚠️ กรุณากรอกค่าวัดให้ครบทุกช่องก่อนบันทึก (1 Log)', 'error');
-        return;
+        showToast('❌ กรอกค่าวัดยังไม่ครบทุกช่อง — ไม่สามารถบันทึก Draft ได้ กรุณากรอกให้ครบก่อน', 'error');
+        if (firstEmptyInput) {
+            firstEmptyInput.style.borderColor = '#e74c3c';
+            firstEmptyInput.style.boxShadow = '0 0 0 2px rgba(231,76,60,0.25)';
+            firstEmptyInput.focus();
+        }
+        return; // 🔴 บล็อกการบันทึกทันที ไม่ให้เข้าสถานะ DRAFT_INCOMPLETE/WAITING
     }
 
     const vals = {};
@@ -4726,16 +4831,35 @@ async function saveManualDraft() {
     // เพื่อให้ workflow ของ Stage 1→2 ยังทำงานเหมือนเดิม)
     const specStatus = getInternalStatus(vals, mk, dType);
     if (isBackendOnline && (specStatus === 'REJECT' || specStatus === 'ALERT')) {
-        const alertLevel = specStatus === 'REJECT' ? 'ng' : 'alert';
-        const alertMsg = `[${dType}] ${PRODUCTS[mk] ? PRODUCTS[mk].label : mk} | Fixture: ${fix} | PT: ${pt} | Status: ${specStatus} (Stage 1 Manual Input)`;
-        sendSystemAlert(alertLevel, alertMsg, {
-            product: mk,
-            fixture: fix,
-            oven,
-            pt,
-            dataType: dType,
-            values: vals
-        });
+        const violations = getViolatingParams(vals, mk, dType);
+        if (violations.length > 0) {
+            violations.forEach(v => {
+                const vLevel = v.level === 'critical' ? 'ng' : 'alert';
+                const vMsg = `[${dType}] ${PRODUCTS[mk] ? PRODUCTS[mk].label : mk} | Fixture: ${fix} | PT: ${pt} | ${v.param} = ${v.value} (${v.level === 'critical' ? 'เกิน Spec Limit' : 'เกิน Control Limit'}) (Stage 1 Manual Input)`;
+                sendSystemAlert(vLevel, vMsg, {
+                    product: mk,
+                    fixture: fix,
+                    oven,
+                    pt,
+                    dataType: dType,
+                    param: v.param,
+                    value: v.value,
+                    specStr: v.specStr,
+                    values: vals
+                });
+            });
+        } else {
+            const alertLevel = specStatus === 'REJECT' ? 'ng' : 'alert';
+            const alertMsg = `[${dType}] ${PRODUCTS[mk] ? PRODUCTS[mk].label : mk} | Fixture: ${fix} | PT: ${pt} | Status: ${specStatus} (Stage 1 Manual Input)`;
+            sendSystemAlert(alertLevel, alertMsg, {
+                product: mk,
+                fixture: fix,
+                oven,
+                pt,
+                dataType: dType,
+                values: vals
+            });
+        }
     }
     // ────────────────────────────────────────────────────────────────────────
 
@@ -5042,6 +5166,7 @@ function parseBulkText(rawText) {
         .filter(row => row.length > 0);
 }
 
+
 // ============================================================
 // TASK 3: Smart Dictionary-Aware Dim Map Builder
 // Handles duplicate variable headers from text_dict.txt structure.
@@ -5163,7 +5288,164 @@ function parseBulkTextSmart(rawText, mk) {
 }
 
 function onMergeModelChange() {
+    const mk = document.getElementById('merge-model').value;
+    const dtype = document.getElementById('merge-datatype')?.value || 'Buy off';
+    const match = getProductConfig(mk);
+    const p = (match && match.cfg) ? match.cfg : ((window.SERVER_PRODUCTS_LIST || []).find(x => x.product_key === mk || x.product_name === mk) || {});
+
+    let activeFreq = p.pcs; // default
+
+    try {
+        const raw = localStorage.getItem('belton_ipqc_dispensing_merged');
+        if (raw) {
+            const dispCfg = JSON.parse(raw);
+            const prodDims = dispCfg.productDims || {};
+            const prodCfg = prodDims[mk] || {};
+            const fBuy = prodCfg.freqBuyoff !== undefined ? prodCfg.freqBuyoff : dispCfg.freqBuyoff;
+            const fRov = prodCfg.freqRoving !== undefined ? prodCfg.freqRoving : dispCfg.freqRoving;
+
+            const targetFreq = dtype.toLowerCase().includes('roving') ? fRov : fBuy;
+            if (targetFreq && !isNaN(parseInt(targetFreq, 10)) && parseInt(targetFreq, 10) > 0) {
+                activeFreq = parseInt(targetFreq, 10);
+            }
+        }
+    } catch (e) { }
+
+    if (activeFreq) {
+        const batchEl = document.getElementById('merge-batch');
+        if (batchEl) batchEl.value = activeFreq;
+    }
+
+    buildStage2Grid();
     refreshMergePreview();
+}
+
+function buildStage2Grid() {
+    const container = document.getElementById('stage2-grid-container');
+    if (!container) return;
+
+    const mk = document.getElementById('merge-model')?.value;
+    const batch = parseInt(document.getElementById('merge-batch')?.value) || 4;
+
+    if (!mk) {
+        container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--text3); border:1px dashed var(--border2); border-radius:6px;">
+            กรุณาเลือก Product และ Batch Size เพื่อสร้างตารางกรอกข้อมูล
+        </div>`;
+        return;
+    }
+
+    const textDims = buildDictDimMap(mk);
+    if (!textDims || textDims.length === 0) {
+        container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--fail); border:1px dashed var(--border2); border-radius:6px;">
+            ไม่พบการตั้งค่า SM Flash Parameters สำหรับ Product นี้
+        </div>`;
+        return;
+    }
+
+    let tableHTML = `<div style="overflow-x:auto; margin-bottom:8px; border:1px solid var(--border2); border-radius:6px;">
+        <table class="stage2-grid" style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+        <thead style="background:var(--bg2); border-bottom:1px solid var(--border2);">
+            <tr>
+                <th style="padding:8px; font-weight:700; color:var(--blue); border-right:1px solid var(--border2); min-width:60px;">Piece</th>`;
+
+    textDims.forEach(dim => {
+        tableHTML += `<th style="padding:8px; font-weight:600; color:var(--text); border-right:1px solid var(--border2); min-width:80px;">${dim.replace(/_/g, ' ')}</th>`;
+    });
+    tableHTML += `</tr></thead><tbody style="background:#fff;">`;
+
+    for (let r = 0; r < batch; r++) {
+        tableHTML += `<tr>
+            <td style="padding:8px; font-weight:700; color:var(--text3); border-right:1px solid var(--border2); border-bottom:1px solid var(--border2); background:var(--bg2);">
+                Pc ${r + 1}
+            </td>`;
+
+        textDims.forEach((dim, c) => {
+            tableHTML += `<td style="padding:0; border-right:1px solid var(--border2); border-bottom:1px solid var(--border2); position:relative;">
+                <input type="number" step="0.0001"
+                       class="s2-grid-input"
+                       data-row="${r}"
+                       data-col="${c}"
+                       data-dim="${dim}"
+                       oninput="evalStage2Cell(this, '${mk}')"
+                       onpaste="handleStage2Paste(event, ${r}, ${c}, ${batch}, ${textDims.length})"
+                       style="width:100%; height:100%; border:none; outline:none; text-align:center; padding:8px 4px; font-family:monospace; background:transparent;">
+            </td>`;
+        });
+        tableHTML += `</tr>`;
+    }
+    tableHTML += `</tbody></table></div>
+    <div style="font-size:11px; color:var(--text3); text-align:right;">* สามารถ Copy ข้อมูลจาก SM Flash (Excel) มาคลิก Paste ที่ช่องไหนก็ได้ในตาราง</div>`;
+
+    container.innerHTML = tableHTML;
+}
+
+function evalStage2Cell(inputEl, mk) {
+    const val = parseFloat(inputEl.value);
+    const dim = inputEl.dataset.dim;
+    const cfg = getManualFormCfg(mk, dim);
+
+    if (isNaN(val)) {
+        inputEl.style.backgroundColor = 'transparent';
+        inputEl.style.color = 'var(--text)';
+        refreshMergePreview();
+        return;
+    }
+
+    let isOut = false;
+    if (cfg.usl !== null && cfg.usl !== undefined && val > cfg.usl) isOut = true;
+    if (cfg.lsl !== null && cfg.lsl !== undefined && val < cfg.lsl) isOut = true;
+
+    if (isOut) {
+        inputEl.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+        inputEl.style.color = 'var(--fail)';
+        inputEl.style.fontWeight = '700';
+    } else {
+        inputEl.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+        inputEl.style.color = 'var(--green)';
+        inputEl.style.fontWeight = '700';
+    }
+
+    // Auto trigger preview refresh when data changes
+    refreshMergePreview();
+}
+
+function handleStage2Paste(e, startRow, absStartCol, totalRows, totalCols) {
+    e.preventDefault();
+    const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+    if (!text) return;
+
+    // Parse pasted data: rows by newline, cols by tab/space
+    const pastedRows = text.trim().split(/\r?\n/).map(row => {
+        let parts;
+        if (row.includes('\t')) parts = row.split('\t');
+        else if (/  +/.test(row)) parts = row.split(/\s{2,}/);
+        else parts = row.split(/\s+/);
+        return parts.map(p => p.trim());
+    });
+
+    const mk = document.getElementById('merge-model').value;
+
+    let r = startRow;
+    for (const rowData of pastedRows) {
+        if (r >= totalRows) break;
+        let c = absStartCol;
+        for (const val of rowData) {
+            if (c >= totalCols) break;
+
+            // Find the target input
+            const inputEl = document.querySelector(`.s2-grid-input[data-row="${r}"][data-col="${c}"]`);
+            if (inputEl) {
+                const parsedVal = parseFloat(val);
+                if (!isNaN(parsedVal)) {
+                    inputEl.value = parsedVal.toFixed(4);
+                    // Trigger validation
+                    evalStage2Cell(inputEl, mk);
+                }
+            }
+            c++;
+        }
+        r++;
+    }
 }
 
 function refreshMergePreview() {
@@ -5171,7 +5453,6 @@ function refreshMergePreview() {
     const ptFilter = document.getElementById('merge-pt').value.trim();
     const ovFilter = document.getElementById('merge-oven').value.trim();
     const batch = parseInt(document.getElementById('merge-batch').value) || 4;
-    const rawText = document.getElementById('bulk-merge-textarea').value;
     const previewArea = document.getElementById('merge-preview-area');
     const mergeBtn = document.getElementById('btn-bulk-merge');
 
@@ -5184,9 +5465,27 @@ function refreshMergePreview() {
         return;
     }
 
-    // ── Use smart parser ──
     const textDims = buildDictDimMap(mk);
-    const parsedRows = parseBulkTextSmart(rawText, mk);
+
+    // Extract data from grid
+    let parsedRows = [];
+    let hasData = false;
+    for (let r = 0; r < batch; r++) {
+        let rowVals = {};
+        let rowHasData = false;
+        textDims.forEach((dim, c) => {
+            const inputEl = document.querySelector(`.s2-grid-input[data-row="${r}"][data-col="${c}"]`);
+            if (inputEl && inputEl.value !== "") {
+                const val = parseFloat(inputEl.value);
+                if (!isNaN(val)) {
+                    rowVals[dim] = val;
+                    rowHasData = true;
+                    hasData = true;
+                }
+            }
+        });
+        if (rowHasData) parsedRows.push(rowVals);
+    }
 
     // ─── Fix: ค้นหา WAITING records จาก DRAFT_DB (ไม่ใช่ DB.records) ───────
     // เหตุผล: records ที่ save ด้วย saveManualDraft() จะอยู่ใน DRAFT_DB เสมอ
@@ -5204,8 +5503,8 @@ function refreshMergePreview() {
 
     if (!previewArea) return;
 
-    if (parsedRows.length === 0 && rawText.trim().length > 0) {
-        previewArea.innerHTML = '<p style="color:var(--fail);font-size:12px;">❌ ไม่พบข้อมูลตัวเลขในข้อความที่วาง — ตรวจสอบ format อีกครั้ง</p>';
+    if (!hasData) {
+        previewArea.innerHTML = '<p style="color:var(--text3);font-size:12px;">กรุณากรอกข้อมูลลงในตาราง หรือวางข้อมูลจาก SM Flash</p>';
         return;
     }
 
@@ -5284,18 +5583,39 @@ function refreshMergePreview() {
 // ============================================================
 function bulkTextMerge() {
     const mk = document.getElementById('merge-model').value;
+    const dtType = document.getElementById('merge-datatype').value;
     const ptFilter = document.getElementById('merge-pt').value.trim();
     const ovFilter = document.getElementById('merge-oven').value.trim();
-    const rawText = document.getElementById('bulk-merge-textarea').value;
+    const batch = parseInt(document.getElementById('merge-batch').value) || 4;
 
     if (!mk) { showToast('กรุณาเลือก Product', 'warn'); return; }
 
-    const parsedRows = parseBulkTextSmart(rawText, mk);
-    if (parsedRows.length === 0) { showToast('❌ ไม่พบข้อมูล SM Flash ในข้อความที่วาง', 'error'); return; }
+    const textDims = buildDictDimMap(mk);
+    let parsedRows = [];
+    let hasData = false;
+    for (let r = 0; r < batch; r++) {
+        let rowVals = {};
+        let rowHasData = false;
+        textDims.forEach((dim, c) => {
+            const inputEl = document.querySelector(`.s2-grid-input[data-row="${r}"][data-col="${c}"]`);
+            if (inputEl && inputEl.value !== "") {
+                const val = parseFloat(inputEl.value);
+                if (!isNaN(val)) {
+                    rowVals[dim] = val;
+                    rowHasData = true;
+                    hasData = true;
+                }
+            }
+        });
+        if (rowHasData) parsedRows.push(rowVals);
+    }
+
+    if (!hasData) { showToast('❌ กรุณากรอกข้อมูลในตาราง หรือวางข้อมูลจาก SM Flash', 'error'); return; }
 
     // ─── Fix: ค้นหา WAITING drafts จาก DRAFT_DB โดยตรง ───────────────────────
     const candidates = DB.records.filter(r =>
         r.status === 'WAITING' && r.model === mk &&
+        (r.dataType || 'Buy off') === dtType &&
         (ptFilter === '' || r.pt === ptFilter) &&
         (ovFilter === '' || r.oven === ovFilter)
     ).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -5353,16 +5673,35 @@ function bulkTextMerge() {
         // (เดิม Stage 2 ไม่เคยเรียก sendSystemAlert เลย ทำให้ warning จาก
         //  การ Merge ไม่เคยถูกบันทึกลงตาราง system_alert ใน MySQL)
         if (finalStatus === 'REJECT' || finalStatus === 'ALERT') {
-            const alertLevel = finalStatus === 'REJECT' ? 'ng' : 'alert';
-            const alertMsg = `[${draftRec.dataType}] ${PRODUCTS[draftRec.model] ? PRODUCTS[draftRec.model].label : draftRec.model} | Fixture: ${draftRec.fixture} | PT: ${draftRec.pt} | Status: ${finalStatus} (Stage 2 Merge)`;
-            sendSystemAlert(alertLevel, alertMsg, {
-                product: draftRec.model,
-                fixture: draftRec.fixture,
-                oven: draftRec.oven,
-                pt: draftRec.pt,
-                dataType: draftRec.dataType,
-                values: draftRec.values
-            });
+            const violations = getViolatingParams(draftRec.values, draftRec.model, draftRec.dataType);
+            if (violations.length > 0) {
+                violations.forEach(v => {
+                    const vLevel = v.level === 'critical' ? 'ng' : 'alert';
+                    const vMsg = `[${draftRec.dataType}] ${PRODUCTS[draftRec.model] ? PRODUCTS[draftRec.model].label : draftRec.model} | Fixture: ${draftRec.fixture} | PT: ${draftRec.pt} | ${v.param} = ${v.value} (${v.level === 'critical' ? 'เกิน Spec Limit' : 'เกิน Control Limit'}) (Stage 2 Merge)`;
+                    sendSystemAlert(vLevel, vMsg, {
+                        product: draftRec.model,
+                        fixture: draftRec.fixture,
+                        oven: draftRec.oven,
+                        pt: draftRec.pt,
+                        dataType: draftRec.dataType,
+                        param: v.param,
+                        value: v.value,
+                        specStr: v.specStr,
+                        values: draftRec.values
+                    });
+                });
+            } else {
+                const alertLevel = finalStatus === 'REJECT' ? 'ng' : 'alert';
+                const alertMsg = `[${draftRec.dataType}] ${PRODUCTS[draftRec.model] ? PRODUCTS[draftRec.model].label : draftRec.model} | Fixture: ${draftRec.fixture} | PT: ${draftRec.pt} | Status: ${finalStatus} (Stage 2 Merge)`;
+                sendSystemAlert(alertLevel, alertMsg, {
+                    product: draftRec.model,
+                    fixture: draftRec.fixture,
+                    oven: draftRec.oven,
+                    pt: draftRec.pt,
+                    dataType: draftRec.dataType,
+                    values: draftRec.values
+                });
+            }
         }
     }
 
@@ -5386,7 +5725,10 @@ function bulkTextMerge() {
         showToast(`✅ Merge สำเร็จ ${updatedCount} รายการ (Offline Mode — จะ sync เมื่อออนไลน์)`, 'warn');
     }
 
-    document.getElementById('bulk-merge-textarea').value = '';
+    document.querySelectorAll('.s2-grid-input').forEach(inp => {
+        inp.value = '';
+        inp.style.backgroundColor = 'transparent';
+    });
     document.getElementById('merge-preview-area').innerHTML = '';
     const mergeBtn = document.getElementById('btn-bulk-merge');
     if (mergeBtn) { mergeBtn.disabled = true; mergeBtn.textContent = '⚡ Merge Text Data (0 records)'; }
@@ -5398,7 +5740,41 @@ function handleMergeFileUpload(input) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function (e) {
-        document.getElementById('bulk-merge-textarea').value = e.target.result;
+        const text = e.target.result;
+        if (!text) return;
+
+        const mk = document.getElementById('merge-model').value;
+        const batch = parseInt(document.getElementById('merge-batch').value) || 4;
+        const textDims = buildDictDimMap(mk);
+
+        const pastedRows = text.trim().split(/\r?\n/).map(row => {
+            let parts;
+            if (row.includes('\t')) parts = row.split('\t');
+            else if (/  +/.test(row)) parts = row.split(/\s{2,}/);
+            else parts = row.split(/\s+/);
+            return parts.map(p => p.trim());
+        });
+
+        let r = 0;
+        for (const rowData of pastedRows) {
+            if (r >= batch) break;
+            let c = 0;
+            for (const val of rowData) {
+                if (c >= textDims.length) break;
+                
+                const inputEl = document.querySelector(`.s2-grid-input[data-row="${r}"][data-col="${c}"]`);
+                if (inputEl) {
+                    const parsedVal = parseFloat(val);
+                    if (!isNaN(parsedVal)) {
+                        inputEl.value = parsedVal.toFixed(4);
+                        evalStage2Cell(inputEl, mk);
+                    }
+                }
+                c++;
+            }
+            r++;
+        }
+        
         refreshMergePreview();
     };
     reader.readAsText(file);

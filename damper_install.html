@@ -20,6 +20,70 @@
             font-family: 'Calibri', 'Candara', 'Segoe UI', sans-serif !important;
         }
 
+        /* ── Nav tab + badge alignment (แก้ปุ่ม "About Data" ให้เรียงกับ tab อื่นพอดี) ── */
+        .nav-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            line-height: 1;
+        }
+
+        .nav-btn .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
+            background: rgba(0, 0, 0, .12);
+            color: inherit;
+        }
+
+        /* ── Round icon-buttons for table row actions (ให้หน้าตาเหมือนหน้า About Data อื่นๆ) ── */
+        .icon-btn {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            border: 1px solid var(--border2);
+            background: var(--bg);
+            color: var(--text2);
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            transition: all .15s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg2);
+            border-color: var(--blue);
+            color: var(--blue);
+        }
+
+        .icon-btn.icon-btn-danger:hover {
+            background: rgba(231, 76, 60, .08);
+            border-color: var(--fail);
+            color: var(--fail);
+        }
+
+        .row-chk,
+        #chk-select-all {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        #btn-delete-selected:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
         /* ── Clock animation ── */
         @keyframes pulse {
             0% {
@@ -425,9 +489,8 @@
             <button class="nav-btn active" data-tab="manual" onclick="switchTab('manual',this)">Stage 1: Manual
                 Input</button>
             <button class="nav-btn" data-tab="stage2" onclick="switchTab('stage2',this)">Stage 2: Bulk Merge</button>
-            <button class="nav-btn" data-tab="records" onclick="switchTab('records',this)">
-                About Data <span class="badge" id="badge-records">0</span>
-            </button>
+            <button class="nav-btn" data-tab="records" onclick="switchTab('records',this)">About Data <span
+                    class="badge" id="badge-records">0</span></button>
             <button class="nav-btn" data-tab="viz" onclick="switchTab('viz',this)">Visualization</button>
         </div>
 
@@ -654,11 +717,20 @@
                         </div>
 
                         <!-- NEW: Target Selection like Dispensing -->
-                        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr; margin-bottom:12px;">
+                        <div class="form-grid"
+                            style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); margin-bottom:12px;">
+                            <div class="form-group">
+                                <label style="color:var(--blue);font-weight:700">Data Type <span
+                                        style="color:var(--fail)">*</span></label>
+                                <select id="merge-datatype" class="form-select" style="border-color:var(--blue);" onchange="buildStage2DimGroups()">
+                                    <option value="buyoff">🔴 Buy Off</option>
+                                    <option value="roving">🔵 Roving Audit</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label style="color:var(--blue);font-weight:700">Target Product <span
                                         style="color:var(--fail)">*</span></label>
-                                <select id="merge-product" class="form-select" style="border-color:var(--blue);">
+                                <select id="merge-product" class="form-select" style="border-color:var(--blue);" onchange="if(this.value) { applyDamperConfigForProduct(this.value); buildStage2DimGroups(); }">
                                     <option value="">— เลือก Product —</option>
                                 </select>
                             </div>
@@ -674,17 +746,9 @@
                             </div>
                         </div>
 
-                        <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-                            <div class="form-group">
-                                <label>Datum Data</label>
-                                <textarea id="m-top-data" class="form-input" rows="6"
-                                    placeholder="e.g. 0.814, 0.815, 0.813, 0.814"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label>Non-datum Data</label>
-                                <textarea id="m-bot-data" class="form-input" rows="6"
-                                    placeholder="e.g. 0.030, 0.031, 0.029, 0.030"></textarea>
-                            </div>
+                        <div id="stage2-dim-groups-container" class="form-grid"
+                            style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+                            <!-- Injected dynamically by JS -->
                         </div>
 
                         <div style="margin-top:10px" class="btn-row">
@@ -709,9 +773,9 @@
                             <div class="card-sub" id="records-count-label">Loading...</div>
                         </div>
                         <div class="btn-row">
-                            <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 Export CSV</button>
+                            <button class="btn btn-outline btn-sm" onclick="exportCSV()">↓ Export Excel</button>
                             <button class="btn btn-success btn-sm"
-                                onclick="document.getElementById('import-csv-file').click()">↑ Import CSV</button>
+                                onclick="document.getElementById('import-csv-file').click()">↑ Import Excel</button>
                             <input type="file" id="import-csv-file" accept=".csv, .xlsx, .xls" style="display:none;"
                                 onchange="importExportedCSV(event)" multiple>
                             <button class="btn btn-danger btn-sm" onclick="clearAllRecords()">🗑️ Clear All</button>
@@ -737,24 +801,26 @@
                             <input type="date" id="flt-to" onchange="renderRecords()" class="form-input"
                                 style="max-width:140px">
                             <button class="btn btn-outline btn-sm" onclick="resetFilter()">Reset</button>
+                            <button class="btn btn-outline btn-sm" id="btn-delete-selected"
+                                onclick="deleteSelectedRecords()" disabled
+                                style="color:var(--fail);border-color:var(--fail);">
+                                🗑️ ลบข้อมูลที่เลือก (<span id="selected-count">0</span>)</button>
                         </div>
 
                         <div class="tbl-wrap" style="margin-top:10px">
                             <table>
                                 <thead>
                                     <tr>
+                                        <th style="width:36px"><input type="checkbox" id="chk-select-all"
+                                                onchange="toggleSelectAllRecords(this)"></th>
                                         <th onclick="sortTable('no')">No. ▲▼</th>
                                         <th onclick="sortTable('date')">Date ▲▼</th>
                                         <th onclick="sortTable('productLabel')">Product ▲▼</th>
                                         <th onclick="sortTable('mc')">M/C ▲▼</th>
-                                        <th onclick="sortTable('team')">Team ▲▼</th>
                                         <th>QC EN#</th>
-                                        <th>ME EN#</th>
-                                        <th>Traveler</th>
                                         <th>Attr.</th>
                                         <th>Pcs</th>
-                                        <th>Datum</th>
-                                        <th>Non-datum</th>
+                                        <th>SPC Data</th>
                                         <th>VMI</th>
                                         <th onclick="sortTable('overall')">Overall ▲▼</th>
                                         <th>Action</th>
@@ -762,7 +828,7 @@
                                 </thead>
                                 <tbody id="records-body">
                                     <tr>
-                                        <td colspan="18" style="text-align:center;padding:32px;color:var(--text3)">
+                                        <td colspan="19" style="text-align:center;padding:32px;color:var(--text3)">
                                             <div style="font-size:28px;margin-bottom:8px">📋</div>ไม่มีข้อมูล
                                         </td>
                                     </tr>

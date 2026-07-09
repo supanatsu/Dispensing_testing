@@ -132,11 +132,13 @@ function updateTableHeader(mod) {
         thead.innerHTML = `
       <tr>
         <th>Product</th>
-        <th>Dimension</th>
+        <th>Point</th>
         <th>Frequency (pcs)</th>
+        <th>LSL</th>
         <th>LCL</th>
         <th>CL</th>
         <th>UCL</th>
+        <th>USL</th>
       </tr>`;
     } else if (mod === 'pof') {
         thead.innerHTML = `
@@ -235,7 +237,7 @@ async function loadSPCLimits() {
     const mode = currentModule;
     const product = document.getElementById('filter-product').value;
     const tbody = document.getElementById('spc-body');
-    const colSpan = mode === 'laser' ? 4 : mode === 'damper' ? 6 : mode === 'pof' ? 9 : 8;
+    const colSpan = mode === 'laser' ? 4 : mode === 'damper' ? 8 : mode === 'pof' ? 9 : 8;
 
     tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center">Loading…</td></tr>`;
 
@@ -284,7 +286,7 @@ async function loadSPCLimits() {
         renderTable();
     } catch (err) {
         console.error(err);
-        const colSpan2 = mode === 'laser' ? 4 : mode === 'damper' ? 6 : mode === 'pof' ? 9 : 8;
+        const colSpan2 = mode === 'laser' ? 4 : mode === 'damper' ? 8 : mode === 'pof' ? 9 : 8;
         tbody.innerHTML = `<tr><td colspan="${colSpan2}" style="text-align:center;color:var(--danger)">
       API Endpoint Not Found</td></tr>`;
     }
@@ -294,7 +296,11 @@ async function loadSPCLimits() {
 function _getDimsForModule(mode, productKey) {
     if (mode === 'laser') return ['laser_config'];
     if (mode === 'pof') return getPOFDimsForProduct(productKey);
-    if (mode === 'damper') return ['bottom', 'top'];
+    // Damper: 4 datum points + 4 non-datum points
+    if (mode === 'damper') return [
+        'datum_pt1', 'datum_pt2', 'datum_pt3', 'datum_pt4',
+        'nondatum_pt1', 'nondatum_pt2', 'nondatum_pt3', 'nondatum_pt4'
+    ];
     // dispensing – ใช้ PRODUCTS หรือ SPEC_BUYOFF ถ้ามี
     if (typeof PRODUCTS !== 'undefined' && PRODUCTS[productKey]) {
         const dims = PRODUCTS[productKey].dims || [];
@@ -324,7 +330,7 @@ function renderTable() {
     tbody.innerHTML = '';
 
     if (currentLimits.length === 0) {
-        const colSpan = currentModule === 'laser' ? 4 : currentModule === 'damper' ? 6 : currentModule === 'pof' ? 9 : 8;
+        const colSpan = currentModule === 'laser' ? 4 : currentModule === 'damper' ? 8 : currentModule === 'pof' ? 9 : 8;
         tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center">
       กรุณาเลือก Product เพื่อกำหนดค่า SPC limits</td></tr>`;
         return;
@@ -344,17 +350,25 @@ function renderTable() {
             onchange="updateLimit(${idx},'laser_shift',this.value)"></td>`;
 
         } else if (currentModule === 'damper') {
+            // Damper: full 8 columns with colored row per group type
+            const isDatumRow = lim.dimension_name && lim.dimension_name.startsWith('datum');
+            const rowBg = isDatumRow ? 'rgba(59,130,246,0.04)' : 'rgba(155,89,182,0.04)';
+            tr.style.background = rowBg;
             tr.innerHTML = `
         <td style="font-weight:600">${lim.product_key}</td>
         <td>${_dimLabel(lim.dimension_name)}</td>
         <td class="editable-cell"><input type="number" step="1" value="${_v(lim.frequency)}"
             onchange="updateLimit(${idx},'frequency',this.value)"></td>
+        <td class="editable-cell"><input type="number" step="0.0001" value="${_v(lim.lsl)}"
+            onchange="updateLimit(${idx},'lsl',this.value)"></td>
         <td class="editable-cell"><input type="number" step="0.0001" value="${_v(lim.lcl)}"
             onchange="updateLimit(${idx},'lcl',this.value)"></td>
         <td class="editable-cell"><input type="number" step="0.0001" value="${_v(lim.cl)}"
             onchange="updateLimit(${idx},'cl',this.value)"></td>
         <td class="editable-cell"><input type="number" step="0.0001" value="${_v(lim.ucl)}"
-            onchange="updateLimit(${idx},'ucl',this.value)"></td>`;
+            onchange="updateLimit(${idx},'ucl',this.value)"></td>
+        <td class="editable-cell"><input type="number" step="0.0001" value="${_v(lim.usl)}"
+            onchange="updateLimit(${idx},'usl',this.value)"></td>`;
 
         } else if (currentModule === 'pof') {
             // แสดง mode badge (buyoff / roving)
@@ -412,6 +426,15 @@ function _dimLabel(name) {
         bottom: 'Bottom',
         top: 'Top',
         laser_config: 'Laser Config',
+        // Damper 4-point dimensions
+        datum_pt1: 'Datum — Pt 1/1',
+        datum_pt2: 'Datum — Pt 1/2',
+        datum_pt3: 'Datum — Pt 1/3',
+        datum_pt4: 'Datum — Pt 1/4',
+        nondatum_pt1: 'Non-datum — Pt 2/1',
+        nondatum_pt2: 'Non-datum — Pt 2/2',
+        nondatum_pt3: 'Non-datum — Pt 2/3',
+        nondatum_pt4: 'Non-datum — Pt 2/4',
     };
     return map[name] || name;
 }

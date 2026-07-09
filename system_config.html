@@ -97,7 +97,8 @@
                                 <label
                                     style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก
                                     Module</label>
-                                <select id="sys-prod-module" class="form-select" style="width:100%; font-weight:600;">
+                                <select id="sys-prod-module" class="form-select" style="width:100%; font-weight:600;"
+                                    onchange="onSysProdModuleChange()">
                                     <option value="dispensing">Dispensing</option>
                                     <option value="laser">Laser Engraving</option>
                                     <option value="pof">Push Out Force</option>
@@ -170,6 +171,13 @@
                             </svg>
                             Dispensing — SPC Parameters
                         </h3>
+
+                        <div class="form-grid" style="grid-template-columns:1fr 1fr; margin-bottom:16px">
+                            <div class="form-group"><label>Buy off Freq (pcs)</label><input type="number"
+                                    id="sys-disp-freq-buyoff" class="form-input"></div>
+                            <div class="form-group"><label>Roving Freq (pcs)</label><input type="number"
+                                    id="sys-disp-freq-roving" class="form-input"></div>
+                        </div>
 
                         <!-- Product Selector -->
                         <div
@@ -367,6 +375,70 @@
                                 style="background:#10b981; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾
                                 บันทึก Laser Settings</button>
                         </div>
+
+                        <!-- LASER — SPC PARAMETERS (LSL/LCL/CL/UCL/USL, มีปุ่ม เพิ่มพารามิเตอร์) -->
+                        <div style="margin-top:28px; padding-top:20px; border-top:2px dashed rgba(245,158,11,0.3);">
+                            <h4
+                                style="color:var(--text); margin-top:0; margin-bottom:16px; font-size:13px; display:flex; align-items:center; gap:8px;">
+                                📏 Laser Engraving — Pass/Fail Parameters
+                            </h4>
+
+                            <div
+                                style="margin-bottom:16px; padding:16px; background:rgba(245,158,11,0.05); border-radius:8px; border:1px solid rgba(245,158,11,0.2);">
+                                <div class="form-grid"
+                                    style="grid-template-columns:auto auto 1fr; align-items:end; margin-bottom:0;">
+                                    <div class="form-group">
+                                        <label
+                                            style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือกประเภท
+                                            (Data Type)</label>
+                                        <select id="sys-laser-datatype" class="form-select"
+                                            onchange="if(window.populateFilteredDropdown) window.populateFilteredDropdown('laser', 'sys-laser-model', this.value); renderLaserConfigTable()"
+                                            style="font-weight:600; min-width:150px;">
+                                            <option value="Buy-off">Buy-off</option>
+                                            <option value="Roving">Roving</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label
+                                            style="display:block; font-size:12px; font-weight:700; color:var(--text3); margin-bottom:6px;">เลือก
+                                            Product</label>
+                                        <select id="sys-laser-model" class="form-select"
+                                            onchange="renderLaserConfigTable()"
+                                            style="font-weight:600; min-width:250px;">
+                                            <option value="">— เลือก Product —</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group"
+                                        style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                        <button class="btn btn-outline" onclick="addLaserConfigRow()"
+                                            style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tbl-wrap" style="border-radius:8px; overflow:hidden; border:1px solid #eee;">
+                                <table style="margin:0; width:100%;">
+                                    <thead style="background:#f8fafc;">
+                                        <tr>
+                                            <th style="padding:12px 16px; font-weight:700; color:#334155;">Parameter
+                                                Name</th>
+                                            <th
+                                                style="padding:12px 16px; font-weight:700; color:#334155; text-align:center;">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sys-laser-tbody" style="background:#fff;"></tbody>
+                                </table>
+                            </div>
+
+                            <div
+                                style="display:flex; justify-content:flex-end; gap:12px; padding-top:16px; margin-top:8px; border-top:1px solid #f1f5f9;">
+                                <button class="btn btn-primary" onclick="saveLaserConfigs()"
+                                    style="background:#10b981; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾
+                                    บันทึก Laser Pass/Fail Parameters</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -548,6 +620,8 @@
                                 </div>
                                 <div class="form-group"
                                     style="justify-content:flex-end; flex-direction:row; align-items:flex-end; gap:12px;">
+                                    <button class="btn btn-outline" onclick="addPofConfigRow()"
+                                        style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
                                     <button class="btn btn-danger" onclick="resetGlobalPofConfig()"
                                         style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺
                                         Reset</button>
@@ -991,9 +1065,42 @@
                                     </div>
                                 </div>
 
+                                <div class="tbl-wrap"
+                                    style="margin-top: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 24px;">
+                                    <h4
+                                        style="padding:10px 16px; background:#f1f5f9; margin:0; font-size:13px; color:#334155; border-bottom:1px solid #e2e8f0;">
+                                        ➕ POF Additional SPC Parameters (Optional)</h4>
+                                    <table style="margin: 0; width: 100%; border-collapse: collapse;">
+                                        <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                            <tr>
+                                                <th
+                                                    style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">
+                                                    Parameter Name</th>
+                                                <th style="padding: 12px 16px; font-weight: 700; color: var(--fail);">
+                                                    LSL</th>
+                                                <th style="padding: 12px 16px; font-weight: 700; color: var(--warn);">
+                                                    LCL</th>
+                                                <th style="padding: 12px 16px; font-weight: 700; color: var(--green);">
+                                                    CL (Target)</th>
+                                                <th style="padding: 12px 16px; font-weight: 700; color: var(--warn);">
+                                                    UCL</th>
+                                                <th style="padding: 12px 16px; font-weight: 700; color: var(--fail);">
+                                                    USL</th>
+                                                <th
+                                                    style="padding: 12px 16px; font-weight: 700; color: #334155; text-align:center;">
+                                                    Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sys-pof-tbody" style="background: #fff;"></tbody>
+                                    </table>
+                                </div>
+
                                 <!-- Save Button Row -->
                                 <div
                                     style="display:flex; justify-content:flex-end; gap:12px; padding-top:16px; margin-top:8px; border-top:1px solid #f1f5f9;">
+                                    <button class="btn btn-primary" onclick="savePofConfigs()"
+                                        style="background:#8b5cf6; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(139,92,246,0.2);">💾
+                                        บันทึก Additional Parameters</button>
                                     <button class="btn btn-primary" onclick="saveGlobalPofConfig()"
                                         style="background:#10b981; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾
                                         บันทึก POF Settings</button>
@@ -1164,11 +1271,33 @@
 
                                 <div class="form-group"
                                     style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
+                                    <button class="btn btn-outline" onclick="addDamperConfigRow()"
+                                        style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
                                     <button class="btn btn-danger" onclick="resetGlobalDamperConfig()"
                                         style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺
                                         Reset</button>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Table for Damper Specs -->
+                        <div style="background:#fff; border-radius:8px; overflow:hidden; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(0,0,0,0.02); margin-bottom: 16px;">
+                            <table style="margin: 0; width: 100%; border-collapse: collapse;">
+                                <thead style="background: #f8fafc; font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <tr>
+                                        <th style="padding: 12px 16px; text-align: left;">PARAMETER NAME</th>
+                                        <th style="padding: 12px 16px; text-align: left;">LSL</th>
+                                        <th style="padding: 12px 16px; text-align: left;">LCL</th>
+                                        <th style="padding: 12px 16px; text-align: left;">CL (TARGET)</th>
+                                        <th style="padding: 12px 16px; text-align: left;">UCL</th>
+                                        <th style="padding: 12px 16px; text-align: left;">USL</th>
+                                        <th style="padding: 12px 16px; text-align: center;">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sys-damper-tbody" style="font-size: 13px;">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
                         </div>
 
                         <!-- Frequency row — แสดงตาม Data Type ที่เลือก -->
@@ -1192,74 +1321,11 @@
                         </div>
                     </div>
 
-                    <div class="tbl-wrap"
-                        style="border-radius: 8px; overflow: hidden; border: 1px solid #eee; margin-bottom: 16px;">
-                        <table style="margin: 0; width: 100%;">
-                            <thead style="background: #f8fafc;">
-                                <tr>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">
-                                        Damper Type</th>
-                                    <th style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: left;">
-                                        Point</th>
-                                    <th
-                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
-                                        USL</th>
-                                    <th
-                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
-                                        UCL</th>
-                                    <th
-                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
-                                        CL</th>
-                                    <th
-                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
-                                        LCL</th>
-                                    <th
-                                        style="padding: 12px 16px; font-weight: 700; color: #334155; text-align: center;">
-                                        LSL</th>
-                                </tr>
-                            </thead>
-                            <tbody id="gc-dmp-tbody">
-                                <tr style="border-bottom: 1px solid #f1f5f9;">
-                                    <td colspan="2"
-                                        style="padding: 12px 16px; font-weight:700; color:#0ea5e9; vertical-align:middle; border-right:1px solid #f1f5f9;">
-                                        1. Datum
-                                    </td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-usl"
-                                            class="form-input" placeholder="1.368"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-ucl"
-                                            class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-cl"
-                                            class="form-input" placeholder="1.358"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lcl"
-                                            class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-datum-lsl"
-                                            class="form-input" placeholder="1.348"></td>
-                                </tr>
-                                <tr style="border-bottom: 1px solid #f1f5f9;">
-                                    <td colspan="2"
-                                        style="padding: 12px 16px; font-weight:700; color:#d946ef; vertical-align:middle; border-right:1px solid #f1f5f9;">
-                                        2. Non-datum
-                                    </td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-usl"
-                                            class="form-input" placeholder="0.824"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-ucl"
-                                            class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-cl"
-                                            class="form-input" placeholder="0.814"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lcl"
-                                            class="form-input"></td>
-                                    <td style="padding: 8px;"><input type="number" step="0.001" id="gc-dmp-nondatum-lsl"
-                                            class="form-input" placeholder="0.804"></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
                     <!-- Save Button Row -->
                     <div
-                        style="display:flex; justify-content:flex-end; gap:12px; padding-top:8px; border-top:1px solid #f1f5f9;">
-                        <button class="btn btn-primary" onclick="saveGlobalDamperConfig()"
-                            style="background:#10b981; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(16,185,129,0.2);">💾
+                        style="display:flex; justify-content:flex-end; gap:12px; padding:16px; border-top:1px solid #f1f5f9;">
+                        <button class="btn btn-primary" onclick="saveDamperConfigs()"
+                            style="background:#ec4899; border:none; padding:10px 24px; font-weight:bold; box-shadow:0 2px 4px rgba(236,72,153,0.2);">💾
                             บันทึก Damper Specs</button>
                     </div>
 
@@ -1273,22 +1339,12 @@
 
                             const isRoving = (dt === 'roving' || dt === 'Roving');
 
-                            // Hide table for roving
-                            const tableWrap = document.getElementById('gc-dmp-tbody')?.closest('.tbl-wrap');
-                            if (tableWrap) tableWrap.style.display = isRoving ? 'none' : 'block';
-
                             // Show/hide frequency inputs based on data type
                             const freqBuyoffWrap = document.getElementById('gc-dmp-freq-buyoff-wrap');
                             const freqRovingWrap = document.getElementById('gc-dmp-freq-roving-wrap');
                             if (freqBuyoffWrap) freqBuyoffWrap.style.display = isRoving ? 'none' : 'block';
                             if (freqRovingWrap) freqRovingWrap.style.display = isRoving ? 'block' : 'none';
                         }
-
-                        // Override the onchange for gc-dmp-datatype to call this
-                        document.getElementById('gc-dmp-datatype').onchange = function () {
-                            filterDamperRows();
-                            loadGlobalDamperConfig();
-                        };
                     </script>
                 </div>
             </div>
@@ -1358,6 +1414,153 @@
             }
         };
 
+        // ==========================================================
+        // TOAST (ถูกเรียกใช้หลายจุดในไฟล์นี้ แต่ไม่เคยถูกประกาศไว้จริง)
+        // ==========================================================
+        function showToast(msg, type = 'success') {
+            const panel = document.getElementById('toast-panel');
+            if (!panel) { console.log(`[Toast:${type}]`, msg); return; }
+            const colors = {
+                success: { bg: '#d1fae5', text: '#065f46', border: '#10b981' },
+                warn: { bg: '#fef3c7', text: '#92400e', border: '#f59e0b' },
+                error: { bg: '#fee2e2', text: '#991b1b', border: '#ef4444' }
+            };
+            const c = colors[type] || colors.success;
+            const el = document.createElement('div');
+            el.style.cssText = `background:${c.bg};color:${c.text};border:1px solid ${c.border};padding:12px 18px;border-radius:8px;margin-top:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.1);max-width:360px;`;
+            el.textContent = msg;
+            panel.appendChild(el);
+            setTimeout(() => { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+        }
+
+        // ==========================================================
+        // MASTER PRODUCTS PANEL — เพิ่ม/แก้ไข/ลบ/แสดงรายการ
+        // เมื่อเลือก Module แล้วจะโหลด+แสดงเฉพาะ Product ของ Module นั้น
+        // ==========================================================
+        const SYS_PROD_LIST_ENDPOINTS = {
+            dispensing: '/api/dispensing/products_list',
+            laser: '/api/laser/products_list',
+            pof: '/api/pof/products_list',
+            damper: '/api/damper/products_list'
+        };
+
+        function onSysProdModuleChange() {
+            // ล้างฟอร์มเมื่อเปลี่ยน Module เพื่อไม่ให้ค้างค่าจาก Module ก่อนหน้า
+            document.getElementById('sys-prod-key').value = '';
+            document.getElementById('sys-prod-name').value = '';
+            loadMasterProducts();
+        }
+
+        async function loadMasterProducts() {
+            const mod = document.getElementById('sys-prod-module').value;
+            const tbody = document.getElementById('sys-prod-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:#94a3b8;">กำลังโหลด...</td></tr>';
+
+            try {
+                const endpoint = SYS_PROD_LIST_ENDPOINTS[mod];
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + endpoint);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'โหลดไม่สำเร็จ');
+                renderMasterProductsTable(data.products || []);
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:#ef4444;">โหลดไม่สำเร็จ: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderMasterProductsTable(products) {
+            const tbody = document.getElementById('sys-prod-tbody');
+            if (!tbody) return;
+            if (!products || products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:#94a3b8;">ยังไม่มี Product ในโมดูลนี้ — เพิ่มได้จากฟอร์มด้านบน</td></tr>';
+                return;
+            }
+            let html = '';
+            products.forEach(p => {
+                const key = p.product_key || p.product_name;
+                const nameEsc = String(p.product_name || '').replace(/'/g, "\\'");
+                const modeEsc = String(p.mode || '').replace(/'/g, "\\'");
+                const keyEsc = String(key).replace(/'/g, "\\'");
+                html += `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:10px 16px; font-family:monospace; color:#475569;">${key}</td>
+                    <td style="padding:10px 16px; font-weight:600;">${p.product_name}</td>
+                    <td style="padding:10px 16px; text-align:center;">
+                        <span style="background:#eef2ff;color:#4338ca;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;">${p.mode || '-'}</span>
+                    </td>
+                    <td style="padding:10px 16px; text-align:center; white-space:nowrap;">
+                        <button class="btn btn-outline btn-sm" style="padding:4px 10px;margin-right:6px;"
+                            onclick="editMasterProduct('${keyEsc}','${nameEsc}','${modeEsc}')">แก้ไข</button>
+                        <button class="btn btn-danger btn-sm" style="padding:4px 10px;"
+                            onclick="deleteMasterProduct('${nameEsc}','${modeEsc}')">ลบ</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function editMasterProduct(key, name, mode) {
+            document.getElementById('sys-prod-key').value = key;
+            document.getElementById('sys-prod-name').value = name;
+            if (mode) {
+                const typeEl = document.getElementById('sys-prod-type');
+                if (typeEl && Array.from(typeEl.options).some(o => o.value === mode)) typeEl.value = mode;
+            }
+            document.getElementById('sys-prod-key').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('sys-prod-name').focus();
+        }
+
+        async function saveMasterProduct() {
+            const mod = document.getElementById('sys-prod-module').value;
+            const type_data = document.getElementById('sys-prod-type').value;
+            const product_key = document.getElementById('sys-prod-key').value.trim();
+            const product_name = document.getElementById('sys-prod-name').value.trim();
+
+            if (!product_name) {
+                showToast('กรุณากรอกชื่อ Product (Product Name)', 'error');
+                document.getElementById('sys-prod-name').focus();
+                return;
+            }
+
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ module: mod, type_data, product_key, product_name })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
+
+                showToast(`✅ บันทึก "${product_name}" สำเร็จ`, 'success');
+                document.getElementById('sys-prod-key').value = '';
+                document.getElementById('sys-prod-name').value = '';
+                loadMasterProducts();
+
+                // อัปเดต dropdown ของ Product ในหน้าอื่นให้ทันสมัยด้วย (ถ้ามี)
+                if (typeof window.loadSharedProducts === 'function') window.loadSharedProducts();
+            } catch (err) {
+                showToast('❌ บันทึกไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteMasterProduct(name, mode) {
+            const mod = document.getElementById('sys-prod-module').value;
+            if (!confirm(`ลบ "${name}" (${mode || '-'}) ออกจากโมดูลนี้?`)) return;
+
+            try {
+                const params = new URLSearchParams({ module: mod, name, mode: mode || '' });
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/products?' + params.toString(), {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'ลบไม่สำเร็จ');
+                showToast('🗑️ ลบสำเร็จ', 'success');
+                loadMasterProducts();
+            } catch (err) {
+                showToast('❌ ลบไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
         function sysConfigModuleChange() {
             const mod = document.getElementById('sys-cfg-module').value;
 
@@ -1380,7 +1583,11 @@
                 if (panelLaser) panelLaser.style.display = 'block';
                 if (typeof initGlobalConfig === 'function') initGlobalConfig();
                 if (typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
-                return; // Laser has no SPC table logic here
+                if (typeof window.populateFilteredDropdown === 'function') {
+                    window.populateFilteredDropdown('laser', 'sys-laser-model', document.getElementById('sys-laser-datatype')?.value || 'Buy-off');
+                }
+                renderLaserConfigTable();
+                return;
             } else if (mod === 'pof') {
                 if (panelPof) panelPof.style.display = 'block';
                 if (typeof initGlobalConfig === 'function') initGlobalConfig(); // reset POF dropdown
@@ -1417,116 +1624,126 @@
             }
         }
 
-            let currentPofCfg = {};
-            let currentDamperCfg = {};
-            let currentLaserCfg = {};
+        let currentPofCfg = {};
+        let currentDamperCfg = {};
+        let currentLaserCfg = {};
 
-            window.onload = function () {
-                // Load Dispensing
-                const lsKeyDisp = SYS_CFG_KEYS['dispensing'];
-                let dataDisp = localStorage.getItem(lsKeyDisp);
+        window.onload = function () {
+            // Load Dispensing
+            const lsKeyDisp = SYS_CFG_KEYS['dispensing'];
+            let dataDisp = localStorage.getItem(lsKeyDisp);
+            if (dataDisp) {
+                try {
+                    let parsed = JSON.parse(dataDisp);
+                    currentSysCfg = parsed.configs || {};
+                } catch (e) { }
+            }
+            if (typeof window.populateFilteredDropdown === 'function') {
+                window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'Buy off', true);
+            }
+            renderSysConfigTable();
+
+            // Load Laser
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        data.data.forEach(row => {
+                            const mod = row.product_key;
+                            const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
+                            if (!currentLaserCfg[pMode]) currentLaserCfg[pMode] = {};
+                            currentLaserCfg[pMode][row.dimension_name] = {
+                                lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
+                            };
+                        });
+                    }
+                    if (typeof window.populateFilteredDropdown === 'function') {
+                        window.populateFilteredDropdown('laser', 'sys-laser-model', document.getElementById('sys-laser-datatype')?.value || 'Buy-off');
+                    }
+                    renderLaserConfigTable();
+                }).catch(e => console.error(e));
+
+            // Load POF
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        data.data.forEach(row => {
+                            const mod = row.product_key;
+                            const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
+                            if (!currentPofCfg[pMode]) currentPofCfg[pMode] = {};
+                            currentPofCfg[pMode][row.dimension_name] = {
+                                lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
+                            };
+                        });
+                    }
+                    if (typeof window.populateFilteredDropdown === 'function') {
+                        window.populateFilteredDropdown('pof', 'gc-pof-product', document.getElementById('gc-pof-datatype')?.value || 'Buy-off');
+                    }
+                    renderPofConfigTable();
+                }).catch(e => console.error(e));
+
+            // Load Damper
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        data.data.forEach(row => {
+                            const mod = row.product_key;
+                            const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
+                            if (!currentDamperCfg[pMode]) currentDamperCfg[pMode] = {};
+                            currentDamperCfg[pMode][row.dimension_name] = {
+                                lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
+                            };
+                        });
+                    }
+                    if (typeof window.populateFilteredDropdown === 'function') {
+                        window.populateFilteredDropdown('damper', 'gc-dmp-product', document.getElementById('gc-dmp-datatype')?.value || 'Buy-off');
+                    }
+                    renderDamperConfigTable();
+                }).catch(e => console.error(e));
+        };
+
+        // --- DISPENSING JS ---
+        function renderSysConfigTable() {
+            const tbody = document.getElementById('sys-cfg-tbody');
+            if (!tbody) return;
+            try {
+                const mod = document.getElementById('sys-cfg-model').value;
+                const dtype = document.getElementById('sys-cfg-datatype').value;
+
+                if (!mod) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
+                    return;
+                }
+
+                const lsKeyDisp = (typeof SYS_CFG_KEYS !== 'undefined' && SYS_CFG_KEYS['dispensing']) ? SYS_CFG_KEYS['dispensing'] : 'belton_ipqc_dispensing_merged';
+                const dataDisp = localStorage.getItem(lsKeyDisp);
+                let fullDispData = {};
                 if (dataDisp) {
                     try {
-                        let parsed = JSON.parse(dataDisp);
+                        const parsed = JSON.parse(dataDisp);
+                        fullDispData = parsed;
                         currentSysCfg = parsed.configs || {};
                     } catch (e) { }
                 }
-                if (typeof window.populateFilteredDropdown === 'function') {
-                    window.populateFilteredDropdown('dispensing', 'sys-cfg-model', document.getElementById('sys-cfg-datatype')?.value || 'Buy off', true);
+
+                const dmpBuyoffFreq = document.getElementById('sys-disp-freq-buyoff');
+                const dmpRovingFreq = document.getElementById('sys-disp-freq-roving');
+                if (dmpBuyoffFreq && dmpRovingFreq) {
+                    const prodCfg = (fullDispData.productDims && fullDispData.productDims[mod]) || {};
+                    dmpBuyoffFreq.value = prodCfg.freqBuyoff || fullDispData.freqBuyoff || '';
+                    dmpRovingFreq.value = prodCfg.freqRoving || fullDispData.freqRoving || '';
                 }
-                renderSysConfigTable();
 
-                // Load Laser
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentLaserCfg[pMode]) currentLaserCfg[pMode] = {};
-                                currentLaserCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('laser', 'sys-laser-model', document.getElementById('sys-laser-datatype')?.value || 'Buy-off');
-                        }
-                        renderLaserConfigTable();
-                    }).catch(e => console.error(e));
+                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+                const targetCfg = currentSysCfg[cfgKey] || {};
 
-                // Load POF
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentPofCfg[pMode]) currentPofCfg[pMode] = {};
-                                currentPofCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('pof', 'sys-pof-model', document.getElementById('sys-pof-datatype')?.value || 'Buy-off');
-                        }
-                        renderPofConfigTable();
-                    }).catch(e => console.error(e));
-
-                // Load Damper
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.data) {
-                            data.data.forEach(row => {
-                                const mod = row.product_key;
-                                const pMode = row.process_mode === 'Roving' ? mod + '_rov' : mod;
-                                if (!currentDamperCfg[pMode]) currentDamperCfg[pMode] = {};
-                                currentDamperCfg[pMode][row.dimension_name] = {
-                                    lsl: row.lsl, lcl: row.lcl, cl: row.cl, ucl: row.ucl, usl: row.usl, locked: row.locked
-                                };
-                            });
-                        }
-                        if (typeof window.populateFilteredDropdown === 'function') {
-                            window.populateFilteredDropdown('damper', 'sys-damper-model', document.getElementById('sys-damper-datatype')?.value || 'Buy-off');
-                        }
-                        renderDamperConfigTable();
-                    }).catch(e => console.error(e));
-            };
-
-            // --- DISPENSING JS ---
-            function renderSysConfigTable() {
-                const tbody = document.getElementById('sys-cfg-tbody');
-                if (!tbody) return;
-                try {
-                    const mod = document.getElementById('sys-cfg-model').value;
-                    const dtype = document.getElementById('sys-cfg-datatype').value;
-
-                    if (!mod) {
-                        tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                        return;
-                    }
-
-                    const lsKeyDisp = (typeof SYS_CFG_KEYS !== 'undefined' && SYS_CFG_KEYS['dispensing']) ? SYS_CFG_KEYS['dispensing'] : 'belton_ipqc_dispensing_merged';
-                    const dataDisp = localStorage.getItem(lsKeyDisp);
-                    if (dataDisp) {
-                        try {
-                            const parsed = JSON.parse(dataDisp);
-                            currentSysCfg = parsed.configs || {};
-                        } catch (e) {}
-                    }
-
-                    const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                    const targetCfg = currentSysCfg[cfgKey] || {};
-
-                    let html = '';
-                    Object.keys(targetCfg).forEach(param => {
-                        const vals = targetCfg[param];
-                        if (vals === null || typeof vals !== 'object') return;
-                        html += `
+                let html = '';
+                Object.keys(targetCfg).forEach(param => {
+                    const vals = targetCfg[param];
+                    if (vals === null || typeof vals !== 'object') return;
+                    html += `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
                         <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-cfg-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
@@ -1537,241 +1754,253 @@
                         <td style="padding: 8px 16px; text-align:center;"><button class="btn btn-danger btn-sm" onclick="deleteSysConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button></td>
                     </tr>
                 `;
-                    });
+                });
 
-                    if (!html) {
-                        const debugKeys = Object.keys(currentSysCfg).join(', ');
-                        html = `<tr><td colspan="7" style="padding: 24px; text-align:left; color:#ef4444; font-size:12px; font-family:monospace;">
+                if (!html) {
+                    const debugKeys = Object.keys(currentSysCfg).join(', ');
+                    html = `<tr><td colspan="7" style="padding: 24px; text-align:left; color:#ef4444; font-size:12px; font-family:monospace;">
                             [DEBUG] cfgKey sought: "${cfgKey}"<br>
                             [DEBUG] Available keys in configs: ${debugKeys || 'NONE'}<br>
                             [DEBUG] targetCfg is empty. Please select Product
                         </td></tr>`;
-                    }
-                    tbody.innerHTML = html;
-                } catch (err) {
-                    tbody.innerHTML = `<tr><td colspan="7" style="padding: 24px; text-align:left; color:#ef4444; font-size:12px; font-family:monospace;">ERROR: ${err.message}<br>${err.stack}</td></tr>`;
                 }
+                tbody.innerHTML = html;
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="7" style="padding: 24px; text-align:left; color:#ef4444; font-size:12px; font-family:monospace;">ERROR: ${err.message}<br>${err.stack}</td></tr>`;
+            }
+        }
+
+        function addSysConfigRow() {
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!mod) return alert('Select Product First');
+
+            const param = prompt('Parameter Name:');
+            if (!param) return;
+
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
+            if (currentSysCfg[cfgKey][param]) return alert('Parameter exists!');
+
+            currentSysCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null };
+            renderSysConfigTable();
+        }
+
+        function deleteSysConfigRow(param) {
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!confirm(`Delete ${param}?`)) return;
+
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (currentSysCfg[cfgKey]) {
+                delete currentSysCfg[cfgKey][param];
+            }
+            renderSysConfigTable();
+        }
+
+        function saveSysConfigs() {
+            const moduleName = document.getElementById('sys-cfg-module').value;
+            if (moduleName === 'laser') {
+                saveLaserConfigs();
+                return;
+            } else if (moduleName === 'pof') {
+                savePofConfigs();
+                return;
+            } else if (moduleName === 'damper') {
+                saveDamperConfigs();
+                return;
             }
 
-            function addSysConfigRow() {
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!mod) return alert('Select Product First');
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            if (!mod) return alert('Please Select Product');
 
-                const param = prompt('Parameter Name:');
-                if (!param) return;
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
 
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
-                if (currentSysCfg[cfgKey][param]) return alert('Parameter exists!');
+            const inputs = document.querySelectorAll('.sys-cfg-val');
+            inputs.forEach(inp => {
+                const param = inp.dataset.param;
+                const type = inp.dataset.type;
+                const val = inp.value === '' ? null : parseFloat(inp.value);
+                if (!currentSysCfg[cfgKey][param]) currentSysCfg[cfgKey][param] = {};
+                currentSysCfg[cfgKey][param][type] = val;
+            });
 
-                currentSysCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null };
-                renderSysConfigTable();
-            }
-
-            function deleteSysConfigRow(param) {
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (currentSysCfg[cfgKey]) {
-                    delete currentSysCfg[cfgKey][param];
-                }
-                renderSysConfigTable();
-            }
-
-            function saveSysConfigs() {
-                const moduleName = document.getElementById('sys-cfg-module').value;
-                if (moduleName === 'laser') {
-                    saveLaserConfigs();
-                    return;
-                } else if (moduleName === 'pof') {
-                    savePofConfigs();
-                    return;
-                } else if (moduleName === 'damper') {
-                    saveDamperConfigs();
-                    return;
-                }
-
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                if (!currentSysCfg[cfgKey]) currentSysCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-cfg-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentSysCfg[cfgKey][param]) currentSysCfg[cfgKey][param] = {};
-                    currentSysCfg[cfgKey][param][type] = val;
+            const limits = [];
+            Object.keys(currentSysCfg[cfgKey]).forEach(dim => {
+                const vals = currentSysCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype,
+                    product_key: mod,
+                    dimension_name: dim,
+                    usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
                 });
+            });
 
-                const limits = [];
-                Object.keys(currentSysCfg[cfgKey]).forEach(dim => {
-                    const vals = currentSysCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
+            // Save frequency to local storage for Dispensing
+            const lsKeyDisp = (typeof SYS_CFG_KEYS !== 'undefined' && SYS_CFG_KEYS['dispensing']) ? SYS_CFG_KEYS['dispensing'] : 'belton_ipqc_dispensing_merged';
+            let raw = localStorage.getItem(lsKeyDisp);
+            let legacyCfg = raw ? JSON.parse(raw) : { configs: currentSysCfg, productDims: {} };
+            if (!legacyCfg.productDims) legacyCfg.productDims = {};
+            if (!legacyCfg.productDims[mod]) legacyCfg.productDims[mod] = {};
+            
+            const fBuy = parseInt(document.getElementById('sys-disp-freq-buyoff')?.value, 10);
+            const fRov = parseInt(document.getElementById('sys-disp-freq-roving')?.value, 10);
+            if (!isNaN(fBuy) && fBuy > 0) legacyCfg.productDims[mod].freqBuyoff = fBuy;
+            if (!isNaN(fRov) && fRov > 0) legacyCfg.productDims[mod].freqRoving = fRov;
+            
+            localStorage.setItem(lsKeyDisp, JSON.stringify(legacyCfg));
 
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                alert(`Saved Dispensing configs for ${mod}`);
+                
+                // Also optionally notify backend to save to config table if API exists
+                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Dispensing configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
+                    body: JSON.stringify({ key: lsKeyDisp, value: legacyCfg })
+                }).catch(e => console.error("Legacy save error", e));
+
+                // Force Dispensing module to reload config if open
+                if (typeof onMergeModelChange === 'function' && document.getElementById('merge-model')?.value === mod) {
+                    onMergeModelChange();
+                }
+            }).catch(e => { console.error(e); alert('Error saving'); });
+        }
+
+        const LASER_DEFAULT_PARAMS = ["lf_width", "lf_length", "lf_position", "sf_width", "sf_length", "sf_position", "z1_width", "z1_length", "z1_position", "z2_width", "z2_length", "z2_position", "z3_width", "z3_length", "z3_position"];
+        const POF_DEFAULT_PARAMS = ["long1", "short2", "bobbin", "eblock_long", "eblock_short", "coil_center", "coil_short", "coil_long", "bobbin_long", "bobbin_center", "bobbin_short"];
+        const DAMPER_DEFAULT_PARAMS = ["1. Datum", "2. Non-datum"];
+
+        // --- LASER JS ---
+        function renderLaserConfigTable() {
+            const tbody = document.getElementById('sys-laser-tbody');
+            if (!tbody) return;
+            const mod = document.getElementById('sys-laser-model').value;
+            const dtype = document.getElementById('sys-laser-datatype').value;
+
+            if (!mod) {
+                tbody.innerHTML = '<tr><td colspan="2" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
+                return;
             }
 
-            const LASER_DEFAULT_PARAMS = ["lf_width", "lf_length", "lf_position", "sf_width", "sf_length", "sf_position", "z1_width", "z1_length", "z1_position", "z2_width", "z2_length", "z2_position", "z3_width", "z3_length", "z3_position"];
-            const POF_DEFAULT_PARAMS = ["long1", "short2", "bobbin", "eblock_long", "eblock_short", "coil_center", "coil_short", "coil_long", "bobbin_long", "bobbin_center", "bobbin_short"];
-            const DAMPER_DEFAULT_PARAMS = ["1. Datum", "2. Non-datum"];
+            const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
+            if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
+            const targetCfg = currentLaserCfg[cfgKey];
 
-            // --- LASER JS ---
-            function renderLaserConfigTable() {
-                const tbody = document.getElementById('sys-laser-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
+            if (Object.keys(targetCfg).length === 0) {
+                LASER_DEFAULT_PARAMS.forEach(p => {
+                    targetCfg[p] = { locked: 1 };
+                });
+            }
 
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-                const targetCfg = currentLaserCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    LASER_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
+            let html = '';
+            Object.keys(targetCfg).forEach(param => {
+                const vals = targetCfg[param];
+                if (typeof vals !== 'object') return;
+                html += `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-laser-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
                     <td style="padding: 8px 16px; text-align:center;">
                         ${vals.locked ? '<span style="color:#94a3b8;font-size:12px;font-weight:600;">Locked (Std)</span>' : `<button class="btn btn-danger btn-sm" onclick="deleteLaserConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button>`}
                     </td>
                 </tr>
             `;
+            });
+
+            if (!html) {
+                html = '<tr><td colspan="2" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+            }
+            tbody.innerHTML = html;
+        }
+
+        function addLaserConfigRow() {
+            const mod = document.getElementById('sys-laser-model').value;
+            const dtype = document.getElementById('sys-laser-datatype').value;
+            if (!mod) return alert('Select Product First');
+
+            const param = prompt('Parameter Name:');
+            if (!param) return;
+
+            const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
+            if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
+            if (currentLaserCfg[cfgKey][param]) return alert('Parameter exists!');
+
+            currentLaserCfg[cfgKey][param] = { locked: 0 };
+            renderLaserConfigTable();
+        }
+
+        function deleteLaserConfigRow(param) {
+            const mod = document.getElementById('sys-laser-model').value;
+            const dtype = document.getElementById('sys-laser-datatype').value;
+            if (!confirm(`Delete ${param}?`)) return;
+
+            const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
+            if (currentLaserCfg[cfgKey]) {
+                delete currentLaserCfg[cfgKey][param];
+            }
+            renderLaserConfigTable();
+        }
+
+        function saveLaserConfigs() {
+            const mod = document.getElementById('sys-laser-model').value;
+            const dtype = document.getElementById('sys-laser-datatype').value;
+            if (!mod) return alert('Please Select Product');
+
+            const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
+            if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
+
+            const limits = [];
+            Object.keys(currentLaserCfg[cfgKey]).forEach(dim => {
+                const vals = currentLaserCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype,
+                    product_key: mod,
+                    dimension_name: dim,
+                    locked: vals.locked || 0
                 });
+            });
 
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
-                }
-                tbody.innerHTML = html;
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => alert(`Saved Laser configs for ${mod}`))
+                .catch(e => { console.error(e); alert('Error saving'); });
+        }
+
+        // --- POF JS ---
+        function renderPofConfigTable() {
+            const tbody = document.getElementById('sys-pof-tbody');
+            if (!tbody) return;
+            const mod = document.getElementById('gc-pof-product')?.value || '';
+            const dtype = document.getElementById('gc-pof-datatype')?.value || '';
+
+            if (!mod) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
+                return;
             }
 
-            function addLaserConfigRow() {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!mod) return alert('Select Product First');
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
+            const targetCfg = currentPofCfg[cfgKey];
 
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-                if (currentLaserCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentLaserCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderLaserConfigTable();
-            }
-
-            function deleteLaserConfigRow(param) {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentLaserCfg[cfgKey]) {
-                    delete currentLaserCfg[cfgKey][param];
-                }
-                renderLaserConfigTable();
-            }
-
-            function saveLaserConfigs() {
-                const mod = document.getElementById('sys-laser-model').value;
-                const dtype = document.getElementById('sys-laser-datatype').value;
-                if (!mod) return alert('Please Select Product');
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentLaserCfg[cfgKey]) currentLaserCfg[cfgKey] = {};
-
-                const inputs = document.querySelectorAll('.sys-laser-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentLaserCfg[cfgKey][param]) currentLaserCfg[cfgKey][param] = {};
-                    currentLaserCfg[cfgKey][param][type] = val;
+            if (Object.keys(targetCfg).length === 0) {
+                POF_DEFAULT_PARAMS.forEach(p => {
+                    targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
                 });
-
-                const limits = [];
-                Object.keys(currentLaserCfg[cfgKey]).forEach(dim => {
-                    const vals = currentLaserCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/laser/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Laser configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
             }
 
-            // --- POF JS ---
-            function renderPofConfigTable() {
-                const tbody = document.getElementById('sys-pof-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
-                const targetCfg = currentPofCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    POF_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
+            let html = '';
+            Object.keys(targetCfg).forEach(param => {
+                const vals = targetCfg[param];
+                if (typeof vals !== 'object') return;
+                html += `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
                     <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-pof-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
@@ -1784,108 +2013,168 @@
                     </td>
                 </tr>
             `;
+            });
+
+            if (!html) {
+                html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+            }
+            tbody.innerHTML = html;
+        }
+
+        function addPofConfigRow() {
+            const mod = document.getElementById('gc-pof-product')?.value || '';
+            const dtype = document.getElementById('gc-pof-datatype')?.value || '';
+            if (!mod) return alert('Select Product First');
+
+            const param = prompt('Parameter Name:');
+            if (!param) return;
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
+            if (currentPofCfg[cfgKey][param]) return alert('Parameter exists!');
+
+            currentPofCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
+            renderPofConfigTable();
+        }
+
+        function deletePofConfigRow(param) {
+            const mod = document.getElementById('gc-pof-product')?.value || '';
+            const dtype = document.getElementById('gc-pof-datatype')?.value || '';
+            if (!confirm(`Delete ${param}?`)) return;
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (currentPofCfg[cfgKey]) {
+                delete currentPofCfg[cfgKey][param];
+            }
+            renderPofConfigTable();
+        }
+
+        function savePofConfigs() {
+            const mod = document.getElementById('gc-pof-product')?.value || '';
+            const dtype = document.getElementById('gc-pof-datatype')?.value || '';
+            if (!mod) return alert('Please Select Product');
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
+
+            const inputs = document.querySelectorAll('.sys-pof-val');
+            inputs.forEach(inp => {
+                const param = inp.dataset.param;
+                const type = inp.dataset.type;
+                const val = inp.value === '' ? null : parseFloat(inp.value);
+                if (!currentPofCfg[cfgKey][param]) currentPofCfg[cfgKey][param] = {};
+                currentPofCfg[cfgKey][param][type] = val;
+            });
+
+            const limits = [];
+            Object.keys(currentPofCfg[cfgKey]).forEach(dim => {
+                const vals = currentPofCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype,
+                    product_key: mod,
+                    dimension_name: dim,
+                    locked: vals.locked || 0,
+                    usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
                 });
+            });
 
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
-                }
-                tbody.innerHTML = html;
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => alert(`Saved POF configs for ${mod}`))
+                .catch(e => { console.error(e); alert('Error saving'); });
+        }
+
+        // --- DAMPER JS ---
+        function _damperDimLabel(name) {
+            const map = {
+                datum_pt1: 'Datum — Pt 1/1',
+                datum_pt2: 'Datum — Pt 1/2',
+                datum_pt3: 'Datum — Pt 1/3',
+                datum_pt4: 'Datum — Pt 1/4',
+                nondatum_pt1: 'Non-datum — Pt 2/1',
+                nondatum_pt2: 'Non-datum — Pt 2/2',
+                nondatum_pt3: 'Non-datum — Pt 2/3',
+                nondatum_pt4: 'Non-datum — Pt 2/4',
+            };
+            return map[name] || name;
+        }
+
+        function renderDamperConfigTable() {
+            const tbody = document.getElementById('sys-damper-tbody');
+            if (!tbody) return;
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
+
+            if (!mod) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
+                return;
             }
 
-            function addPofConfigRow() {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!mod) return alert('Select Product First');
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+            const targetCfg = currentDamperCfg[cfgKey];
 
-                const param = prompt('Parameter Name:');
-                if (!param) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
-                if (currentPofCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentPofCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderPofConfigTable();
+            // Remove legacy keys if present so they don't clutter the UI
+            const legacyKeys = ["1. Datum", "2. Non-datum"];
+            legacyKeys.forEach(k => { if(targetCfg[k]) delete targetCfg[k]; });
+            for(let i=1; i<=4; i++) {
+                if(targetCfg[`1. Datum (1/${i})`]) delete targetCfg[`1. Datum (1/${i})`];
+                if(targetCfg[`2. Non-datum (2/${i})`]) delete targetCfg[`2. Non-datum (2/${i})`];
             }
 
-            function deletePofConfigRow(param) {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentPofCfg[cfgKey]) {
-                    delete currentPofCfg[cfgKey][param];
+            // Ensure the 8 standard points exist with correct defaults
+            const datumDefaults = [
+                { cl: 1.358, tol: 0.010 }, { cl: 1.358, tol: 0.010 },
+                { cl: 0.030, tol: 0.010 }, { cl: 0.030, tol: 0.010 }
+            ];
+            const nondatumDefaults = [
+                { cl: 0.814, tol: 0.010 }, { cl: 0.814, tol: 0.010 },
+                { cl: 0.030, tol: 0.010 }, { cl: 0.030, tol: 0.010 }
+            ];
+            
+            for (let i = 1; i <= 4; i++) {
+                const key = `datum_pt${i}`;
+                if (!targetCfg[key] || targetCfg[key].cl == null) {
+                    const d = datumDefaults[i-1];
+                    targetCfg[key] = { lsl: d.cl - d.tol, lcl: null, cl: d.cl, ucl: null, usl: d.cl + d.tol, locked: 1 };
                 }
-                renderPofConfigTable();
+            }
+            for (let i = 1; i <= 4; i++) {
+                const key = `nondatum_pt${i}`;
+                if (!targetCfg[key] || targetCfg[key].cl == null) {
+                    const d = nondatumDefaults[i-1];
+                    targetCfg[key] = { lsl: d.cl - d.tol, lcl: null, cl: d.cl, ucl: null, usl: d.cl + d.tol, locked: 1 };
+                }
             }
 
-            function savePofConfigs() {
-                const mod = document.getElementById('sys-pof-model').value;
-                const dtype = document.getElementById('sys-pof-datatype').value;
-                if (!mod) return alert('Please Select Product');
+            // Load frequency
+            let raw = localStorage.getItem('belton_damper_v3_config');
+            let legacyCfg = raw ? JSON.parse(raw) : { productDims: {} };
+            const prodLegacy = (legacyCfg.productDims && legacyCfg.productDims[mod]) ? legacyCfg.productDims[mod] : {};
+            
+            const elBuy = document.getElementById('gc-dmp-freq-buyoff');
+            const elRov = document.getElementById('gc-dmp-freq-roving');
+            if (elBuy) elBuy.value = prodLegacy.freqBuyoff || legacyCfg.freqBuyoff || '';
+            if (elRov) elRov.value = prodLegacy.freqRoving || legacyCfg.freqRoving || '';
 
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentPofCfg[cfgKey]) currentPofCfg[cfgKey] = {};
+            let html = '';
+            
+            // Reorder so that datum comes before nondatum
+            const sortedParams = Object.keys(targetCfg).sort((a, b) => {
+                if(a.startsWith('datum') && b.startsWith('nondatum')) return -1;
+                if(a.startsWith('nondatum') && b.startsWith('datum')) return 1;
+                return a.localeCompare(b);
+            });
 
-                const inputs = document.querySelectorAll('.sys-pof-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentPofCfg[cfgKey][param]) currentPofCfg[cfgKey][param] = {};
-                    currentPofCfg[cfgKey][param][type] = val;
-                });
-
-                const limits = [];
-                Object.keys(currentPofCfg[cfgKey]).forEach(dim => {
-                    const vals = currentPofCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
-
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/pof/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved POF configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            // --- DAMPER JS ---
-            function renderDamperConfigTable() {
-                const tbody = document.getElementById('sys-damper-tbody');
-                if (!tbody) return;
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-
-                if (!mod) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">Please select Product</td></tr>';
-                    return;
-                }
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
-                const targetCfg = currentDamperCfg[cfgKey];
-
-                if (Object.keys(targetCfg).length === 0) {
-                    DAMPER_DEFAULT_PARAMS.forEach(p => {
-                        targetCfg[p] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 1 };
-                    });
-                }
-
-                let html = '';
-                Object.keys(targetCfg).forEach(param => {
-                    const vals = targetCfg[param];
-                    if (typeof vals !== 'object') return;
-                    html += `
+            sortedParams.forEach(param => {
+                const vals = targetCfg[param];
+                if (typeof vals !== 'object') return;
+                const label = _damperDimLabel(param);
+                html += `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 8px 16px;"><input type="text" value="${param}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;"></td>
+                    <td style="padding: 8px 16px;"><input type="text" value="${label}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;" title="${param}"></td>
                     <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
                     <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
                     <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
@@ -1896,309 +2185,344 @@
                     </td>
                 </tr>
             `;
-                });
+            });
 
-                if (!html) {
-                    html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+            if (!html) {
+                html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+            }
+            tbody.innerHTML = html;
+        }
+
+        function addDamperConfigRow() {
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
+            if (!mod) return alert('Select Product First');
+
+            const param = prompt('Parameter Name:');
+            if (!param) return;
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+            if (currentDamperCfg[cfgKey][param]) return alert('Parameter exists!');
+
+            currentDamperCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
+            renderDamperConfigTable();
+        }
+
+        function deleteDamperConfigRow(param) {
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
+            if (!confirm(`Delete ${param}?`)) return;
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (currentDamperCfg[cfgKey]) {
+                delete currentDamperCfg[cfgKey][param];
+            }
+            renderDamperConfigTable();
+        }
+
+        function saveDamperConfigs() {
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
+            if (!mod) return alert('Please Select Product');
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+
+            const inputs = document.querySelectorAll('.sys-damper-val');
+            inputs.forEach(inp => {
+                const param = inp.dataset.param;
+                const type = inp.dataset.type;
+                const val = inp.value === '' ? null : parseFloat(inp.value);
+                if (!currentDamperCfg[cfgKey][param]) currentDamperCfg[cfgKey][param] = {};
+                currentDamperCfg[cfgKey][param][type] = val;
+            });
+
+            const limits = [];
+            Object.keys(currentDamperCfg[cfgKey]).forEach(dim => {
+                const vals = currentDamperCfg[cfgKey][dim] || {};
+                limits.push({
+                    process_mode: dtype,
+                    product_key: mod,
+                    dimension_name: dim,
+                    locked: vals.locked || 0,
+                    usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
+                });
+            });
+
+            // Save frequency to legacy storage
+            let raw = localStorage.getItem('belton_damper_v3_config');
+            let legacyCfg = raw ? JSON.parse(raw) : { productDims: {} };
+            if (!legacyCfg.productDims) legacyCfg.productDims = {};
+            if (!legacyCfg.productDims[mod]) legacyCfg.productDims[mod] = {};
+            
+            const fBuy = parseInt(document.getElementById('gc-dmp-freq-buyoff')?.value, 10);
+            const fRov = parseInt(document.getElementById('gc-dmp-freq-roving')?.value, 10);
+            if (!isNaN(fBuy) && fBuy > 0) legacyCfg.productDims[mod].freqBuyoff = fBuy;
+            if (!isNaN(fRov) && fRov > 0) legacyCfg.productDims[mod].freqRoving = fRov;
+            
+            localStorage.setItem('belton_damper_v3_config', JSON.stringify(legacyCfg));
+            
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'belton_damper_v3_config', value: legacyCfg })
+            }).catch(e => console.error("Legacy save error", e));
+
+            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limits })
+            }).then(() => {
+                alert(`Saved Damper configs for ${mod}`);
+                
+                // Instantly update the local DAMPER_LIMITS cache so Stage 2 picks it up without reload
+                if (!window.DAMPER_LIMITS) window.DAMPER_LIMITS = {};
+                if (!window.DAMPER_LIMITS[mod]) window.DAMPER_LIMITS[mod] = {};
+                limits.forEach(lim => {
+                    window.DAMPER_LIMITS[mod][lim.dimension_name] = lim;
+                });
+                
+                // If the user already has the product selected in Damper Install tab, refresh it
+                if (typeof applyDamperConfigForProduct === 'function') {
+                    applyDamperConfigForProduct(mod);
+                    if (typeof buildStage2DimGroups === 'function' && document.getElementById('merge-product')?.value === mod) {
+                        buildStage2DimGroups();
+                    }
                 }
-                tbody.innerHTML = html;
-            }
+            }).catch(e => { console.error(e); alert('Error saving'); });
+        }
 
-            function addDamperConfigRow() {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!mod) return alert('Select Product First');
+        function resetSysModelConfig() {
+            if (!confirm('ยืนยันการล้างค่าพารามิเตอร์ทั้งหมดใน Product นี้?')) return;
+            const mod = document.getElementById('sys-cfg-model').value;
+            const dtype = document.getElementById('sys-cfg-datatype').value;
+            const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
+            currentSysCfg[cfgKey] = {};
+            renderSysConfigTable();
+        }
 
-                const param = prompt('Parameter Name:');
-                if (!param) return;
+        function exportSysConfig() {
+            const mod = document.getElementById('sys-cfg-module').value;
+            let dataToExport = {};
 
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
-                if (currentDamperCfg[cfgKey][param]) return alert('Parameter exists!');
-
-                currentDamperCfg[cfgKey][param] = { lsl: null, lcl: null, cl: null, ucl: null, usl: null, locked: 0 };
-                renderDamperConfigTable();
-            }
-
-            function deleteDamperConfigRow(param) {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!confirm(`Delete ${param}?`)) return;
-
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (currentDamperCfg[cfgKey]) {
-                    delete currentDamperCfg[cfgKey][param];
+            if (mod === 'dispensing') {
+                dataToExport = currentSysCfg;
+            } else {
+                const lsKey = SYS_CFG_KEYS[mod];
+                let data = localStorage.getItem(lsKey);
+                if (data) {
+                    try { dataToExport = JSON.parse(data); } catch (e) { }
                 }
-                renderDamperConfigTable();
             }
 
-            function saveDamperConfigs() {
-                const mod = document.getElementById('sys-damper-model').value;
-                const dtype = document.getElementById('sys-damper-datatype').value;
-                if (!mod) return alert('Please Select Product');
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+            const node = document.createElement('a');
+            node.setAttribute("href", dataStr);
+            node.setAttribute("download", `system_config_${mod}_export.json`);
+            document.body.appendChild(node);
+            node.click();
+            node.remove();
+        }
 
-                const cfgKey = dtype === 'Roving' ? mod + '_rov' : mod;
-                if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+        function importSysConfig(input) {
+            if (!input.files || !input.files[0]) return;
+            const mod = document.getElementById('sys-cfg-module').value;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    let parsed = JSON.parse(e.target.result);
+                    if (mod === 'dispensing') {
+                        currentSysCfg = parsed;
+                        alert("Import สำเร็จ! กรุณากดบันทึกเพื่อบันทึกลงระบบ");
+                        renderSysConfigTable();
+                    } else {
+                        const lsKey = SYS_CFG_KEYS[mod];
+                        localStorage.setItem(lsKey, JSON.stringify(parsed));
+                        alert(`Import ${mod.toUpperCase()} Config สำเร็จ!`);
+                        if (mod === 'laser' && typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
+                        if (mod === 'pof' && typeof loadGlobalPofConfig === 'function') loadGlobalPofConfig();
+                        if (mod === 'damper' && typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
+                    }
+                } catch (err) {
+                    alert("รูปแบบไฟล์ไม่ถูกต้อง");
+                }
+                input.value = "";
+            };
+            reader.readAsText(input.files[0]);
+        }
 
-                const inputs = document.querySelectorAll('.sys-damper-val');
-                inputs.forEach(inp => {
-                    const param = inp.dataset.param;
-                    const type = inp.dataset.type;
-                    const val = inp.value === '' ? null : parseFloat(inp.value);
-                    if (!currentDamperCfg[cfgKey][param]) currentDamperCfg[cfgKey][param] = {};
-                    currentDamperCfg[cfgKey][param][type] = val;
+        // ═══════════════════════════════════════════════════════════
+        //  POF Config — Epoxy Picker Init
+        // ═══════════════════════════════════════════════════════════
+        function initEpoxyPickers() {
+            const zones = [
+                { id: 'reject', cls: 'active-reject', hidden: 'gc-pof-epoxy-reject', label: 'ep-label-reject', badge: 'ep-result-reject', def: 10 },
+                { id: 'hold', cls: 'active-hold', hidden: 'gc-pof-epoxy-hold', label: 'ep-label-hold', badge: 'ep-result-hold', def: 30 },
+                { id: 'accept', cls: 'active-accept', hidden: 'gc-pof-epoxy-accept', label: 'ep-label-accept', badge: 'ep-result-accept', def: 30 },
+            ];
+            zones.forEach(zone => {
+                const picker = document.getElementById('ep-picker-' + zone.id);
+                if (!picker) return;
+                picker.innerHTML = '';
+                for (let v = 0; v <= 100; v += 10) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'ep-pct-btn';
+                    btn.textContent = v + '%';
+                    btn.dataset.val = v;
+                    btn.onclick = () => setEpoxyPicker(zone, v);
+                    picker.appendChild(btn);
+                }
+                // Set default
+                const saved = parseInt(document.getElementById(zone.hidden)?.value) || zone.def;
+                setEpoxyPicker(zone, saved);
+            });
+            updateEpoxySummary();
+        }
+
+        function setEpoxyPicker(zone, val) {
+            const hidden = document.getElementById(zone.hidden);
+            if (hidden) hidden.value = val;
+            const picker = document.getElementById('ep-picker-' + zone.id);
+            if (picker) {
+                picker.querySelectorAll('.ep-pct-btn').forEach(b => {
+                    b.classList.remove('active-reject', 'active-hold', 'active-accept');
+                    if (parseInt(b.dataset.val) === val) b.classList.add(zone.cls);
                 });
+            }
+            const labelEl = document.getElementById(zone.label);
+            if (labelEl) labelEl.textContent = val + ' %';
+            updateEpoxySummary();
+        }
 
-                const limits = [];
-                Object.keys(currentDamperCfg[cfgKey]).forEach(dim => {
-                    const vals = currentDamperCfg[cfgKey][dim] || {};
-                    limits.push({
-                        process_mode: dtype,
-                        product_key: mod,
-                        dimension_name: dim,
-                        locked: vals.locked || 0,
-                        usl: vals.usl, ucl: vals.ucl, cl: vals.cl, lcl: vals.lcl, lsl: vals.lsl
-                    });
-                });
+        function updateEpoxySummary() {
+            const rejVal = document.getElementById('gc-pof-epoxy-reject')?.value;
+            const reject = (rejVal !== '' && rejVal !== undefined) ? parseInt(rejVal) : 10;
+            const holdVal = document.getElementById('gc-pof-epoxy-hold')?.value;
+            const hold = (holdVal !== '' && holdVal !== undefined) ? parseInt(holdVal) : 30;
+            const el = document.getElementById('ep-summary-text');
+            if (el) {
+                el.innerHTML = `0%–${reject}% → <b style="color:#dc2626">Reject</b> &nbsp;|&nbsp; ${reject + 10}%–${hold - 1}% → <b style="color:#b45309">Hold</b> &nbsp;|&nbsp; ≥${hold}% → <b style="color:#16a34a">Accept</b>`;
+            }
+        }
 
-                fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
+        // ═══════════════════════════════════════════════════════════
+        //  POF Config — Load / Save / Reset
+        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────
+        //  LASER — Global Frequency Config (E-block / Bobbin)
+        //  Backend: laser_config (product_key, eblock_qty, bobbin_qty)
+        //  Previously missing entirely — product selector called this
+        //  function but it didn't exist, so nothing happened when a
+        //  product was chosen (looked like "product not found").
+        // ──────────────────────────────────────────────
+        let _laserConfigCache = null;
+
+        async function _fetchLaserConfig(force) {
+            if (_laserConfigCache && !force) return _laserConfigCache;
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config');
+                const data = await res.json();
+                _laserConfigCache = (data.success && data.data) ? data.data : [];
+            } catch (e) {
+                console.error('Failed to load laser_config', e);
+                _laserConfigCache = [];
+            }
+            return _laserConfigCache;
+        }
+
+        async function loadGlobalLaserConfig() {
+            const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
+            const category = document.getElementById('gc-laser-category')?.value || 'E-block';
+            const rows = await _fetchLaserConfig();
+            const row = rows.find(r => r.product_key === prodKey) || {};
+
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v ?? ''); };
+            setVal('gc-laser-freq', category === 'Bobbin' ? row.bobbin_qty : row.eblock_qty);
+
+            const eEl = document.getElementById('gc-laser-stored-eblock');
+            const bEl = document.getElementById('gc-laser-stored-bobbin');
+            if (eEl) eEl.textContent = row.eblock_qty ?? '—';
+            if (bEl) bEl.textContent = row.bobbin_qty ?? '—';
+
+            const infoEl = document.getElementById('gc-laser-freq-info');
+            if (infoEl) infoEl.textContent = prodKey === 'DEFAULT'
+                ? 'ค่าเริ่มต้นสำหรับทุกรุ่นที่ไม่ได้ตั้งค่าเฉพาะ'
+                : `กำลังตั้งค่าเฉพาะรุ่น: ${prodKey}`;
+        }
+
+        async function saveGlobalLaserConfig() {
+            const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
+            const category = document.getElementById('gc-laser-category')?.value || 'E-block';
+            const freqVal = document.getElementById('gc-laser-freq')?.value;
+
+            const rows = await _fetchLaserConfig(true);
+            const existing = rows.find(r => r.product_key === prodKey) || {};
+            const payload = {
+                product_key: prodKey,
+                eblock_qty: category === 'E-block' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.eblock_qty ?? null),
+                bobbin_qty: category === 'Bobbin' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.bobbin_qty ?? null)
+            };
+
+            try {
+                const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ limits })
-                }).then(() => alert(`Saved Damper configs for ${mod}`))
-                    .catch(e => { console.error(e); alert('Error saving'); });
-            }
-
-            function resetSysModelConfig() {
-                if (!confirm('ยืนยันการล้างค่าพารามิเตอร์ทั้งหมดใน Product นี้?')) return;
-                const mod = document.getElementById('sys-cfg-model').value;
-                const dtype = document.getElementById('sys-cfg-datatype').value;
-                const cfgKey = dtype === 'Roving Audit' ? mod + '_rov' : mod;
-                currentSysCfg[cfgKey] = {};
-                renderSysConfigTable();
-            }
-
-            function exportSysConfig() {
-                const mod = document.getElementById('sys-cfg-module').value;
-                let dataToExport = {};
-
-                if (mod === 'dispensing') {
-                    dataToExport = currentSysCfg;
-                } else {
-                    const lsKey = SYS_CFG_KEYS[mod];
-                    let data = localStorage.getItem(lsKey);
-                    if (data) {
-                        try { dataToExport = JSON.parse(data); } catch (e) { }
-                    }
-                }
-
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
-                const node = document.createElement('a');
-                node.setAttribute("href", dataStr);
-                node.setAttribute("download", `system_config_${mod}_export.json`);
-                document.body.appendChild(node);
-                node.click();
-                node.remove();
-            }
-
-            function importSysConfig(input) {
-                if (!input.files || !input.files[0]) return;
-                const mod = document.getElementById('sys-cfg-module').value;
-                const reader = new FileReader();
-                reader.onload = e => {
-                    try {
-                        let parsed = JSON.parse(e.target.result);
-                        if (mod === 'dispensing') {
-                            currentSysCfg = parsed;
-                            alert("Import สำเร็จ! กรุณากดบันทึกเพื่อบันทึกลงระบบ");
-                            renderSysConfigTable();
-                        } else {
-                            const lsKey = SYS_CFG_KEYS[mod];
-                            localStorage.setItem(lsKey, JSON.stringify(parsed));
-                            alert(`Import ${mod.toUpperCase()} Config สำเร็จ!`);
-                            if (mod === 'laser' && typeof loadGlobalLaserConfig === 'function') loadGlobalLaserConfig();
-                            if (mod === 'pof' && typeof loadGlobalPofConfig === 'function') loadGlobalPofConfig();
-                            if (mod === 'damper' && typeof loadGlobalDamperConfig === 'function') loadGlobalDamperConfig();
-                        }
-                    } catch (err) {
-                        alert("รูปแบบไฟล์ไม่ถูกต้อง");
-                    }
-                    input.value = "";
-                };
-                reader.readAsText(input.files[0]);
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            //  POF Config — Epoxy Picker Init
-            // ═══════════════════════════════════════════════════════════
-            function initEpoxyPickers() {
-                const zones = [
-                    { id: 'reject', cls: 'active-reject', hidden: 'gc-pof-epoxy-reject', label: 'ep-label-reject', badge: 'ep-result-reject', def: 10 },
-                    { id: 'hold', cls: 'active-hold', hidden: 'gc-pof-epoxy-hold', label: 'ep-label-hold', badge: 'ep-result-hold', def: 30 },
-                    { id: 'accept', cls: 'active-accept', hidden: 'gc-pof-epoxy-accept', label: 'ep-label-accept', badge: 'ep-result-accept', def: 30 },
-                ];
-                zones.forEach(zone => {
-                    const picker = document.getElementById('ep-picker-' + zone.id);
-                    if (!picker) return;
-                    picker.innerHTML = '';
-                    for (let v = 0; v <= 100; v += 10) {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'ep-pct-btn';
-                        btn.textContent = v + '%';
-                        btn.dataset.val = v;
-                        btn.onclick = () => setEpoxyPicker(zone, v);
-                        picker.appendChild(btn);
-                    }
-                    // Set default
-                    const saved = parseInt(document.getElementById(zone.hidden)?.value) || zone.def;
-                    setEpoxyPicker(zone, saved);
+                    body: JSON.stringify(payload)
                 });
-                updateEpoxySummary();
+                if (!res.ok) throw new Error('save failed');
+                await _fetchLaserConfig(true);
+                loadGlobalLaserConfig();
+                if (typeof showToast === 'function') showToast(`✅ บันทึก Laser Frequency สำหรับ "${prodKey}" สำเร็จ`, 'success');
+                else alert('✅ บันทึก Laser Settings สำเร็จ');
+            } catch (e) {
+                console.error('Save laser config failed', e);
+                if (typeof showToast === 'function') showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'warn');
+                else alert('❌ บันทึกไม่สำเร็จ: ' + e.message);
             }
+        }
 
-            function setEpoxyPicker(zone, val) {
-                const hidden = document.getElementById(zone.hidden);
-                if (hidden) hidden.value = val;
-                const picker = document.getElementById('ep-picker-' + zone.id);
-                if (picker) {
-                    picker.querySelectorAll('.ep-pct-btn').forEach(b => {
-                        b.classList.remove('active-reject', 'active-hold', 'active-accept');
-                        if (parseInt(b.dataset.val) === val) b.classList.add(zone.cls);
-                    });
-                }
-                const labelEl = document.getElementById(zone.label);
-                if (labelEl) labelEl.textContent = val + ' %';
-                updateEpoxySummary();
-            }
-
-            function updateEpoxySummary() {
-                const rejVal = document.getElementById('gc-pof-epoxy-reject')?.value;
-                const reject = (rejVal !== '' && rejVal !== undefined) ? parseInt(rejVal) : 10;
-                const holdVal = document.getElementById('gc-pof-epoxy-hold')?.value;
-                const hold = (holdVal !== '' && holdVal !== undefined) ? parseInt(holdVal) : 30;
-                const el = document.getElementById('ep-summary-text');
-                if (el) {
-                    el.innerHTML = `0%–${reject}% → <b style="color:#dc2626">Reject</b> &nbsp;|&nbsp; ${reject + 10}%–${hold - 1}% → <b style="color:#b45309">Hold</b> &nbsp;|&nbsp; ≥${hold}% → <b style="color:#16a34a">Accept</b>`;
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            //  POF Config — Load / Save / Reset
-            // ═══════════════════════════════════════════════════════════
-            // ──────────────────────────────────────────────
-            //  LASER — Global Frequency Config (E-block / Bobbin)
-            //  Backend: laser_config (product_key, eblock_qty, bobbin_qty)
-            //  Previously missing entirely — product selector called this
-            //  function but it didn't exist, so nothing happened when a
-            //  product was chosen (looked like "product not found").
-            // ──────────────────────────────────────────────
-            let _laserConfigCache = null;
-
-            async function _fetchLaserConfig(force) {
-                if (_laserConfigCache && !force) return _laserConfigCache;
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config');
-                    const data = await res.json();
-                    _laserConfigCache = (data.success && data.data) ? data.data : [];
-                } catch (e) {
-                    console.error('Failed to load laser_config', e);
-                    _laserConfigCache = [];
-                }
-                return _laserConfigCache;
-            }
-
-            async function loadGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                const category = document.getElementById('gc-laser-category')?.value || 'E-block';
-                const rows = await _fetchLaserConfig();
-                const row = rows.find(r => r.product_key === prodKey) || {};
-
-                const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v ?? ''); };
-                setVal('gc-laser-freq', category === 'Bobbin' ? row.bobbin_qty : row.eblock_qty);
-
-                const eEl = document.getElementById('gc-laser-stored-eblock');
-                const bEl = document.getElementById('gc-laser-stored-bobbin');
-                if (eEl) eEl.textContent = row.eblock_qty ?? '—';
-                if (bEl) bEl.textContent = row.bobbin_qty ?? '—';
-
-                const infoEl = document.getElementById('gc-laser-freq-info');
-                if (infoEl) infoEl.textContent = prodKey === 'DEFAULT'
-                    ? 'ค่าเริ่มต้นสำหรับทุกรุ่นที่ไม่ได้ตั้งค่าเฉพาะ'
-                    : `กำลังตั้งค่าเฉพาะรุ่น: ${prodKey}`;
-            }
-
-            async function saveGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                const category = document.getElementById('gc-laser-category')?.value || 'E-block';
-                const freqVal = document.getElementById('gc-laser-freq')?.value;
-
-                const rows = await _fetchLaserConfig(true);
-                const existing = rows.find(r => r.product_key === prodKey) || {};
-                const payload = {
-                    product_key: prodKey,
-                    eblock_qty: category === 'E-block' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.eblock_qty ?? null),
-                    bobbin_qty: category === 'Bobbin' ? (freqVal === '' ? null : parseInt(freqVal)) : (existing.bobbin_qty ?? null)
-                };
-
-                try {
-                    const res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
+        async function resetGlobalLaserConfig() {
+            const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
+            if (!confirm(`ล้างค่า Frequency ทั้งหมดของ "${prodKey}" ?`)) return;
+            try {
+                if (prodKey === 'DEFAULT') {
+                    await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify({ product_key: 'DEFAULT', eblock_qty: null, bobbin_qty: null })
                     });
-                    if (!res.ok) throw new Error('save failed');
-                    await _fetchLaserConfig(true);
-                    loadGlobalLaserConfig();
-                    if (typeof showToast === 'function') showToast(`✅ บันทึก Laser Frequency สำหรับ "${prodKey}" สำเร็จ`, 'success');
-                    else alert('✅ บันทึก Laser Settings สำเร็จ');
-                } catch (e) {
-                    console.error('Save laser config failed', e);
-                    if (typeof showToast === 'function') showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'warn');
-                    else alert('❌ บันทึกไม่สำเร็จ: ' + e.message);
+                } else {
+                    await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config/' + encodeURIComponent(prodKey), { method: 'DELETE' });
                 }
+                await _fetchLaserConfig(true);
+                loadGlobalLaserConfig();
+                if (typeof showToast === 'function') showToast('ล้างค่า Laser Frequency เรียบร้อย', 'warn');
+            } catch (e) {
+                console.error('Reset laser config failed', e);
             }
+        }
 
-            async function resetGlobalLaserConfig() {
-                const prodKey = document.getElementById('gc-laser-product')?.value || 'DEFAULT';
-                if (!confirm(`ล้างค่า Frequency ทั้งหมดของ "${prodKey}" ?`)) return;
-                try {
-                    if (prodKey === 'DEFAULT') {
-                        await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ product_key: 'DEFAULT', eblock_qty: null, bobbin_qty: null })
-                        });
-                    } else {
-                        await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/laser_config/' + encodeURIComponent(prodKey), { method: 'DELETE' });
-                    }
-                    await _fetchLaserConfig(true);
-                    loadGlobalLaserConfig();
-                    if (typeof showToast === 'function') showToast('ล้างค่า Laser Frequency เรียบร้อย', 'warn');
-                } catch (e) {
-                    console.error('Reset laser config failed', e);
-                }
-            }
+        // ──────────────────────────────────────────────
+        //  DAMPER — Global Specs Config (Datum / Non-datum SPC limits + Frequency)
+        //  Backend: damper_config (process_mode, product_key, dimension_name, lsl..usl)
+        function resetGlobalDamperConfig() {
+            let prodKey = document.getElementById('gc-dmp-product')?.value;
+            if (!prodKey) prodKey = 'default';
+            if (!confirm(`ล้างค่าของ "${prodKey}" ?`)) return;
 
-            // ──────────────────────────────────────────────
-            //  DAMPER — Global Specs Config (Datum / Non-datum SPC limits + Frequency)
-            //  Backend: damper_config (process_mode, product_key, dimension_name, lsl..usl)
-            function resetGlobalDamperConfig() {
-                let prodKey = document.getElementById('gc-dmp-product')?.value;
-                if (!prodKey) prodKey = 'default';
-                if (!confirm(`ล้างค่าของ "${prodKey}" ?`)) return;
+            ['gc-dmp-datum-usl', 'gc-dmp-datum-ucl', 'gc-dmp-datum-cl', 'gc-dmp-datum-lcl', 'gc-dmp-datum-lsl',
+                'gc-dmp-nondatum-usl', 'gc-dmp-nondatum-ucl', 'gc-dmp-nondatum-cl', 'gc-dmp-nondatum-lcl', 'gc-dmp-nondatum-lsl',
+                'gc-dmp-freq-buyoff', 'gc-dmp-freq-roving'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
-                ['gc-dmp-datum-usl', 'gc-dmp-datum-ucl', 'gc-dmp-datum-cl', 'gc-dmp-datum-lcl', 'gc-dmp-datum-lsl',
-                    'gc-dmp-nondatum-usl', 'gc-dmp-nondatum-ucl', 'gc-dmp-nondatum-cl', 'gc-dmp-nondatum-lcl', 'gc-dmp-nondatum-lsl',
-                    'gc-dmp-freq-buyoff', 'gc-dmp-freq-roving'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            let existing = {};
+            try { existing = JSON.parse(localStorage.getItem('belton_damper_config_v1') || '{}'); } catch { }
+            delete existing[prodKey];
+            localStorage.setItem('belton_damper_config_v1', JSON.stringify(existing));
 
-                let existing = {};
-                try { existing = JSON.parse(localStorage.getItem('belton_damper_config_v1') || '{}'); } catch { }
-                delete existing[prodKey];
-                localStorage.setItem('belton_damper_config_v1', JSON.stringify(existing));
-
-                if (typeof showToast === 'function') showToast('ล้างค่าในฟอร์มแล้ว — กด "บันทึก" เพื่อบันทึกค่าว่างลงระบบ', 'warn');
-            }
+            if (typeof showToast === 'function') showToast('ล้างค่าในฟอร์มแล้ว — กด "บันทึก" เพื่อบันทึกค่าว่างลงระบบ', 'warn');
+        }
 
         function loadGlobalPofConfig() {
             let prodKey = document.getElementById('gc-pof-product')?.value;
