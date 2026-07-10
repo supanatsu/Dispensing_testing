@@ -15,30 +15,7 @@
       <div class="topbar-title">🔔 Alert Configuration</div>
     </header>
 
-    <div class="content" style="padding: 20px; max-width: 1200px; margin: 0 auto; width: 100%; min-width: 0; box-sizing: border-box;">
-      
-        <!-- System Email Account -->
-        <div style="background:var(--bg-card); border-radius:var(--radius); padding:24px; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-bottom:24px; border-left: 4px solid var(--warn);">
-            <h2 style="color:var(--primary-dark); margin-top:0; margin-bottom:12px;">ตั้งค่าบัญชีผู้ส่ง (Sender Outlook Account)</h2>
-            <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
-                บัญชีส่วนกลางที่ระบบใช้ส่งอีเมลแจ้งเตือนทั้งหมด</p>
-            <div style="display:flex; gap:16px; align-items:flex-end;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">อีเมล (Outlook)</label>
-                    <input type="email" id="sys-email" placeholder="belton_alert@outlook.com"
-                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;">
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">รหัสผ่าน (App Password / Password)</label>
-                    <input type="password" id="sys-pass" placeholder="********"
-                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;">
-                </div>
-                <div>
-                    <button onclick="saveSystemConfig()" class="btn"
-                        style="background:#10b981; color:#fff; padding:8px 16px; border:none; border-radius:6px; cursor:pointer;">บันทึกบัญชี</button>
-                </div>
-            </div>
-        </div>
+    <div class="content" style="padding: 20px; max-width: 100%; margin: 0 auto; width: 100%; min-width: 0; box-sizing: border-box;">
 
         <!-- Recipients -->
         <div style="background:var(--bg-card); border-radius:var(--radius); padding:24px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">

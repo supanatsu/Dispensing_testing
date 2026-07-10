@@ -19,7 +19,7 @@
         </header>
 
         <div class="content"
-            style="padding: 20px; max-width: 1200px; margin: 0 auto; width: 100%; min-width: 0; box-sizing: border-box;">
+            style="padding: 20px; max-width: 100%; margin: 0 auto; width: 100%; min-width: 0; box-sizing: border-box;">
             <div
                 style="background:var(--bg-card); border-radius:var(--radius); padding:24px; box-shadow:0 4px 6px rgba(0,0,0,0.04); margin-bottom:24px; border-left: 4px solid var(--blue);">
                 <div
@@ -1273,6 +1273,9 @@
                                     style="justify-content:flex-end;flex-direction:row;align-items:flex-end;gap:12px;">
                                     <button class="btn btn-outline" onclick="addDamperConfigRow()"
                                         style="padding:10px 16px; font-weight:600;">＋ เพิ่มพารามิเตอร์</button>
+                                    <button class="btn" onclick="importDatasetConfigs()"
+                                        style="padding:10px 16px; font-weight:600; background:#8b5cf6; color:#fff; border:none; border-radius:6px;">📥
+                                        ดึงค่าจาก Dataset</button>
                                     <button class="btn btn-danger" onclick="resetGlobalDamperConfig()"
                                         style="padding:10px 16px; font-weight:600; background:#fff; color:var(--fail); border-color:var(--fail);">↺
                                         Reset</button>
@@ -1281,17 +1284,20 @@
                         </div>
 
                         <!-- Table for Damper Specs -->
-                        <div style="background:#fff; border-radius:8px; overflow:hidden; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(0,0,0,0.02); margin-bottom: 16px;">
+                        <div
+                            style="background:#fff; border-radius:8px; overflow:hidden; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(0,0,0,0.02); margin-bottom: 16px;">
                             <table style="margin: 0; width: 100%; border-collapse: collapse;">
-                                <thead style="background: #f8fafc; font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <thead
+                                    style="background: #f8fafc; font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
                                     <tr>
                                         <th style="padding: 12px 16px; text-align: left;">PARAMETER NAME</th>
-                                        <th style="padding: 12px 16px; text-align: left;">LSL</th>
-                                        <th style="padding: 12px 16px; text-align: left;">LCL</th>
-                                        <th style="padding: 12px 16px; text-align: left;">CL (TARGET)</th>
-                                        <th style="padding: 12px 16px; text-align: left;">UCL</th>
-                                        <th style="padding: 12px 16px; text-align: left;">USL</th>
-                                        <th style="padding: 12px 16px; text-align: center;">ACTIONS</th>
+                                        <th style="padding: 12px 16px; text-align: left; color:#dc2626;">LSL</th>
+                                        <th style="padding: 12px 16px; text-align: left; color:#f97316;">LCL</th>
+                                        <th style="padding: 12px 16px; text-align: left; color:#1d4ed8;">CL (TARGET)
+                                        </th>
+                                        <th style="padding: 12px 16px; text-align: left; color:#f97316;">UCL</th>
+                                        <th style="padding: 12px 16px; text-align: left; color:#dc2626;">USL</th>
+                                        <th style="padding: 12px 16px; text-align: center;">STATUS</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sys-damper-tbody" style="font-size: 13px;">
@@ -1844,12 +1850,12 @@
             let legacyCfg = raw ? JSON.parse(raw) : { configs: currentSysCfg, productDims: {} };
             if (!legacyCfg.productDims) legacyCfg.productDims = {};
             if (!legacyCfg.productDims[mod]) legacyCfg.productDims[mod] = {};
-            
+
             const fBuy = parseInt(document.getElementById('sys-disp-freq-buyoff')?.value, 10);
             const fRov = parseInt(document.getElementById('sys-disp-freq-roving')?.value, 10);
             if (!isNaN(fBuy) && fBuy > 0) legacyCfg.productDims[mod].freqBuyoff = fBuy;
             if (!isNaN(fRov) && fRov > 0) legacyCfg.productDims[mod].freqRoving = fRov;
-            
+
             localStorage.setItem(lsKeyDisp, JSON.stringify(legacyCfg));
 
             fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/dispensing/batch', {
@@ -1858,7 +1864,7 @@
                 body: JSON.stringify({ limits })
             }).then(() => {
                 alert(`Saved Dispensing configs for ${mod}`);
-                
+
                 // Also optionally notify backend to save to config table if API exists
                 fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config/save', {
                     method: 'POST',
@@ -2101,6 +2107,45 @@
             return map[name] || name;
         }
 
+        // ─── loadGlobalDamperConfig ────────────────────────────────────────────
+        // ฟังก์ชันนี้ถูกเรียกทุกครั้งที่เปลี่ยน Product หรือ Data Type ใน Damper Config
+        // 1. โหลดค่า Freq จาก localStorage ก่อน
+        // 2. ถ้า currentDamperCfg ยังไม่มีข้อมูลสำหรับ Product นั้น → โหลดจาก localStorage (offline fallback)
+        // 3. เรียก renderDamperConfigTable() เพื่อแสดงตาราง
+        function loadGlobalDamperConfig() {
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || 'buyoff';
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+
+            filterDamperRows(); // sync show/hide freq fields
+
+            // ─── If we already have server data for this key, just render
+            if (currentDamperCfg[cfgKey] && Object.keys(currentDamperCfg[cfgKey]).length > 0) {
+                renderDamperConfigTable();
+                return;
+            }
+
+            // ─── Fallback: try localStorage (belton_damper_v3_config)
+            try {
+                const raw = localStorage.getItem('belton_damper_v3_config');
+                if (raw && mod) {
+                    const lsCfg = JSON.parse(raw);
+                    const prodSpecs = (lsCfg.productDims && lsCfg.productDims[mod])
+                        ? lsCfg.productDims[mod].specs || {}
+                        : {};
+
+                    if (Object.keys(prodSpecs).length > 0) {
+                        if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+                        Object.keys(prodSpecs).forEach(dim => {
+                            currentDamperCfg[cfgKey][dim] = { ...prodSpecs[dim] };
+                        });
+                    }
+                }
+            } catch (e) { }
+
+            renderDamperConfigTable();
+        }
+
         function renderDamperConfigTable() {
             const tbody = document.getElementById('sys-damper-tbody');
             if (!tbody) return;
@@ -2118,10 +2163,10 @@
 
             // Remove legacy keys if present so they don't clutter the UI
             const legacyKeys = ["1. Datum", "2. Non-datum"];
-            legacyKeys.forEach(k => { if(targetCfg[k]) delete targetCfg[k]; });
-            for(let i=1; i<=4; i++) {
-                if(targetCfg[`1. Datum (1/${i})`]) delete targetCfg[`1. Datum (1/${i})`];
-                if(targetCfg[`2. Non-datum (2/${i})`]) delete targetCfg[`2. Non-datum (2/${i})`];
+            legacyKeys.forEach(k => { if (targetCfg[k]) delete targetCfg[k]; });
+            for (let i = 1; i <= 4; i++) {
+                if (targetCfg[`1. Datum (1/${i})`]) delete targetCfg[`1. Datum (1/${i})`];
+                if (targetCfg[`2. Non-datum (2/${i})`]) delete targetCfg[`2. Non-datum (2/${i})`];
             }
 
             // Ensure the 8 standard points exist with correct defaults
@@ -2133,18 +2178,18 @@
                 { cl: 0.814, tol: 0.010 }, { cl: 0.814, tol: 0.010 },
                 { cl: 0.030, tol: 0.010 }, { cl: 0.030, tol: 0.010 }
             ];
-            
+
             for (let i = 1; i <= 4; i++) {
                 const key = `datum_pt${i}`;
                 if (!targetCfg[key] || targetCfg[key].cl == null) {
-                    const d = datumDefaults[i-1];
+                    const d = datumDefaults[i - 1];
                     targetCfg[key] = { lsl: d.cl - d.tol, lcl: null, cl: d.cl, ucl: null, usl: d.cl + d.tol, locked: 1 };
                 }
             }
             for (let i = 1; i <= 4; i++) {
                 const key = `nondatum_pt${i}`;
                 if (!targetCfg[key] || targetCfg[key].cl == null) {
-                    const d = nondatumDefaults[i-1];
+                    const d = nondatumDefaults[i - 1];
                     targetCfg[key] = { lsl: d.cl - d.tol, lcl: null, cl: d.cl, ucl: null, usl: d.cl + d.tol, locked: 1 };
                 }
             }
@@ -2153,18 +2198,21 @@
             let raw = localStorage.getItem('belton_damper_v3_config');
             let legacyCfg = raw ? JSON.parse(raw) : { productDims: {} };
             const prodLegacy = (legacyCfg.productDims && legacyCfg.productDims[mod]) ? legacyCfg.productDims[mod] : {};
-            
+
             const elBuy = document.getElementById('gc-dmp-freq-buyoff');
             const elRov = document.getElementById('gc-dmp-freq-roving');
             if (elBuy) elBuy.value = prodLegacy.freqBuyoff || legacyCfg.freqBuyoff || '';
             if (elRov) elRov.value = prodLegacy.freqRoving || legacyCfg.freqRoving || '';
 
             let html = '';
-            
+
+            // Group label helper
+            const prevGroup = { name: null };
+
             // Reorder so that datum comes before nondatum
             const sortedParams = Object.keys(targetCfg).sort((a, b) => {
-                if(a.startsWith('datum') && b.startsWith('nondatum')) return -1;
-                if(a.startsWith('nondatum') && b.startsWith('datum')) return 1;
+                if (a.startsWith('datum') && b.startsWith('nondatum')) return -1;
+                if (a.startsWith('nondatum') && b.startsWith('datum')) return 1;
                 return a.localeCompare(b);
             });
 
@@ -2172,25 +2220,101 @@
                 const vals = targetCfg[param];
                 if (typeof vals !== 'object') return;
                 const label = _damperDimLabel(param);
+
+                // Group header row
+                const groupName = param.startsWith('datum') ? '📐 1. Datum' : '📏 2. Non-datum';
+                if (groupName !== prevGroup.name) {
+                    prevGroup.name = groupName;
+                    const groupColor = param.startsWith('datum') ? '#3b82f6' : '#9b59b6';
+                    html += `<tr><td colspan="7" style="padding:10px 16px; background:${groupColor}10; font-size:11px; font-weight:800; color:${groupColor}; text-transform:uppercase; letter-spacing:0.5px; border-bottom:2px solid ${groupColor}30;">${groupName}</td></tr>`;
+                }
+
+                // Validate: highlight if LSL >= USL
+                const lslV = parseFloat(vals.lsl);
+                const uslV = parseFloat(vals.usl);
+                const hasError = !isNaN(lslV) && !isNaN(uslV) && lslV >= uslV;
+                const rowBg = hasError ? 'background:rgba(239,68,68,0.05);' : '';
+
                 html += `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 8px 16px;"><input type="text" value="${label}" readonly style="width:100%; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-weight:600; color:#475569; outline:none;" title="${param}"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lsl" value="${vals.lsl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="lcl" value="${vals.lcl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="cl" value="${vals.cl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="ucl" value="${vals.ucl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px;"><input type="number" step="any" class="sys-damper-val" data-param="${param}" data-type="usl" value="${vals.usl ?? ''}" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px; outline:none;"></td>
-                    <td style="padding: 8px 16px; text-align:center;">
-                        ${vals.locked ? '<span style="color:#94a3b8;font-size:12px;font-weight:600;">Locked (Std)</span>' : `<button class="btn btn-danger btn-sm" onclick="deleteDamperConfigRow('${param}')" style="padding:6px 12px; font-weight:600;">ลบ</button>`}
+                <tr style="border-bottom: 1px solid #f1f5f9; ${rowBg}">
+                    <td style="padding: 8px 16px; min-width:130px;">
+                        <div style="font-weight:700; font-size:13px; color:#374151;">${label}</div>
+                        <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${param}</div>
+                    </td>
+                    <td style="padding: 6px 10px;">
+                        <input type="number" step="0.0001" class="sys-damper-val" data-param="${param}" data-type="lsl"
+                            value="${vals.lsl ?? ''}"
+                            placeholder="LSL"
+                            style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px; outline:none; font-size:13px; font-weight:600; color:#dc2626;"
+                            oninput="onDamperSpecInput(this)">
+                    </td>
+                    <td style="padding: 6px 10px;">
+                        <input type="number" step="0.0001" class="sys-damper-val" data-param="${param}" data-type="lcl"
+                            value="${vals.lcl ?? ''}"
+                            placeholder="LCL"
+                            style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px; outline:none; font-size:13px; color:#f97316;"
+                            oninput="onDamperSpecInput(this)">
+                    </td>
+                    <td style="padding: 6px 10px;">
+                        <input type="number" step="0.0001" class="sys-damper-val" data-param="${param}" data-type="cl"
+                            value="${vals.cl ?? ''}"
+                            placeholder="CL"
+                            style="width:100%; padding:7px 10px; border:2px solid #3b82f6; border-radius:6px; outline:none; font-size:13px; font-weight:700; color:#1d4ed8; background:#eff6ff;"
+                            oninput="onDamperSpecInput(this)">
+                    </td>
+                    <td style="padding: 6px 10px;">
+                        <input type="number" step="0.0001" class="sys-damper-val" data-param="${param}" data-type="ucl"
+                            value="${vals.ucl ?? ''}"
+                            placeholder="UCL"
+                            style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px; outline:none; font-size:13px; color:#f97316;"
+                            oninput="onDamperSpecInput(this)">
+                    </td>
+                    <td style="padding: 6px 10px;">
+                        <input type="number" step="0.0001" class="sys-damper-val" data-param="${param}" data-type="usl"
+                            value="${vals.usl ?? ''}"
+                            placeholder="USL"
+                            style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px; outline:none; font-size:13px; font-weight:600; color:#dc2626;"
+                            oninput="onDamperSpecInput(this)">
+                    </td>
+                    <td style="padding: 6px 10px; text-align:center;">
+                        <span id="dmp-status-${param}" style="font-size:11px; font-weight:700; color:#10b981;">✓</span>
                     </td>
                 </tr>
             `;
             });
 
             if (!html) {
-                html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters</td></tr>';
+                html = '<tr><td colspan="7" style="padding: 24px; text-align:center; color:#64748b; font-size:14px; font-weight:500;">No parameters configured</td></tr>';
             }
             tbody.innerHTML = html;
+        }
+
+        // Real-time validation when user edits a spec cell
+        function onDamperSpecInput(inp) {
+            const param = inp.dataset.param;
+            const row = inp.closest('tr');
+            if (!row) return;
+            const lslEl = row.querySelector('[data-type="lsl"]');
+            const uslEl = row.querySelector('[data-type="usl"]');
+            const clEl = row.querySelector('[data-type="cl"]');
+            const statusEl = document.getElementById(`dmp-status-${param}`);
+
+            const lsl = parseFloat(lslEl?.value);
+            const usl = parseFloat(uslEl?.value);
+            const cl = parseFloat(clEl?.value);
+
+            let ok = true;
+            let msg = '✓';
+            let color = '#10b981';
+
+            if (!isNaN(lsl) && !isNaN(usl)) {
+                if (lsl >= usl) { ok = false; msg = '⚠ LSL≥USL'; color = '#ef4444'; }
+                else if (!isNaN(cl) && (cl < lsl || cl > usl)) { ok = false; msg = '⚠ CL out'; color = '#f97316'; }
+                else { msg = '✓ OK'; }
+            }
+
+            if (statusEl) { statusEl.textContent = msg; statusEl.style.color = color; }
+            if (inp) { inp.style.borderColor = ok ? '#e2e8f0' : '#ef4444'; }
         }
 
         function addDamperConfigRow() {
@@ -2221,14 +2345,49 @@
             renderDamperConfigTable();
         }
 
-        function saveDamperConfigs() {
+        const DATASET_DEFAULTS = {
+            "Dorado 10D NOAR-AAD": { "datum_pt1": { "lsl": 0.01488, "cl": 0.01783, "usl": 0.01841 }, "datum_pt2": { "lsl": 0.01456, "cl": 0.01566, "usl": 0.01737 }, "datum_pt3": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "datum_pt4": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt1": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt2": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt3": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt4": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 } },
+            "Dorado 5D": { "datum_pt1": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "datum_pt2": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "datum_pt3": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "datum_pt4": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "nondatum_pt1": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "nondatum_pt2": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "nondatum_pt3": { "lsl": 1, "cl": 1.05, "usl": 1.15 }, "nondatum_pt4": { "lsl": 1, "cl": 1.05, "usl": 1.15 } },
+            "Dorado 5D AL BB": { "datum_pt1": { "lsl": 0.01821, "cl": 0.01838, "usl": 0.01955 }, "datum_pt2": { "lsl": 0.01946, "cl": 0.01954, "usl": 0.01966 }, "datum_pt3": { "lsl": 0.0142, "cl": 0.0156, "usl": 0.01852 }, "datum_pt4": { "lsl": 0.01584, "cl": 0.01683, "usl": 0.01763 }, "nondatum_pt1": { "lsl": 0.01571, "cl": 0.01724, "usl": 0.01905 }, "nondatum_pt2": { "lsl": 1.192, "cl": 1.197, "usl": 1.202 }, "nondatum_pt3": { "lsl": 1.192, "cl": 1.197, "usl": 1.202 }, "nondatum_pt4": { "lsl": 1.192, "cl": 1.197, "usl": 1.202 } },
+            "DR10_NOAR-AAD-1": { "datum_pt1": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "datum_pt2": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "datum_pt3": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "datum_pt4": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt1": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt2": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt3": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 }, "nondatum_pt4": { "lsl": 0.01, "cl": 0.015, "usl": 0.02 } },
+            "Marlin 10D": { "datum_pt1": { "lsl": 0.016822, "cl": 0.017781, "usl": 0.017991 }, "datum_pt2": { "lsl": 0.014496, "cl": 0.015418, "usl": 0.016066 }, "datum_pt3": { "lsl": 0.015988, "cl": 0.01644, "usl": 0.016892 }, "datum_pt4": { "lsl": 0.01543, "cl": 0.0158, "usl": 0.016387 }, "nondatum_pt1": { "lsl": 0.011583, "cl": 0.012028, "usl": 0.014115 }, "nondatum_pt2": { "lsl": 0.01206, "cl": 0.013469, "usl": 0.013882 }, "nondatum_pt3": { "lsl": 0.013127, "cl": 0.013335, "usl": 0.013394 }, "nondatum_pt4": { "lsl": 0.01393, "cl": 0.014217, "usl": 0.014619 } },
+            "Summit 10D": { "datum_pt1": { "lsl": 0.01173, "cl": 0.01239, "usl": 0.012883 }, "datum_pt2": { "lsl": 0.012355, "cl": 0.01242, "usl": 0.014003 }, "datum_pt3": { "lsl": 0.012457, "cl": 0.013093, "usl": 0.014708 }, "datum_pt4": { "lsl": 0.012614, "cl": 0.01269, "usl": 0.013345 }, "nondatum_pt1": { "lsl": 0.011508, "cl": 0.011681, "usl": 0.012017 }, "nondatum_pt2": { "lsl": 0.011534, "cl": 0.012969, "usl": 0.012996 }, "nondatum_pt3": { "lsl": 0.01345, "cl": 0.01488, "usl": 0.0161 }, "nondatum_pt4": { "lsl": 0.01386, "cl": 0.01682, "usl": 0.0179 } }
+        };
+
+        function importDatasetConfigs() {
             const mod = document.getElementById('gc-dmp-product')?.value || '';
             const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
-            if (!mod) return alert('Please Select Product');
+            if (!mod) return showToast('⚠️ กรุณาเลือก Product ก่อนเพื่อโหลด Data', 'warn');
+
+            if (!DATASET_DEFAULTS[mod]) {
+                showToast(`ℹ️ ไม่มี Dataset Default สำหรับ ${mod}`, 'info');
+                return;
+            }
+
+            if (!confirm(`นำเข้าค่า Config ของ ${mod} จากแฟ้ม Dataset ใช่หรือไม่?\nข้อมูลในตารางจะถูกอัปเดต (อย่าลืมกด Save เพื่อบันทึก)`)) return;
 
             const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
             if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
 
+            const dataset = DATASET_DEFAULTS[mod];
+            Object.keys(dataset).forEach(pt => {
+                const spec = dataset[pt];
+                currentDamperCfg[cfgKey][pt] = { lsl: spec.lsl, lcl: null, cl: spec.cl, ucl: null, usl: spec.usl, locked: 1 };
+            });
+
+            renderDamperConfigTable();
+            showToast('✅ นำเข้าข้อมูลเรียบร้อย! กรุณากด "Save" เพื่อบันทึกลงระบบ', 'success');
+        }
+
+        function saveDamperConfigs() {
+            const mod = document.getElementById('gc-dmp-product')?.value || '';
+            const dtype = document.getElementById('gc-dmp-datatype')?.value || '';
+            if (!mod) { showToast('⚠️ กรุณาเลือก Product ก่อน', 'warn'); return; }
+
+            const cfgKey = (dtype === 'Roving' || dtype === 'roving') ? mod + '_rov' : mod;
+            if (!currentDamperCfg[cfgKey]) currentDamperCfg[cfgKey] = {};
+
+            // Read inputs from the config table
             const inputs = document.querySelectorAll('.sys-damper-val');
             inputs.forEach(inp => {
                 const param = inp.dataset.param;
@@ -2238,6 +2397,7 @@
                 currentDamperCfg[cfgKey][param][type] = val;
             });
 
+            // Build limits array for API
             const limits = [];
             Object.keys(currentDamperCfg[cfgKey]).forEach(dim => {
                 const vals = currentDamperCfg[cfgKey][dim] || {};
@@ -2250,47 +2410,66 @@
                 });
             });
 
-            // Save frequency to legacy storage
+            // ─── Save frequency & specs to localStorage (damper_v3_config) ──────
             let raw = localStorage.getItem('belton_damper_v3_config');
             let legacyCfg = raw ? JSON.parse(raw) : { productDims: {} };
             if (!legacyCfg.productDims) legacyCfg.productDims = {};
             if (!legacyCfg.productDims[mod]) legacyCfg.productDims[mod] = {};
-            
+
             const fBuy = parseInt(document.getElementById('gc-dmp-freq-buyoff')?.value, 10);
             const fRov = parseInt(document.getElementById('gc-dmp-freq-roving')?.value, 10);
             if (!isNaN(fBuy) && fBuy > 0) legacyCfg.productDims[mod].freqBuyoff = fBuy;
             if (!isNaN(fRov) && fRov > 0) legacyCfg.productDims[mod].freqRoving = fRov;
-            
+
+            // Also persist the spec values per-point to localStorage for offline use
+            if (!legacyCfg.productDims[mod].specs) legacyCfg.productDims[mod].specs = {};
+            limits.forEach(lim => {
+                legacyCfg.productDims[mod].specs[lim.dimension_name] = {
+                    lsl: lim.lsl, lcl: lim.lcl, cl: lim.cl, ucl: lim.ucl, usl: lim.usl
+                };
+            });
+
             localStorage.setItem('belton_damper_v3_config', JSON.stringify(legacyCfg));
-            
-            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/system/config/save', {
+
+            // ─── Instantly update the DAMPER_LIMITS cache ────────────────────────
+            if (!window.DAMPER_LIMITS) window.DAMPER_LIMITS = {};
+            if (!window.DAMPER_LIMITS[mod]) window.DAMPER_LIMITS[mod] = {};
+            limits.forEach(lim => {
+                window.DAMPER_LIMITS[mod][lim.dimension_name] = lim;
+            });
+
+            showToast(`✅ บันทึก Damper Spec สำหรับ ${mod} เรียบร้อยแล้ว`, 'success');
+
+            // ─── Immediately refresh Damper Install if it's open in the same page ─
+            if (typeof applyDamperConfigForProduct === 'function') {
+                const currentProd = document.getElementById('m-product')?.value;
+                if (currentProd === mod) {
+                    applyDamperConfigForProduct(mod);
+                    const freqOverride = parseInt(document.getElementById('m-qty')?.dataset?.freqTarget, 10) || null;
+                    if (typeof buildAllDimGroups === 'function') buildAllDimGroups(freqOverride);
+                    if (typeof buildStage2DimGroups === 'function') buildStage2DimGroups();
+                }
+            }
+
+            // ─── Push to backend API (async — non-blocking) ─────────────────────
+            const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+
+            fetch(apiBase + '/api/system/config/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: 'belton_damper_v3_config', value: legacyCfg })
-            }).catch(e => console.error("Legacy save error", e));
+            }).catch(e => console.error('Legacy save error', e));
 
-            fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/api/config/damper/batch', {
+            fetch(apiBase + '/api/config/damper/batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ limits })
             }).then(() => {
-                alert(`Saved Damper configs for ${mod}`);
-                
-                // Instantly update the local DAMPER_LIMITS cache so Stage 2 picks it up without reload
-                if (!window.DAMPER_LIMITS) window.DAMPER_LIMITS = {};
-                if (!window.DAMPER_LIMITS[mod]) window.DAMPER_LIMITS[mod] = {};
-                limits.forEach(lim => {
-                    window.DAMPER_LIMITS[mod][lim.dimension_name] = lim;
-                });
-                
-                // If the user already has the product selected in Damper Install tab, refresh it
-                if (typeof applyDamperConfigForProduct === 'function') {
-                    applyDamperConfigForProduct(mod);
-                    if (typeof buildStage2DimGroups === 'function' && document.getElementById('merge-product')?.value === mod) {
-                        buildStage2DimGroups();
-                    }
-                }
-            }).catch(e => { console.error(e); alert('Error saving'); });
+                showToast(`✅ Sync ขึ้น Server สำเร็จ — ${mod}`, 'success');
+            }).catch(e => {
+                console.warn('Server sync failed (offline?), saved to localStorage only:', e);
+                showToast('⚠️ บันทึกแบบ Offline — จะ sync เมื่อ Server พร้อม', 'warn');
+            });
         }
 
         function resetSysModelConfig() {

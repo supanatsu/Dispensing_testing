@@ -257,25 +257,42 @@ function applyDamperConfigForProduct(productKey) {
         if (g.usl !== null) specs.push(`USL: ${g.usl.toFixed(3)}`);
         g.subLabel = `Spec: ${specs.join(' | ')}`;
 
-        // Also load per-point limits from DAMPER_LIMITS (MySQL via system_config)
-        if (window.DAMPER_LIMITS) {
-            // Try to find limits per product key. We check both with productKey (passed outside) and generic
-            // DAMPER_LIMITS[productKey][dimension_name] where dimension_name is datum_pt1..4 or nondatum_pt1..4
-            g.points.forEach((pt, ptIdx) => {
-                const ptKey = `${g.key}_pt${ptIdx + 1}`; // e.g. datum_pt1, nondatum_pt3
-                // Search across all products for this dim key (productKey is outer scope)
-                const limObj = (window.DAMPER_LIMITS[productKey] || {})[ptKey];
-                if (limObj) {
-                    const ps = g.pointSpecs[pt] || {};
-                    if (limObj.lsl != null) ps.lsl = parseFloat(limObj.lsl);
-                    if (limObj.lcl != null) ps.lcl = parseFloat(limObj.lcl);
-                    if (limObj.cl != null) ps.cl = parseFloat(limObj.cl);
-                    if (limObj.ucl != null) ps.ucl = parseFloat(limObj.ucl);
-                    if (limObj.usl != null) ps.usl = parseFloat(limObj.usl);
-                    g.pointSpecs[pt] = ps;
-                }
-            });
-        }
+        // ─── Load per-point limits: prefer window.DAMPER_LIMITS (from MySQL/Server),
+        // then fall back to specs saved in localStorage (from System Config offline save)
+        g.points.forEach((pt, ptIdx) => {
+            const ptKey = `${g.key}_pt${ptIdx + 1}`; // e.g. datum_pt1, nondatum_pt3
+
+            let limObj = null;
+
+            // Priority 1: window.DAMPER_LIMITS (populated from server API)
+            if (window.DAMPER_LIMITS && window.DAMPER_LIMITS[productKey]) {
+                limObj = window.DAMPER_LIMITS[productKey][ptKey] || null;
+            }
+
+            // Priority 2: localStorage specs saved by System Config (offline/fallback)
+            if (!limObj) {
+                try {
+                    const rawLs = localStorage.getItem('belton_damper_v3_config');
+                    if (rawLs) {
+                        const lsCfg = JSON.parse(rawLs);
+                        const prodSpecs = (lsCfg.productDims && lsCfg.productDims[productKey])
+                            ? lsCfg.productDims[productKey].specs || {}
+                            : {};
+                        if (prodSpecs[ptKey]) limObj = prodSpecs[ptKey];
+                    }
+                } catch (e) {}
+            }
+
+            if (limObj) {
+                const ps = g.pointSpecs[pt] || {};
+                if (limObj.lsl != null) ps.lsl = parseFloat(limObj.lsl);
+                if (limObj.lcl != null) ps.lcl = parseFloat(limObj.lcl);
+                if (limObj.cl != null) ps.cl = parseFloat(limObj.cl);
+                if (limObj.ucl != null) ps.ucl = parseFloat(limObj.ucl);
+                if (limObj.usl != null) ps.usl = parseFloat(limObj.usl);
+                g.pointSpecs[pt] = ps;
+            }
+        });
     });
 }
 
@@ -408,15 +425,13 @@ function onProductChange() {
     if (partEl) partEl.value = p.partno || '';
     if (mcEl) mcEl.value = (p.mc !== '—') ? p.mc : '';
 
-    if (infoBar) infoBar.textContent =
-        `${p.label} · ${p.pcs} pcs/batch | Datum: 1.358±0.010 | Non-datum: 0.814±0.010`;
-
-    // Update Frequency
+    // ─── Update Frequency ───────────────────────────────────────
     // หมายเหตุ: ค่านี้คือจำนวนชิ้น "ตาม Frequency" ที่ตั้งไว้ใน System Config (System Config > Damper)
     // เป็นตัวกำหนดว่าต้อง Save Draft กี่ครั้ง (กี่ชิ้น) ถึงจะครบ 1 ชุดและ Push เข้า About Data (Waiting) ได้
     // ถ้าไม่ได้ตั้งค่า Frequency ไว้ ระบบจะ fallback ไปใช้ pcs/batch ของสินค้านั้น (ค่าตั้งต้นในระบบ)
     const qtyInput = document.getElementById('m-qty');
-    let freqTarget = p.pcs; // fallback
+    let freqTarget = p.pcs; // fallback to product default
+    let freqSource = 'default';
     if (qtyInput) {
         try {
             const raw = localStorage.getItem('belton_damper_v3_config');
@@ -434,20 +449,29 @@ function onProductChange() {
 
             if (activeFreq && !isNaN(parseInt(activeFreq, 10)) && parseInt(activeFreq, 10) > 0) {
                 freqTarget = parseInt(activeFreq, 10);
+                freqSource = 'config';
                 qtyInput.value = `${freqTarget}/Shift/Oven`;
             } else {
                 // ไม่มีค่า Frequency ที่ตั้งไว้ -> แจ้งผู้ใช้และใช้ pcs/batch แทน
-                qtyInput.value = `${freqTarget} (default pcs/batch)`;
+                qtyInput.value = `${freqTarget} pcs (default)`;
             }
         } catch (e) {
-            qtyInput.value = `${freqTarget} (default pcs/batch)`;
+            qtyInput.value = `${freqTarget} pcs (default)`;
         }
     }
     // เก็บค่า target ที่ใช้จริงไว้ใน dataset เพื่อให้ saveManualDraft() ดึงไปใช้ตอนบันทึก
     if (qtyInput) qtyInput.dataset.freqTarget = freqTarget;
 
-    // Build all 4 dimension groups
-    buildAllDimGroups(p.pcs);
+    // Update Info Bar with frequency indicator
+    if (infoBar) {
+        const freqLabel = freqSource === 'config'
+            ? `<span style="color:var(--pass);font-weight:700">✅ Freq: ${freqTarget} pcs</span>`
+            : `<span style="color:#f39c12;font-weight:700">⚠️ Freq: ${freqTarget} pcs (default — ตั้งค่าใน System Config)</span>`;
+        infoBar.innerHTML = `${p.label} &nbsp;|&nbsp; ${freqLabel} &nbsp;|&nbsp; Datum: 1.358±0.010 | Non-datum: 0.814±0.010`;
+    }
+
+    // Build dimension groups — pass freqTarget explicitly so grid always uses the correct row count
+    buildAllDimGroups(freqTarget);
     buildStage2DimGroups();
 }
 
@@ -617,13 +641,15 @@ function buildStage2DimGroups() {
 
 
 // ─── Build Dimension Groups ───────────────────────────────────
-function buildAllDimGroups(pts) {
+function buildAllDimGroups(freqOverride) {
     const container = document.getElementById('dim-groups-container');
     if (!container) return;
 
-    // Use freqTarget (or default to 4) as the number of pieces (rows)
+    // Use the explicitly passed freqOverride first, then fall back to dataset, then default to 4
     const qtyEl = document.getElementById('m-qty');
-    const pcs = parseInt(qtyEl?.dataset.freqTarget, 10) || 4;
+    const pcs = (freqOverride && !isNaN(freqOverride) && freqOverride > 0)
+        ? parseInt(freqOverride, 10)
+        : (parseInt(qtyEl?.dataset.freqTarget, 10) || 4);
 
     const allGroups = DIM_GROUPS.datum;
     container.innerHTML = allGroups.map(g => buildGroupHTML(g, pcs)).join('');
@@ -984,19 +1010,32 @@ function calcGroupDim(groupKey, pcs) {
 }
 
 function autoJudgeOverall() {
+    const mode = document.getElementById('m-mode')?.value || 'buyoff';
+    const isRoving = mode.includes('roving');
+
+    const vmiNG = VMI_ITEMS.some(v => document.getElementById(`vmi-${v.id}`)?.value === 'Fail');
+
+    // In Roving mode there are no dimension measurements — only VMI determines the result
+    if (isRoving) {
+        setOverallPF(vmiNG ? 'Fail' : 'Pass');
+        return;
+    }
+
+    // Buy Off / OBA mode: check both VMI and dimension results
     const allGroups = DIM_GROUPS.datum;
     let dimAllPass = true;
+    let dimHasData = false;
     allGroups.forEach(g => {
         if (!g.points) return;
         for (let col = 0; col < g.points.length; col++) {
             const el = document.getElementById(`${g.key}-result-pt${col}`);
-            if (el && el.textContent === 'FAIL') dimAllPass = false;
-            if (el && el.textContent === '-') dimAllPass = false; // missing data
+            if (el && el.textContent === 'FAIL') { dimAllPass = false; dimHasData = true; }
+            if (el && el.textContent !== '-') dimHasData = true;
         }
     });
-    
-    const vmiNG = VMI_ITEMS.some(v => document.getElementById(`vmi-${v.id}`)?.value === 'Fail');
-    const val = (vmiNG || !dimAllPass) ? 'Fail' : 'Pass';
+
+    // If no dimension data entered yet, don't force Fail — leave Pass as default
+    const val = (vmiNG || (dimHasData && !dimAllPass)) ? 'Fail' : 'Pass';
     setOverallPF(val);
 }
 

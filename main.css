@@ -257,7 +257,7 @@ header {
 
 .main {
   padding: 20px 24px;
-  max-width: 1600px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -1225,7 +1225,7 @@ input[type=checkbox] {
   /* 犧もｸ｢犧ｲ犧｢犧もｸｭ犧壟ｹ犧もｸ歩ｸ�ｸｧ犧ｲ犧｡犧≒ｸｧ犹霞ｸｲ犧�ｸｪ犧ｹ犧�ｸｪ犧ｸ犧扉ｹ�ｸｫ犹霞ｹ犧歩ｹ�ｸ｡犧謂ｸｭ犧伶ｸｵ犧ｧ犧ｵ */
   .container,
   .main {
-    max-width: 1800px;
+    max-width: 100%;
     padding: 60px 40px;
   }
 
